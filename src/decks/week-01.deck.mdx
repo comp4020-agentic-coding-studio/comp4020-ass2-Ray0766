@@ -1,48 +1,119 @@
 ---
-title: Opening lecture
-description: The placeholder deck — replace it with a real deck for your course
+title: The Rig
+description: Week 1 opening lecture — budget, weights, licenses, and the graph.
 ---
 
-# Opening lecture
+# The Rig
 
-{/* STARTER_CONTENT: replace this deck, then remove this comment. */}
-
-Replace this deck. It is here to show that slides are part of the site, built
-from the same markdown as everything else.
+_SLOP8760 · Week 1_
 
 ---
 
-## Slides are markdown
+## What this studio teaches
 
-A `---` starts a new slide. Everything else is ordinary markdown: headings,
-lists, links, tables, images, fenced code.
+Serialized vertical drama, produced almost entirely with generative video —
+one shot, one hook, one episode, one season, in that order.
 
-- one idea per slide
-- the fewest words that carry it
-- the deck is a performance artefact, so it can say things a page wouldn't
+---
+
+## The ramp
+
+- Weeks 1–6: **anime** grammar, **single** shots
+- Weeks 7–12: **live-action** grammar, **continuous** cuts
+- Every technique is proven small before it's asked to carry a season
+
+---
+
+## Before a single frame: the budget question
+
+VRAM, not price or processor speed, sets what you can run.
+
+---
+
+## Reading a spec sheet
+
+- More VRAM → bigger models, higher resolution, longer clips
+- Less VRAM → not slower. Often: **doesn't run at all**
+- Know your number before you plan a shot around a model you've only read
+  about
+
+---
+
+## Where the weights come from
+
+Public model repositories: one base release, then a long tail of
+community finetunes built on top of it.
+
+---
+
+## Licenses are not interchangeable
+
+- Some: commercial use, no questions
+- Some: research-only, non-commercial
+- Some: a responsible-use clause on specific output, regardless of what you
+  paid
+
+Read the license before you build a shot around a checkpoint.
+
+---
+
+## The graph is the artefact
+
+A node-based workflow engine: boxes are operations, wires carry data.
+
+---
+
+## Save the graph, not the frame
+
+Today's frame isn't the point. The graph is a **recipe** — rerun it with a
+new seed and get a comparable result.
 
 ---
 
 {/* _class: impact */}
 
-# A slide class
+## Render time is not shooting time
 
-`{/* _class: impact */}` fills the slide with the brand colour. `quote`,
-`banner` and `centered` are the others the theme styles.
+A five-second shot does not render in five seconds.
 
 ---
 
-## What else is here
+## Budget the wait
 
-```sh
-pnpm dev
-pnpm check
-```
+- Iteration compounds: three takes is three full renders, not one
+- Run batches while you do something else
+- Log timing now — Week 3 asks you to trust that log
 
-The second command proves the deck compiles with the rest of the site. Use the
-first to inspect every slide at the desktop and phone marking viewports; slide
-fit and legibility are visual judgements.
+---
 
-The [astromotion](https://github.com/ANUcybernetics/astromotion) README has the
-rest of the syntax: speaker notes, backgrounds, QR codes, fragments, and
-components hydrated per slide.
+## The semester, at a glance
+
+| Week | Assessment     | Weight |
+| ---- | -------------- | ------ |
+| 3    | Shot Portfolio | 15%    |
+| 6    | Anime Short    | 25%    |
+| 9    | A Longer Cut   | 25%    |
+| 12   | Season Opener  | 35%    |
+
+---
+
+## Before next lecture
+
+Install a workflow engine. Download one base model and one small finetune
+of it.
+
+---
+
+## This week's exercise
+
+One five-second clip, default settings. The same clip again, one parameter
+changed. Keep both graphs. Log both render times. Bring everything to
+Wednesday's Dailies.
+
+---
+
+{/* _class: quote */}
+
+## One shot, logged.
+
+Everything after this is easier if this week actually gets done.

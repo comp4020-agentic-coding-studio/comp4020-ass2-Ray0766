@@ -15,50 +15,54 @@ draft: false
 ---
 
 Before any shot gets made, four things have to be settled: the hardware
-you're actually working with, where its models come from, how you'll keep a
-record of what you did, and how long any of this actually takes. This
-lecture covers all four; skipping it means finding these limits by
-accident, mid-semester, on a deadline.
+you're working with, where its models come from, how you'll keep a record of
+what you did, and how long any of this actually takes. Skipping one means
+finding its limit by accident, mid-semester, on a deadline.
 
 ## The budget question
 
 On a consumer graphics card, the number that decides what you can do is
-VRAM — the memory built into the card — not its price, its marketing name,
-or its processor speed. VRAM is a hard ceiling: it sets the largest model
-you can load, the resolution you can generate at, and the longest clip you
-can produce in one pass. Less VRAM does not mean slower; past a point, it
-means the model does not run at all. Know your card's VRAM figure before
-planning a shot around a model you've only read about.
+VRAM — the memory built into the card — not its price or its processor
+speed. VRAM is a hard ceiling: it sets the largest model, the resolution,
+and the longest clip you can produce in one pass. Less VRAM does not mean
+slower; past a point, it means the model does not run at all. Know your
+card's VRAM figure before planning a shot around an unfamiliar model.
 
 ## Where the models come from
 
-The weight files a workflow engine loads come from public model
-repositories: one base release, then a long tail of community finetunes
-built on top of it. Every file carries a license, and licenses are not
-interchangeable: some permit commercial use outright, some are
-research-only or non-commercial, and a few carry a responsible-use clause
-restricting specific output regardless of what you're paying to run them.
-Read the license before building a shot, an assignment, or a season around
-a checkpoint.
+Model weight files come from public repositories: one base release, then a
+long tail of community finetunes built on it. Every file carries a license,
+and licenses are not
+interchangeable: some permit commercial use outright, some are research-only
+or non-commercial, and a few carry a responsible-use clause restricting
+specific output regardless of cost. Read the license before building a shot
+around a checkpoint.
 
 ## The graph is the artefact
 
-The tool for running a model is a node-based workflow engine: a visual
-graph where each box is one operation — load a model, sample an image,
-upscale, interpolate — and each wire carries data between them. Today's
-frame isn't what's worth keeping; the graph is. Save it, and you have a
-recipe you can rerun with a new seed, prompt, or source image, and get a
-comparable result on demand.
+The tool for running a model is a node-based workflow engine: a visual graph
+of operations connected by wires carrying data. Today's frame isn't what's
+worth keeping; the graph is. Save it, and you have
+a recipe you can rerun with a new seed or source image for a comparable
+result.
+
+## Render time is not shooting time
+
+On the fastest consumer card sold today, a five-second take renders in tens
+of seconds on the lighter models and over a minute on the heavier ones;
+mid-range hardware measures the same take in minutes. Call it five seconds
+of compute per second of footage at the optimistic end — before counting the
+takes you throw away. A shot that survives Dailies is rarely attempt one.
 
 ## Before class
 
 Install a node-based workflow engine and download one base model plus one
-small community finetune of it, so you have two checkpoints to compare on
-the same prompt.
+small community finetune, giving two checkpoints to compare on the same
+prompt.
 
 ## This week's exercise
 
 Generate one five-second clip on default settings, then generate it again
-after changing exactly one parameter. Keep both graph files, and note in one
-line each how long the two renders actually took on your hardware. Bring
-both clips, both graphs, and your timing notes to Wednesday's Dailies.
+after changing exactly one parameter. Keep both graph files and log both
+render times. Bring both clips and graphs, with your timing notes, to
+Wednesday's Dailies.

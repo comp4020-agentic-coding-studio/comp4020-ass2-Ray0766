@@ -9,9 +9,48 @@ teachers:
   - vera-lin
 related:
   - sessions/week-12
-draft: true
+draft: false
 ---
 
-The semester's last shot is not a shot at all but an assembly: two finished
-episodes and the bible that explains what a third would look like. This
-week is delivery, not production.
+The season is finished; this lecture is about what happens after it ships.
+A retention curve is the only honest review a piece of serialized drama
+gets, and reading it correctly is the last skill this course teaches.
+
+## Reading the curve
+
+A retention curve plots what share of viewers are still watching at each
+point in an episode, and its shape matters more than its overall average: a
+steady curve with one sharp drop tells a different story than a slow, even
+decline, even where both end at the same final number. The sharp drop is
+where something specific went wrong; the slow decline is closer to the whole
+episode being paced too loosely throughout.
+
+## Mapping drops back to the beat sheet
+
+Every drop-off point on the curve corresponds to a specific moment in the
+cut, and that moment maps back to a specific decision on the beat sheet — a
+hook that didn't land in three seconds, a scene change that read as
+confusing rather than deliberate, a stretch where beat density flattened
+out. The curve doesn't explain why a moment failed; it only points at where
+to look, in the same vocabulary this course has used since Week 5.
+
+## Planning from data, not instinct
+
+The bible gets revised against the retrospective, not against a general
+feeling about what to try next: which hook types actually held an audience,
+which characters' reference sheets needed the most patching, where the
+assembly line's quality gate caught the most shots. A second season's plan
+is a direct edit of the first season's bible against what the retention
+data actually showed.
+
+## Before class
+
+Bring the two finished episodes and series bible from Weeks 11 and 12 in
+their submission-ready state.
+
+## This week's exercise
+
+Write a one-page retrospective: where you'd expect your own retention curve
+to drop, based on your beat sheet, and one specific change you'd make to the
+bible for a hypothetical second season. Bring the retrospective, alongside
+the finished season, to Wednesday's Dailies.

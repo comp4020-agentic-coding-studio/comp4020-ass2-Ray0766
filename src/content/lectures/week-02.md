@@ -1,23 +1,17 @@
 ---
-title: Second lecture
+title: One Shot
 description:
-  Week 2 — the first substantive material, and the run-up to the first review
+  The single shot as the unit of production — framing, motion, and duration
+  inside a generation model's native clip length.
 week: 2
 date: 2027-03-01
 teachers:
-  - idris-fenn
+  - vera-lin
 related:
-  - sessions/02-first-review
-  - assessments/assignment-1
+  - sessions/week-02
+draft: true
 ---
 
-<!-- STARTER_CONTENT: replace this lecture, then remove this comment. -->
-
-Replace this page. It exists so the lectures listing sorts by week and the
-related block has more than one edge to draw.
-
-## Outline
-
-- the first substantive material, and where it shows up in practice
-- what the first review is looking for
-- reading before next week
+A generated clip runs a few seconds before the model loses the thread, so this
+week treats the single shot as the whole assignment: one framing decision, one
+camera move, one clean take. Coverage and continuity are next week's problem.

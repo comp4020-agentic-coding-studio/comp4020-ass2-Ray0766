@@ -11,6 +11,8 @@ description:
   one episode at a time, on a schedule that does not move for anyone's
   rewrite.
 role: Convener
+photo: ./vera-lin.avif
+photoAlt: Portrait of Vera Lin, Convener.
 ---
 
 Full biography to follow.

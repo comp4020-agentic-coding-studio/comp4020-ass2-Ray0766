@@ -11,6 +11,8 @@ description:
   hadn't changed, only the word for it. He watches student dailies with the
   same stopwatch discipline he once billed by.
 role: Tutor
+photo: ./dutch-meridian.avif
+photoAlt: Portrait of Dutch Meridian, Tutor.
 ---
 
 Full biography to follow.

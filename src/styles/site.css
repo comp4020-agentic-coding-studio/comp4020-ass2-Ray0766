@@ -23,9 +23,13 @@
    the H1 and lead there; MDX/markdown content is injected unwrapped), so
    this scope reaches exactly the page's own headings without reaching into
    a component's internal markup — a theme component gets restyled only
-   through its own class, never by winning a bare-element cascade fight. */
+   through its own class, never by winning a bare-element cascade fight.
+   The person page's H1 is the one exception: it sits inside `.person-header`
+   alongside the portrait rather than as a bare `.at-main` child, so the
+   selector below names that path explicitly instead of losing the scale. */
 
-.at-main > h1 {
+.at-main > h1,
+.at-main > .person-header > .person-header__text > h1 {
   font-size: clamp(2.75rem, 2rem + 3vw, 5rem);
   letter-spacing: -0.03em;
   line-height: 1.05;
@@ -779,5 +783,58 @@ p {
   .teaching-team__card:hover,
   .teaching-team__card:focus-visible {
     transform: none;
+  }
+}
+
+/* ----------------------------------------------------------------------
+   Person page header — H1 and role beside a contained portrait, never a
+   full-bleed banner: a headshot cropped to a wide hero aspect ratio lost
+   the sitter's face above the nose. The portrait is a fixed-width figure
+   with its own aspect ratio instead, so cropping (both source photos are
+   square) only ever trims the sides, never the top or bottom.
+   ---------------------------------------------------------------------- */
+
+.person-header {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  margin-block-end: 1.5rem;
+}
+
+.person-header__role {
+  margin: 0.4em 0 0;
+  font-size: 0.9rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--at-text-secondary);
+}
+
+.person-header__photo {
+  margin: 0;
+  width: 100%;
+  max-width: 18rem;
+}
+
+.person-header__photo img {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 4 / 5;
+  object-fit: cover;
+  border-radius: 20px;
+}
+
+@media (min-width: 900px) {
+  .person-header {
+    /* Source order already reads text, then photo — a row direction turns
+       that into left, then right, with no order override needed. */
+    flex-direction: row;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 2.5rem;
+  }
+
+  .person-header__photo {
+    flex: 0 0 18rem;
   }
 }

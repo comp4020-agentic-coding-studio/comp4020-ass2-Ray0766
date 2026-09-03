@@ -22,11 +22,10 @@ const BLURBS: Record<(typeof PHASES)[number]["key"], string> = {
     "Assembly, pacing, and delivery: cutting one season's worth of episodes into a release schedule.",
 };
 
-// Convener before Tutor, by the actual role string rather than the
-// convenor/tutor/guest/other enum the schema never adopted (see
-// people/[slug].astro and PeopleGrid.astro, both keyed to that enum and
-// so silently unordered/unlabelled against real content — pre-existing,
-// left alone here).
+// Convener before Tutor, by the actual role string content declares rather
+// than a convenor/tutor/guest/other enum the schema never adopted (role is a
+// free-text field, see content.config.ts). Same rule in PeopleGrid.astro and
+// people/[slug].astro: render the role string as-is everywhere it appears.
 const ROLE_ORDER = ["Convener", "Tutor"];
 const team = (await getPublishedCollection("people")).sort(
   (a, b) => ROLE_ORDER.indexOf(a.data.role) - ROLE_ORDER.indexOf(b.data.role),

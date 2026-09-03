@@ -5,21 +5,10 @@ import CardGrid from "astro-theme-university/components/CardGrid.astro";
 
 const people = await getPublishedCollection("people");
 
-const roleOrder: Record<string, number> = {
-  convenor: 0,
-  tutor: 1,
-  guest: 2,
-  other: 3,
-};
-
-// Map the role enum (convenor|tutor|guest|other) to display labels rather than
-// rendering the raw lowercase value.
-const roleLabels: Record<string, string> = {
-  convenor: "Convenor",
-  tutor: "Tutor",
-  guest: "Guest lecturer",
-  other: "",
-};
+// Convener before Tutor, by the actual role string content declares rather
+// than a convenor/tutor/guest/other enum the schema never adopted (role is a
+// free-text field, see content.config.ts).
+const ROLE_ORDER = ["Convener", "Tutor"];
 
 // photoAlt rides the schema's passthrough (definePeopleCollection has no
 // extension point), so it needs a cast out of the generated types.
@@ -29,8 +18,8 @@ function photoAlt(data: unknown): string | undefined {
 }
 
 const visible = people.sort((a, b) => {
-  const ra = roleOrder[a.data.role ?? "other"] ?? 99;
-  const rb = roleOrder[b.data.role ?? "other"] ?? 99;
+  const ra = ROLE_ORDER.indexOf(a.data.role);
+  const rb = ROLE_ORDER.indexOf(b.data.role);
   if (ra !== rb) return ra - rb;
   return a.data.title.localeCompare(b.data.title);
 });
@@ -46,9 +35,9 @@ const visible = people.sort((a, b) => {
         image={person.data.photo ?? undefined}
         imageAlt={photoAlt(person.data)}
       >
-        {person.data.role && roleLabels[person.data.role] && (
+        {person.data.role && (
           <p>
-            <small>{roleLabels[person.data.role]}</small>
+            <small>{person.data.role}</small>
           </p>
         )}
         <p>{person.data.description}</p>

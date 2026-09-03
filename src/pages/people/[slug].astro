@@ -1,7 +1,8 @@
 ---
+import { Image } from "astro:assets";
 import { render } from "astro:content";
 import { getPublishedCollection } from "astro-course-university/content";
-import ContentLayout from "astro-theme-university/layouts/ContentLayout.astro";
+import BaseLayout from "astro-theme-university/layouts/BaseLayout.astro";
 import DefaultDarkTheme from "../../components/DefaultDarkTheme.astro";
 import { siteConfig } from "../../site-config";
 import "../../styles/site.css";
@@ -14,15 +15,6 @@ export async function getStaticPaths() {
 const { person } = Astro.props;
 const { Content } = await render(person);
 
-// Map the role enum (convenor|tutor|guest|other) to display labels rather than
-// rendering the raw lowercase value.
-const roleLabels: Record<string, string> = {
-  convenor: "Convenor",
-  tutor: "Tutor",
-  guest: "Guest lecturer",
-  other: "",
-};
-const roleLabel = person.data.role ? roleLabels[person.data.role] : undefined;
 // Astro's generated type does not retain the image/alt refinement relationship,
 // so narrow the alt at the rendering boundary as well.
 const rawPhotoAlt = (person.data as { photoAlt?: unknown }).photoAlt;
@@ -32,21 +24,23 @@ const photoAlt = typeof rawPhotoAlt === "string" ? rawPhotoAlt : "";
 const description = person.data.description;
 ---
 
-<ContentLayout
-  title={person.data.title}
-  description={description}
-  heroImage={person.data.photo ?? undefined}
-  heroImageAlt={photoAlt}
-  {...siteConfig}
->
+<BaseLayout title={person.data.title} description={description} {...siteConfig}>
   <DefaultDarkTheme slot="head" />
-  <dl>
-    {roleLabel && (
-      <>
-        <dt>Role</dt>
-        <dd>{roleLabel}</dd>
-      </>
+  <div class="person-header">
+    <div class="person-header__text">
+      <h1>{person.data.title}</h1>
+      {person.data.role && <p class="person-header__role">{person.data.role}</p>}
+    </div>
+    {person.data.photo && (
+      <figure class="person-header__photo">
+        <Image src={person.data.photo} alt={photoAlt} width={480} height={600} />
+      </figure>
     )}
+  </div>
+
+  {description && <p class="lead">{description}</p>}
+
+  <dl>
     {person.data.affiliation && (
       <>
         <dt>Affiliation</dt>
@@ -78,4 +72,4 @@ const description = person.data.description;
   </dl>
 
   <Content />
-</ContentLayout>
+</BaseLayout>

@@ -1,5 +1,6 @@
 ---
 import ContentLayout from "astro-theme-university/layouts/ContentLayout.astro";
+import DefaultDarkTheme from "../../components/DefaultDarkTheme.astro";
 import SessionsGrid from "../../components/SessionsGrid.astro";
 import { sessionLabels, siteConfig } from "../../site-config";
 import "../../styles/site.css";
@@ -10,6 +11,7 @@ import "../../styles/site.css";
   description={`The twelve-week teaching schedule: what happens in each ${sessionLabels.singular.toLowerCase()}, what to prepare, and what leaves the room.`}
   {...siteConfig}
 >
+  <DefaultDarkTheme slot="head" />
   <p>
     Dailies run on Wednesdays, the way a production screens the previous
     day's footage: work goes up cold, in front of the room, and the notes are

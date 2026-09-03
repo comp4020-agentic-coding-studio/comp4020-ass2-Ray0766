@@ -378,15 +378,21 @@ p {
 }
 
 .phase-card {
+  /* Glass panel over the shader, in the page's own ink/surface tokens rather
+     than fixed white/black: at 80% opacity this used to read as near-solid
+     black regardless of theme, so light mode put a dark glass card on a
+     white page while the rest of the page stayed light. --at-bg-elevated
+     tracks the page (light frosted glass in light mode, dark glass in dark
+     mode) and still lets the 20% gap show the shader through. */
   position: relative;
   display: block;
   isolation: isolate;
   overflow: hidden;
   border-radius: 24px;
-  border: 1px solid color-mix(in oklab, var(--at-white) 18%, transparent);
-  background: color-mix(in oklab, var(--at-black) 80%, transparent);
+  border: 1px solid color-mix(in oklab, var(--at-text) 18%, transparent);
+  background: color-mix(in oklab, var(--at-bg-elevated) 80%, transparent);
   padding: 1.75rem;
-  color: var(--at-white);
+  color: var(--at-text);
   text-decoration: none;
   transition: transform 0.2s ease;
 }
@@ -420,7 +426,7 @@ p {
   inset: 0;
   background-image: radial-gradient(
     circle,
-    color-mix(in oklab, var(--at-white) 35%, transparent) 1px,
+    color-mix(in oklab, var(--at-text) 35%, transparent) 1px,
     transparent 1px
   );
   background-size: 14px 14px;
@@ -452,7 +458,7 @@ p {
 
 .phase-card__blurb {
   margin: 0;
-  color: color-mix(in oklab, var(--at-white) 85%, transparent);
+  color: var(--at-text-secondary);
 }
 
 .phase-card--foundations {
@@ -484,6 +490,12 @@ p {
    ---------------------------------------------------------------------- */
 
 .phase-chip {
+  /* --at-black/--at-white stay fixed here, like the hero: this is a
+     saturated brand-colour badge, not a page surface, so the fill is
+     designed to read the same dark-enough-for-white-text regardless of
+     page theme. A theme-tracking token would break the darkening math
+     instead of fixing anything — --at-text flips to a light ink in dark
+     mode, which would lighten the gradient instead of darkening it. */
   display: inline-flex;
   align-items: baseline;
   gap: 0.5em;

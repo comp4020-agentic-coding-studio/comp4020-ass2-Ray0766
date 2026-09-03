@@ -1,0 +1,14 @@
+---
+// BaseLayout's own theme-init script (colorScheme="auto") reads localStorage
+// `at-theme`, falling back to the OS preference, and writes `data-theme`
+// right before its `<slot name="head" />` — see BaseLayout.astro. Passing
+// this component into that slot runs it straight after, so it only has to
+// override the "nothing stored yet" case: a first visit lands on the dark
+// stage on any OS, while a stored preference (the footer toggle) still wins.
+---
+
+<script is:inline>
+  if (!localStorage.getItem("at-theme")) {
+    document.documentElement.dataset.theme = "dark";
+  }
+</script>

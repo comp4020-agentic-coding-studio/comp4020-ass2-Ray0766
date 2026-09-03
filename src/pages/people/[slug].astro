@@ -2,6 +2,7 @@
 import { render } from "astro:content";
 import { getPublishedCollection } from "astro-course-university/content";
 import ContentLayout from "astro-theme-university/layouts/ContentLayout.astro";
+import DefaultDarkTheme from "../../components/DefaultDarkTheme.astro";
 import { siteConfig } from "../../site-config";
 import "../../styles/site.css";
 
@@ -38,6 +39,7 @@ const description = person.data.description;
   heroImageAlt={photoAlt}
   {...siteConfig}
 >
+  <DefaultDarkTheme slot="head" />
   <dl>
     {roleLabel && (
       <>

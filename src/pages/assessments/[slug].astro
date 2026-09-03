@@ -7,19 +7,20 @@ import Callout from "astro-theme-university/components/Callout.astro";
 import ContentLayout from "astro-theme-university/layouts/ContentLayout.astro";
 import DefaultDarkTheme from "../../components/DefaultDarkTheme.astro";
 import MarkingModel from "../../components/MarkingModel.astro";
-import { formatCourseDate } from "../../lib/dates";
+import { assessmentWeekWindows, formatAssessmentLine } from "../../lib/assessment-weeks";
 import { graphCollections, siteConfig } from "../../site-config";
 import "../../styles/site.css";
 
 export async function getStaticPaths() {
   const assessments = await getPublishedCollection("assessments");
+  const windows = assessmentWeekWindows(assessments);
   return assessments.map((assessment) => ({
     params: { slug: assessment.id },
-    props: { assessment },
+    props: { assessment, weekWindow: windows.get(assessment.id) },
   }));
 }
 
-const { assessment } = Astro.props;
+const { assessment, weekWindow } = Astro.props;
 const { Content } = await render(assessment);
 ---
 
@@ -38,7 +39,7 @@ const { Content } = await render(assessment);
       </Callout>
     )
   }
-  <p><strong>Due:</strong> {formatCourseDate(assessment.data.due)} · <strong>Weight:</strong> {assessment.data.weight}%</p>
+  <p>{weekWindow && formatAssessmentLine(assessment, weekWindow)}</p>
   <Content />
   <SpecList spec={assessment.data.spec}>
     The brief poses the problem and leaves room for a response. The spec is the

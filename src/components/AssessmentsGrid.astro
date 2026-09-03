@@ -1,34 +1,14 @@
 ---
-import { getPublishedCollection, getRelatedEntries } from "astro-course-university/content";
+import { getPublishedCollection } from "astro-course-university/content";
 import CardGrid from "astro-theme-university/components/CardGrid.astro";
 import { withBase } from "astro-theme-university/url";
-import { formatCourseDate } from "../lib/dates";
+import { assessmentWeekWindows, formatAssessmentLine } from "../lib/assessment-weeks";
 import { phaseForWeek } from "../lib/phases";
-import { graphCollections } from "../site-config";
 import WeightBar from "./WeightBar.astro";
 
 const assessments = await getPublishedCollection("assessments");
 const visible = assessments.sort((a, b) => a.data.week - b.data.week);
-
-function formatWeeks(weeks: number[]): string {
-  if (weeks.length === 1) return `Week ${weeks[0]}`;
-  const contiguous = weeks.every((week, index) => index === 0 || week === weeks[index - 1] + 1);
-  if (contiguous) return `Weeks ${weeks[0]}–${weeks[weeks.length - 1]}`;
-  return `Weeks ${weeks.slice(0, -1).join(", ")} & ${weeks[weeks.length - 1]}`;
-}
-
-// Weeks that feed each assessment: its own week, plus the week of every
-// lecture/session connected to it via `related:` (either direction).
-const feederWeeks = new Map<string, number[]>();
-for (const assessment of visible) {
-  const related = await getRelatedEntries(assessment, graphCollections);
-  const weeks = new Set<number>([assessment.data.week]);
-  for (const entry of related) {
-    const week = (entry.data as { week?: unknown }).week;
-    if (typeof week === "number") weeks.add(week);
-  }
-  feederWeeks.set(assessment.id, [...weeks].sort((a, b) => a - b));
-}
+const windows = assessmentWeekWindows(visible);
 ---
 
 <div class="assessment-board">
@@ -37,7 +17,7 @@ for (const assessment of visible) {
     {
       visible.map((assessment) => {
         const phase = phaseForWeek(assessment.data.week);
-        const weeks = feederWeeks.get(assessment.id) ?? [assessment.data.week];
+        const weekWindow = windows.get(assessment.id);
         return (
           <a
             class={`at-card assessment-card assessment-card--${phase.key}`}
@@ -48,8 +28,8 @@ for (const assessment of visible) {
               {assessment.data.description && <p>{assessment.data.description}</p>}
               <p>
                 <small>
-                  Due {formatCourseDate(assessment.data.due)} · {formatWeeks(weeks)} · Weight:{" "}
-                  {assessment.data.weight}%{assessment.data.draft && " · Draft"}
+                  {weekWindow && formatAssessmentLine(assessment, weekWindow)}
+                  {assessment.data.draft && " · Draft"}
                 </small>
               </p>
             </div>

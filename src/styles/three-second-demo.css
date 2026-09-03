@@ -1,0 +1,83 @@
+.three-second-demo {
+  margin-block: var(--at-spacing-md);
+  max-width: 20rem;
+}
+
+.three-second-demo__frame {
+  position: relative;
+  aspect-ratio: 9 / 16;
+  border-radius: var(--at-border-radius);
+  overflow: hidden;
+  background: var(--at-accent-soft);
+}
+
+.three-second-demo__video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.three-second-demo__ring {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  opacity: 0;
+}
+
+.three-second-demo__ring rect {
+  fill: none;
+  stroke: var(--at-accent);
+  stroke-width: 3;
+  stroke-dasharray: 100;
+  stroke-dashoffset: 100;
+}
+
+.three-second-demo__ring.is-active {
+  opacity: 1;
+}
+
+.three-second-demo__ring.is-active rect {
+  animation: three-second-demo-ring 3s linear forwards;
+}
+
+@keyframes three-second-demo-ring {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .three-second-demo__ring {
+    display: none;
+  }
+}
+
+.three-second-demo__controls {
+  position: absolute;
+  inset-inline: 0;
+  bottom: var(--at-spacing-md);
+  display: flex;
+  justify-content: center;
+  gap: var(--at-spacing-sm);
+}
+
+.three-second-demo__decision {
+  display: flex;
+  gap: var(--at-spacing-sm);
+}
+
+/* The class's own `display` beats the UA stylesheet's [hidden] rule at equal
+   specificity, so the hidden attribute needs its own, more specific rule to
+   still take effect once JS sets it. */
+.three-second-demo__controls[hidden],
+.three-second-demo__decision[hidden] {
+  display: none;
+}
+
+.three-second-demo__payoff {
+  margin-block-start: var(--at-spacing-sm);
+  max-width: 28rem;
+}

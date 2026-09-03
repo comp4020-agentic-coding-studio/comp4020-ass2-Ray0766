@@ -1,0 +1,37 @@
+---
+import { withBase } from "astro-theme-university/url";
+import heroPoster from "../../assets/images/hero-home.avif";
+import "../../styles/three-second-demo.css";
+---
+
+<figure class="three-second-demo" data-three-second-demo>
+  <div class="three-second-demo__frame">
+    <video
+      class="three-second-demo__video"
+      muted
+      loop
+      playsinline
+      poster={heroPoster.src}
+      width="1080"
+      height="1920"
+    >
+      <source src={withBase("/hero-loop.mp4")} type="video/mp4" />
+      <track kind="captions" src={withBase("/hero-loop.vtt")} srclang="en" label="English" default />
+    </video>
+    <svg class="three-second-demo__ring" data-ring viewBox="0 0 90 160" aria-hidden="true" focusable="false">
+      <rect x="2" y="2" width="86" height="156" rx="12" pathLength="100"></rect>
+    </svg>
+    <div class="three-second-demo__controls" data-controls hidden>
+      <button type="button" class="at-button three-second-demo__play" data-play>Play</button>
+      <div class="three-second-demo__decision" data-decision hidden>
+        <button type="button" class="at-button at-button--outline" data-stay>Stay</button>
+        <button type="button" class="at-button at-button--outline" data-scroll>Scroll</button>
+      </div>
+    </div>
+  </div>
+  <figcaption class="three-second-demo__payoff" data-payoff>
+    That is the room's rule at Dailies: everyone decides before a word is said.
+  </figcaption>
+</figure>
+
+<script src="../../scripts/three-second-demo.ts"></script>

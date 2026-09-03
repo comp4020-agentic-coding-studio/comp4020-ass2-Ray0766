@@ -1,0 +1,43 @@
+.prompt-composer {
+  display: grid;
+  gap: var(--at-spacing-md);
+  margin-block: var(--at-spacing-md);
+}
+
+.prompt-composer__fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  gap: var(--at-spacing-sm) var(--at-spacing-md);
+  border: 1px solid var(--at-border);
+  border-radius: var(--at-border-radius);
+  padding: var(--at-spacing-md);
+}
+
+.prompt-composer__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--at-spacing-xs);
+}
+
+.prompt-composer__field--wide {
+  grid-column: 1 / -1;
+}
+
+.prompt-composer__light {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  gap: var(--at-spacing-sm) var(--at-spacing-md);
+}
+
+.prompt-composer__output {
+  border: 1px solid var(--at-border);
+  border-radius: var(--at-border-radius);
+  background: var(--at-accent-soft);
+  padding: var(--at-spacing-md);
+  margin: 0;
+}
+
+.prompt-composer__copy {
+  justify-self: start;
+}

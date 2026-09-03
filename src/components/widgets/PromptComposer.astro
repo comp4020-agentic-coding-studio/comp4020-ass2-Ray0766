@@ -1,0 +1,100 @@
+---
+import {
+  CAMERA_MOVES,
+  DEFAULT_FIELDS,
+  LIGHT_DIRECTIONS,
+  LIGHT_HARDNESS,
+  LIGHT_SOURCES,
+  SHOT_SIZES,
+  composePrompt,
+} from "../../lib/prompt-composer";
+import "../../styles/prompt-composer.css";
+
+const defaultPrompt = composePrompt(DEFAULT_FIELDS);
+---
+
+<form class="prompt-composer" data-prompt-composer>
+  <fieldset class="prompt-composer__fields">
+    <legend class="visually-hidden">Prompt fields</legend>
+
+    <label class="prompt-composer__field prompt-composer__field--wide">
+      <span>Subject</span>
+      <input type="text" name="subject" data-field="subject" value={DEFAULT_FIELDS.subject} />
+    </label>
+
+    <label class="prompt-composer__field">
+      <span>Shot size</span>
+      <select name="shot-size" data-field="shotSize">
+        {
+          SHOT_SIZES.map((option) => (
+            <option value={option.value} selected={option.value === DEFAULT_FIELDS.shotSize}>
+              {option.label}
+            </option>
+          ))
+        }
+      </select>
+    </label>
+
+    <label class="prompt-composer__field">
+      <span>Camera</span>
+      <select name="camera" data-field="camera">
+        {
+          CAMERA_MOVES.map((option) => (
+            <option value={option.value} selected={option.value === DEFAULT_FIELDS.camera}>
+              {option.label}
+            </option>
+          ))
+        }
+      </select>
+    </label>
+
+    <div class="prompt-composer__light" role="group" aria-label="Light">
+      <label class="prompt-composer__field">
+        <span>Light source</span>
+        <select name="light-source" data-field="lightSource">
+          {
+            LIGHT_SOURCES.map((option) => (
+              <option value={option.value} selected={option.value === DEFAULT_FIELDS.lightSource}>
+                {option.label}
+              </option>
+            ))
+          }
+        </select>
+      </label>
+
+      <label class="prompt-composer__field">
+        <span>Light direction</span>
+        <select name="light-direction" data-field="lightDirection">
+          {
+            LIGHT_DIRECTIONS.map((option) => (
+              <option value={option.value} selected={option.value === DEFAULT_FIELDS.lightDirection}>
+                {option.label}
+              </option>
+            ))
+          }
+        </select>
+      </label>
+
+      <label class="prompt-composer__field">
+        <span>Light hardness</span>
+        <select name="light-hardness" data-field="lightHardness">
+          {
+            LIGHT_HARDNESS.map((option) => (
+              <option value={option.value} selected={option.value === DEFAULT_FIELDS.lightHardness}>
+                {option.label}
+              </option>
+            ))
+          }
+        </select>
+      </label>
+    </div>
+  </fieldset>
+
+  <p class="prompt-composer__output" data-output>{defaultPrompt}</p>
+
+  <button type="button" class="at-button at-button--outline prompt-composer__copy" data-copy>
+    Copy prompt
+  </button>
+</form>
+
+<script src="../../scripts/prompt-composer.ts"></script>

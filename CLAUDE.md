@@ -132,7 +132,32 @@ find the real one or state the technique generically.
   character sha; `pnpm check:evidence` ignores plain-text shas and verifies
   each cited commit exists.
 
-## 9. STARTER_CONTENT markers
+## 9. Interactives
+
+Three lecture pages (weeks 2, 5, 12) carry a small widget demonstrating that
+week's own teaching point, embedded inline in the lecture's markdown via MDX.
+Any future widget in this family follows the same rules:
+
+- The static page carries the full teaching point with JS off. JS only adds
+  the live interaction (a composed sentence updating as you type, a timed
+  reveal, a draggable marker) — never the point itself.
+- Keyboard operable: native form controls where they suffice; a custom
+  control (the retention-curve scrubber, a segmented toggle) gets a real
+  `role`/`tabindex`/arrow-key handling, not just a mouse handler.
+- `prefers-reduced-motion` is respected — an animation gates out under the
+  media query; the underlying state change (a timer firing, a value updating)
+  still happens.
+- Colour comes from `--at-*` tokens only, same as the rest of the site; no
+  inline `style` attributes on these widgets.
+- Scripts are `.ts` files under `src/scripts/`, referenced with
+  `<script src="...">`; styles are `.css` files under `src/styles/`, one per
+  widget.
+- No fabricated numbers presented as data — a chart illustrating a shape says
+  so in its caption.
+- The register stays a syllabus: no exclamation marks, no counters or scores,
+  no "try it".
+
+## 10. STARTER_CONTENT markers
 
 A `STARTER_CONTENT` comment comes out only when the fragment it marks has
 actually been replaced with real content — not when the surrounding file was

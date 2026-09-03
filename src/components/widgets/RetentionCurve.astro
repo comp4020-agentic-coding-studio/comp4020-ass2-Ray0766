@@ -1,0 +1,74 @@
+---
+import { CURVES, CURVE_LABELS, CURVE_CAPTIONS, curvePath, PLOT, type CurveShape } from "../../lib/retention-curve";
+import "../../styles/retention-curve.css";
+
+const shapes = Object.keys(CURVES) as CurveShape[];
+const defaultShape: CurveShape = "sharp";
+const midY = (PLOT.y0 + PLOT.y1) / 2;
+---
+
+<figure class="retention-curve" data-retention-curve>
+  <div class="retention-curve__toggle" data-shape-toggle hidden>
+    {
+      shapes.map((shape) => (
+        <button
+          type="button"
+          class="at-button at-button--outline retention-curve__toggle-button"
+          data-shape-button={shape}
+          aria-pressed={shape === defaultShape ? "true" : "false"}
+        >
+          {CURVE_LABELS[shape]}
+        </button>
+      ))
+    }
+  </div>
+
+  <svg
+    class="retention-curve__plot"
+    viewBox="0 0 400 220"
+    role="img"
+    aria-label="Illustrative retention curve: share of viewers still watching over time"
+  >
+    <line class="retention-curve__axis" x1={PLOT.x0} y1={PLOT.y1} x2={PLOT.x1} y2={PLOT.y1}></line>
+    <line class="retention-curve__axis" x1={PLOT.x0} y1={PLOT.y0} x2={PLOT.x0} y2={PLOT.y1}></line>
+    <text class="retention-curve__axis-label" x={(PLOT.x0 + PLOT.x1) / 2} y="212" text-anchor="middle">Time</text>
+    <text
+      class="retention-curve__axis-label"
+      x="14"
+      y={midY}
+      text-anchor="middle"
+      transform={`rotate(-90, 14, ${midY})`}>Share still watching</text
+    >
+
+    {
+      shapes.map((shape) => (
+        <path class="retention-curve__line" data-shape-path={shape} d={curvePath(shape)} data-hidden={shape !== defaultShape ? true : undefined} />
+      ))
+    }
+
+    <circle class="retention-curve__marker-dot" data-marker-dot r="4"></circle>
+    <text class="retention-curve__marker-time" data-marker-time x="0" y="0"></text>
+
+    <rect
+      class="retention-curve__scrubber"
+      data-scrubber
+      x={PLOT.x0}
+      y={PLOT.y0}
+      width={PLOT.x1 - PLOT.x0}
+      height={PLOT.y1 - PLOT.y0}
+      tabindex="0"
+      role="slider"
+      aria-valuemin="0"
+      aria-valuemax="100"
+      aria-valuenow="50"
+      aria-label="Time along the retention curve"
+      data-hidden
+    ></rect>
+  </svg>
+
+  <figcaption class="retention-curve__caption" data-caption>
+    {CURVE_CAPTIONS[defaultShape]} Illustrative curve, not data.
+  </figcaption>
+</figure>
+
+<script src="../../scripts/retention-curve.ts"></script>

@@ -1,0 +1,99 @@
+.retention-curve {
+  margin-block: var(--at-spacing-md);
+}
+
+.retention-curve__toggle {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--at-spacing-sm);
+  margin-block-end: var(--at-spacing-sm);
+}
+
+/* The class's own `display: flex` beats the UA stylesheet's [hidden] rule at
+   equal specificity, same issue as the three-second demo's controls. */
+.retention-curve__toggle[hidden] {
+  display: none;
+}
+
+.retention-curve__toggle-button[aria-pressed="true"] {
+  background: var(--at-accent);
+  color: var(--at-on-accent);
+}
+
+.retention-curve__plot {
+  display: block;
+  width: 100%;
+  max-width: 32rem;
+  height: auto;
+}
+
+.retention-curve__axis {
+  stroke: var(--at-border);
+  stroke-width: 1;
+}
+
+.retention-curve__axis-label {
+  fill: var(--at-text-muted);
+  font-family: var(--at-font-body);
+  font-size: 10px;
+}
+
+.retention-curve__line {
+  fill: none;
+  stroke: var(--at-accent);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+/* SVG child elements don't carry Astro's typed `hidden` attribute, so shape
+   and scrubber visibility is driven by this plain data attribute instead. */
+.retention-curve__line[data-hidden],
+.retention-curve__scrubber[data-hidden] {
+  display: none;
+}
+
+.retention-curve__marker-dot {
+  fill: var(--at-accent);
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.retention-curve__marker-dot.is-visible {
+  opacity: 1;
+}
+
+.retention-curve__marker-time {
+  fill: var(--at-text);
+  font-family: var(--at-font-body);
+  font-size: 11px;
+  text-anchor: middle;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.retention-curve__marker-time.is-visible {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .retention-curve__marker-dot,
+  .retention-curve__marker-time {
+    transition: none;
+  }
+}
+
+.retention-curve__scrubber {
+  fill: transparent;
+  cursor: pointer;
+}
+
+.retention-curve__scrubber:focus-visible {
+  outline: 2px solid var(--at-accent);
+  outline-offset: 2px;
+}
+
+.retention-curve__caption {
+  margin-block-start: var(--at-spacing-sm);
+  max-width: 28rem;
+}

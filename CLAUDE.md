@@ -63,6 +63,11 @@ find the real one or state the technique generically.
 - Colour comes from the theme's `--at-*` tokens (derived from the Slop
   palette); no new base colours. Styles live in `.css` files the linters can
   see, not in `.astro` `<style>` blocks.
+- Unlayered CSS beats every theme layer: the theme wraps its own rules in
+  `@layer`, so an unlayered bare element selector (`h1 { ... }`) always wins
+  over a layered theme class regardless of specificity. The type scale is
+  scoped to page content (`.at-main > h1/h2/h3`, never bare elements), and a
+  theme component is restyled only through its own class.
 
 ## 5. Visual direction (decided 2026-09-01)
 

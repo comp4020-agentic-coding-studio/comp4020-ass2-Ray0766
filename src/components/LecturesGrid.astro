@@ -25,7 +25,7 @@ const groups = PHASES.map((phase) => ({
       <h2 id={group.phase.key} class={`phase-chip phase-chip--${group.phase.key}`}>
         {group.phase.title} <span class="phase-chip__weeks">{group.phase.weeks}</span>
       </h2>
-      <CardGrid columns={2}>
+      <CardGrid columns={3}>
         {group.lectures.map((lecture) => (
           <Card headingLevel="h3" title={lecture.data.title} href={`/lectures/${lecture.id}/`}>
             {lecture.data.description && <p>{lecture.data.description}</p>}

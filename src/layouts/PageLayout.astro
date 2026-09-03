@@ -2,8 +2,23 @@
 import MdxPageLayout from "astro-theme-university/layouts/MdxPageLayout.astro";
 import { siteConfig } from "../site-config";
 import "../styles/site.css";
+
+// MdxPageLayout renders the frontmatter description as a lead paragraph but
+// never an H1 — ContentLayout's detail routes get one because that layout
+// puts it there itself. Mirror that convention here (H1, then lead) so every
+// MDX page has the same header shape as every content-collection page,
+// instead of leaving it up to each page's own body to remember a `# Title`.
+// `lead={false}` hands the description back to us so it renders after the H1
+// rather than before it.
+const { frontmatter, ...direct } = Astro.props;
+const { title, description } = (frontmatter ?? direct) as {
+  title: string;
+  description?: string;
+};
 ---
 
-<MdxPageLayout siteConfig={siteConfig} {...Astro.props}>
+<MdxPageLayout siteConfig={siteConfig} lead={false} {...Astro.props}>
+  <h1>{title}</h1>
+  {description && <p class="lead">{description}</p>}
   <slot />
 </MdxPageLayout>

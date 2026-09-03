@@ -8,6 +8,7 @@ import ContentLayout from "astro-theme-university/layouts/ContentLayout.astro";
 import MarkingModel from "../../components/MarkingModel.astro";
 import { formatCourseDate } from "../../lib/dates";
 import { graphCollections, siteConfig } from "../../site-config";
+import "../../styles/site.css";
 
 export async function getStaticPaths() {
   const assessments = await getPublishedCollection("assessments");

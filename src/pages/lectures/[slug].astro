@@ -7,6 +7,7 @@ import { withBase } from "astro-theme-university/url";
 import TeachingTeam from "../../components/TeachingTeam.astro";
 import { formatCourseDate } from "../../lib/dates";
 import { graphCollections, siteConfig } from "../../site-config";
+import "../../styles/site.css";
 
 export async function getStaticPaths() {
   const lectures = await getPublishedCollection("lectures");

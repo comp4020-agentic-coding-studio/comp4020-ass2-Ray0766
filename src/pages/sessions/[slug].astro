@@ -6,6 +6,8 @@ import SpecList from "astro-course-university/components/SpecList.astro";
 import ContentLayout from "astro-theme-university/layouts/ContentLayout.astro";
 import DefaultDarkTheme from "../../components/DefaultDarkTheme.astro";
 import TeachingTeam from "../../components/TeachingTeam.astro";
+import WeekPager from "../../components/WeekPager.astro";
+import WeekStrip from "../../components/WeekStrip.astro";
 import { formatCourseDate } from "../../lib/dates";
 import { graphCollections, sessionLabels, siteConfig } from "../../site-config";
 import "../../styles/site.css";
@@ -26,6 +28,7 @@ const { Content } = await render(session);
 >
   <DefaultDarkTheme slot="head" />
   <p><strong>{formatCourseDate(session.data.date)}</strong></p>
+  <WeekStrip week={session.data.week} highlight="sessions" />
   <Content />
   <SpecList spec={session.data.spec}>
     What you bring to the session. Written so a reader can tell whether it has
@@ -33,4 +36,5 @@ const { Content } = await render(session);
   </SpecList>
   <TeachingTeam teachers={session.data.teachers} />
   <RelatedContent entry={session} collections={graphCollections} />
+  <WeekPager collection="sessions" week={session.data.week} />
 </ContentLayout>

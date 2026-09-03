@@ -1,0 +1,54 @@
+---
+import { getPublishedCollection } from "astro-course-university/content";
+import { withBase } from "astro-theme-university/url";
+
+interface Props {
+  week: number;
+  highlight: "lectures" | "sessions";
+}
+
+const { week, highlight } = Astro.props;
+
+const [lectures, sessions, assessments] = await Promise.all([
+  getPublishedCollection("lectures"),
+  getPublishedCollection("sessions"),
+  getPublishedCollection("assessments"),
+]);
+
+const lecture = lectures.find((entry) => entry.data.week === week);
+const session = sessions.find((entry) => entry.data.week === week);
+const assessment = assessments.find((entry) => entry.data.week === week);
+---
+
+<ul class="week-strip" aria-label={`Week ${week} at a glance`}>
+  <li>
+    Monday lecture:{" "}
+    {lecture ? (
+      highlight === "lectures" ? (
+        <strong>{lecture.data.title}</strong>
+      ) : (
+        <a href={withBase(`/lectures/${lecture.id}/`)}>{lecture.data.title}</a>
+      )
+    ) : (
+      "—"
+    )}
+  </li>
+  <li>
+    Wednesday Dailies:{" "}
+    {session ? (
+      highlight === "sessions" ? (
+        <strong>{session.data.title}</strong>
+      ) : (
+        <a href={withBase(`/sessions/${session.id}/`)}>{session.data.title}</a>
+      )
+    ) : (
+      "—"
+    )}
+  </li>
+  {assessment && (
+    <li>
+      Friday due: <a href={withBase(`/assessments/${assessment.id}/`)}>{assessment.data.title}</a> (
+      {assessment.data.weight}%)
+    </li>
+  )}
+</ul>

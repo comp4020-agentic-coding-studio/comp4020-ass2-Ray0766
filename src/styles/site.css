@@ -533,3 +533,41 @@ p {
 .phase-chip--series {
   --phase-color: var(--phase-series);
 }
+
+/* ----------------------------------------------------------------------
+   Week strip and pager — lecture and Dailies pages. The strip's own item
+   renders as text rather than a link (WeekStrip.astro), so it reads like a
+   "you are here" marker rather than a link to the current page.
+   ---------------------------------------------------------------------- */
+
+.week-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0;
+  margin-block: 0 1.5rem;
+  padding: 0;
+  list-style: none;
+  color: var(--at-text-secondary);
+}
+
+.week-strip li:not(:last-child)::after {
+  content: "\00a0\00b7\00a0";
+}
+
+.week-strip strong {
+  color: var(--at-text);
+  font-weight: 600;
+}
+
+.week-pager {
+  display: flex;
+  gap: 1rem;
+  margin-block-start: 3rem;
+  padding-block-start: 1.5rem;
+  border-block-start: 1px solid var(--at-divider);
+  font-weight: 600;
+}
+
+.week-pager__next {
+  margin-inline-start: auto;
+}

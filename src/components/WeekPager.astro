@@ -1,0 +1,31 @@
+---
+import { getPublishedCollection } from "astro-course-university/content";
+import { withBase } from "astro-theme-university/url";
+
+interface Props {
+  collection: "lectures" | "sessions";
+  week: number;
+}
+
+const { collection, week } = Astro.props;
+const entries = await getPublishedCollection(collection);
+const prev = entries.find((entry) => entry.data.week === week - 1);
+const next = entries.find((entry) => entry.data.week === week + 1);
+---
+
+{
+  (prev || next) && (
+    <nav class="week-pager" aria-label="Week navigation">
+      {prev && (
+        <a class="week-pager__prev" href={withBase(`/${collection}/${prev.id}/`)}>
+          ← Week {prev.data.week}
+        </a>
+      )}
+      {next && (
+        <a class="week-pager__next" href={withBase(`/${collection}/${next.id}/`)}>
+          Week {next.data.week} →
+        </a>
+      )}
+    </nav>
+  )
+}

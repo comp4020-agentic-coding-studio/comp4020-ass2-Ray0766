@@ -113,6 +113,8 @@ find the real one or state the technique generically.
 - The phone viewport is not a smaller desktop: a scroll choreography gets its
   own phone composition, not a scaled variant of the desktop one, and the H1
   must be fully readable at both viewports in every resting state.
+- Both colour themes are checked, because the OS chooses the default and the
+  footer toggle exists.
 
 ## 8. Evidence
 

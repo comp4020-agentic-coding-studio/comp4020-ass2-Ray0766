@@ -110,6 +110,9 @@ find the real one or state the technique generically.
   fix.
 - When a check fails, read its output before you change anything. Never make
   a check pass by weakening it or by rewording honest copy; widen the check.
+- The phone viewport is not a smaller desktop: a scroll choreography gets its
+  own phone composition, not a scaled variant of the desktop one, and the H1
+  must be fully readable at both viewports in every resting state.
 
 ## 8. Evidence
 

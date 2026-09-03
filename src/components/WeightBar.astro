@@ -32,3 +32,25 @@ const assessments = (await getPublishedCollection("assessments")).sort(
     })
   }
 </ol>
+{
+  /*
+   * Below 640px the bar itself shrinks to a thin proportional strip (its
+   * segment text is visually hidden, not removed — the link's accessible
+   * name still reads title and weight). This list is the sighted mobile
+   * replacement for that text; it's aria-hidden because the segment links
+   * above already carry the same information to assistive tech.
+   */
+}
+<ul class="weight-bar__legend" aria-hidden="true">
+  {
+    assessments.map((assessment) => {
+      const phase = phaseForWeek(assessment.data.week);
+      return (
+        <li class={`weight-bar__legend-item weight-bar__segment--${phase.key}`}>
+          <span class="weight-bar__legend-swatch" />
+          {assessment.data.title} · {assessment.data.weight}%
+        </li>
+      );
+    })
+  }
+</ul>

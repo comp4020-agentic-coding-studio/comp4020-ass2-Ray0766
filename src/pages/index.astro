@@ -129,10 +129,11 @@ const TEAM_BIOS: Record<string, string> = {
     }
   </ul>
 
-  <h2>
-    <a href={withBase("/assessments/")}>Assessment at a glance</a>
-  </h2>
+  <h2>Assessment at a glance</h2>
   <WeightBar />
+  <p class="assessment-glance-link">
+    <a href={withBase("/assessments/")}>All four pieces</a>
+  </p>
 
   <p class="home-links">
     <a href={withBase("/policies/")}>Policies</a> · <a href={withBase("/people/")}>People</a>

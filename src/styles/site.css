@@ -571,3 +571,137 @@ p {
 .week-pager__next {
   margin-inline-start: auto;
 }
+
+/* ----------------------------------------------------------------------
+   Weight bar — proportional assessment segments, shared by the
+   assessment index (inside .assessment-board, paired with cards below by
+   phase) and the home page's "at a glance" section (standalone). Segment
+   width is a build-time --weight custom property feeding flex-grow.
+   ---------------------------------------------------------------------- */
+
+.weight-bar {
+  display: flex;
+  gap: 2px;
+  margin-block: 0 2rem;
+  padding: 0;
+  list-style: none;
+}
+
+.weight-bar__segment {
+  flex-basis: 0;
+  flex-grow: var(--weight);
+  min-width: 3.5rem;
+  transition: box-shadow 0.15s;
+}
+
+.weight-bar__segment a {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.75rem 0.6rem;
+  background: var(--phase-color);
+  color: var(--at-black);
+  text-decoration: none;
+  line-height: 1.2;
+  transition: filter 0.15s;
+}
+
+.weight-bar__segment a:hover,
+.weight-bar__segment a:focus-visible {
+  filter: brightness(1.15);
+}
+
+.weight-bar__title {
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.weight-bar__weight {
+  font-size: 0.8rem;
+  opacity: 0.85;
+}
+
+.weight-bar__segment--foundations {
+  --phase-color: var(--phase-foundations);
+}
+
+.weight-bar__segment--anime {
+  --phase-color: var(--phase-anime);
+}
+
+.weight-bar__segment--liveaction {
+  --phase-color: var(--phase-liveaction);
+}
+
+.weight-bar__segment--series {
+  --phase-color: var(--phase-series);
+}
+
+@media (max-width: 640px) {
+  .weight-bar {
+    flex-direction: column;
+  }
+
+  .weight-bar__segment {
+    flex-grow: 0;
+  }
+}
+
+/* ----------------------------------------------------------------------
+   Assessment cards — hand-rolled rather than <Card>, reusing the theme's
+   own .at-card/.at-card-body/.at-card-title classes directly. <Card>
+   exposes no class or data-attribute passthrough, and wrapping it in an
+   extra element would break `.at-card-grid > .at-card`'s direct-child
+   subgrid rule that aligns card rows across columns.
+   ---------------------------------------------------------------------- */
+
+.assessment-card {
+  border-inline-start: 4px solid var(--phase-color);
+  transition:
+    background-color 0.15s,
+    box-shadow 0.15s;
+}
+
+.assessment-card--foundations {
+  --phase-color: var(--phase-foundations);
+}
+
+.assessment-card--anime {
+  --phase-color: var(--phase-anime);
+}
+
+.assessment-card--liveaction {
+  --phase-color: var(--phase-liveaction);
+}
+
+.assessment-card--series {
+  --phase-color: var(--phase-series);
+}
+
+.assessment-board:has(.weight-bar__segment--foundations a:is(:hover, :focus-visible))
+  .assessment-card--foundations,
+.assessment-board:has(.assessment-card--foundations:is(:hover, :focus-visible))
+  .weight-bar__segment--foundations {
+  box-shadow: inset 0 0 0 2px var(--at-text);
+}
+
+.assessment-board:has(.weight-bar__segment--anime a:is(:hover, :focus-visible))
+  .assessment-card--anime,
+.assessment-board:has(.assessment-card--anime:is(:hover, :focus-visible))
+  .weight-bar__segment--anime {
+  box-shadow: inset 0 0 0 2px var(--at-text);
+}
+
+.assessment-board:has(.weight-bar__segment--liveaction a:is(:hover, :focus-visible))
+  .assessment-card--liveaction,
+.assessment-board:has(.assessment-card--liveaction:is(:hover, :focus-visible))
+  .weight-bar__segment--liveaction {
+  box-shadow: inset 0 0 0 2px var(--at-text);
+}
+
+.assessment-board:has(.weight-bar__segment--series a:is(:hover, :focus-visible))
+  .assessment-card--series,
+.assessment-board:has(.assessment-card--series:is(:hover, :focus-visible))
+  .weight-bar__segment--series {
+  box-shadow: inset 0 0 0 2px var(--at-text);
+}

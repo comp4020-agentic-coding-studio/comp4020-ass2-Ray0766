@@ -1,0 +1,34 @@
+---
+/**
+ * Four proportional segments, one per assessment, coloured by the phase
+ * each piece closes. `--weight` feeds `flex-grow` so segment width tracks
+ * the mark it carries — the one deliberate inline style in this feature,
+ * since the proportion is a build-time number with nowhere else to live.
+ */
+import { getPublishedCollection } from "astro-course-university/content";
+import { withBase } from "astro-theme-university/url";
+import { phaseForWeek } from "../lib/phases";
+
+const assessments = (await getPublishedCollection("assessments")).sort(
+  (a, b) => a.data.week - b.data.week,
+);
+---
+
+<ol class="weight-bar" aria-label="Assessment weighting by phase">
+  {
+    assessments.map((assessment) => {
+      const phase = phaseForWeek(assessment.data.week);
+      return (
+        <li
+          class={`weight-bar__segment weight-bar__segment--${phase.key}`}
+          style={`--weight: ${assessment.data.weight}`}
+        >
+          <a href={withBase(`/assessments/${assessment.id}/`)}>
+            <span class="weight-bar__title">{assessment.data.title}</span>
+            <span class="weight-bar__weight">{assessment.data.weight}%</span>
+          </a>
+        </li>
+      );
+    })
+  }
+</ol>

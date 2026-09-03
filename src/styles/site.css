@@ -129,9 +129,12 @@ p {
   background: oklch(from var(--at-primary) 12% 0.008 h);
   /* Shared with .home-hero__card and .home-hero__kicker: the card's start
      size, hoisted here so the kicker can stay clear of it without knowing
-     the card's own rule. */
+     the card's own rule. --card-w-end is hoisted here too (rather than
+     staying local to .home-hero__card) so the word transforms below can
+     read it without knowing the card's own rule either. */
   --card-w-start: 17.5rem;
   --card-h-start: calc(var(--card-w-start) * 16 / 9);
+  --card-w-end: min(calc(85dvh * 9 / 16), calc(100vw - 2rem));
   /* Every animation-* sub-property stays fully longhand, none combined into
      the `animation` shorthand: if any of them use the shorthand, Lightning
      CSS's minifier folds animation-timeline back into it as
@@ -207,22 +210,24 @@ p {
 }
 
 .home-hero__word--left {
-  transform: translateX(calc(var(--p) * -38vw));
+  /* Slide to the centre of the free gutter beside the card's end size,
+     not a fixed 38vw: a fixed slide is tuned for one viewport and either
+     undershoots (leaves the words behind the card) or overshoots (pushes
+     a glyph past the edge) at any other width. -25vw - card-w-end/4 lands
+     the word's centre at the midpoint between the card's edge and the
+     viewport edge; 50% (the word's own width) and 0.25em (half the flex
+     gap) correct from the word's left edge, where translateX anchors, to
+     that centre. */
+  transform: translateX(calc(var(--p) * (-25vw - var(--card-w-end) / 4 + 0.25em + 50%)));
 }
 
 .home-hero__word--right {
-  transform: translateX(calc(var(--p) * 38vw));
+  transform: translateX(calc(var(--p) * (25vw + var(--card-w-end) / 4 - 0.25em - 50%)));
 }
 
 .home-hero__card {
-  /* --card-w-start is inherited from .home-hero__stage, shared with the
-     kicker's own positioning. */
-  /* Deriving width from height alone overshoots the screen on a tall, narrow
-     phone (85dvh * 9/16 is already 403px on a 390-wide viewport): cap it
-     against the viewport too, so aspect-ratio settles for a shorter card
-     instead of one wider than the screen that .home-hero__stage's
-     overflow:hidden would silently clip on one side. */
-  --card-w-end: min(calc(85dvh * 9 / 16), calc(100vw - 2rem));
+  /* --card-w-start and --card-w-end are inherited from .home-hero__stage,
+     shared with the kicker's and the words' own positioning. */
   position: relative;
   z-index: 1;
   aspect-ratio: 9 / 16;
@@ -247,11 +252,14 @@ p {
   .home-hero__card {
     width: var(--card-w-end);
   }
+  /* The p=1 case of the same gutter-centring formula above, not the old
+     fixed 38vw — this end state has to stay in sync with the animated one
+     or it re-introduces the same overshoot this section exists to fix. */
   .home-hero__word--left {
-    transform: translateX(-38vw);
+    transform: translateX(calc(-25vw - var(--card-w-end) / 4 + 0.25em + 50%));
   }
   .home-hero__word--right {
-    transform: translateX(38vw);
+    transform: translateX(calc(25vw + var(--card-w-end) / 4 - 0.25em - 50%));
   }
   .home-hero__scrim {
     opacity: 0.55;
@@ -272,15 +280,64 @@ p {
      transform: this block is the "end state, no animation" render the spec
      calls for, and the end state has the words apart, not centred — a bare
      transform: none shows the animation's start pose next to a card already
-     at its end size, a mismatched hybrid of the two. */
+     at its end size, a mismatched hybrid of the two. Same gutter-centring
+     formula as the animated version, evaluated at p=1. */
   .home-hero__word--left {
-    transform: translateX(-38vw);
+    transform: translateX(calc(-25vw - var(--card-w-end) / 4 + 0.25em + 50%));
   }
   .home-hero__word--right {
-    transform: translateX(38vw);
+    transform: translateX(calc(25vw + var(--card-w-end) / 4 - 0.25em - 50%));
   }
   .home-hero__scrim {
     opacity: 0.3;
+  }
+}
+
+/* Phone: no scroll runway. The desktop reveal depends on room beside the
+   card for the words to slide into; a screen this narrow doesn't have it.
+   One static composition instead — kicker, then the title on one line
+   above the card, then the card itself — inside a single dvh-minus-nav
+   screen, no word transforms, no scrim ramp (the words never overlap the
+   card here, so nothing needs darkening behind them). */
+@media (max-width: 640px) {
+  .home-hero {
+    height: calc(100dvh - var(--at-nav-height));
+  }
+
+  .home-hero__stage {
+    animation: none;
+  }
+
+  .home-hero__scrim {
+    opacity: 0;
+  }
+
+  .home-hero__content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    padding-inline: 1.5rem;
+  }
+
+  .home-hero__kicker,
+  .home-hero__title {
+    position: static;
+    transform: none;
+  }
+
+  .home-hero__title {
+    font-size: clamp(1.75rem, 1.3rem + 5vw, 2.5rem);
+  }
+
+  .home-hero__word--left,
+  .home-hero__word--right {
+    transform: none;
+  }
+
+  .home-hero__card {
+    width: 60vw;
   }
 }
 

@@ -11,8 +11,12 @@ description:
   one episode at a time, on a schedule that does not move for anyone's
   rewrite.
 role: Convener
+contact: Wednesdays 17:00–18:00, after Dailies
+email: vera.lin@slop.university
 photo: ./vera-lin.avif
 photoAlt: Portrait of Vera Lin, Convener.
 ---
 
-Full biography to follow.
+Vera convenes the course and gives the Monday lectures. Consultations are on
+Wednesdays after Dailies, for whatever the room did not get to; bring the
+log, not a description of it.

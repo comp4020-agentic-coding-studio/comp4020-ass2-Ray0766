@@ -11,8 +11,12 @@ description:
   hadn't changed, only the word for it. He watches student dailies with the
   same stopwatch discipline he once billed by.
 role: Tutor
+contact: Wednesdays 17:00–18:00, after Dailies
+email: dutch.meridian@slop.university
 photo: ./dutch-meridian.avif
 photoAlt: Portrait of Dutch Meridian, Tutor.
 ---
 
-Full biography to follow.
+Dutch runs Dailies and reads every production log before the room sees the
+shot it belongs to. He does not take meetings about a take he has not
+watched; send the file first.

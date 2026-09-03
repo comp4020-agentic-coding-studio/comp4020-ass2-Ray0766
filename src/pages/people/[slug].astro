@@ -67,8 +67,12 @@ const description = person.data.description;
         </dd>
       </>
     )}
-    <dt>Contact</dt>
-    <dd>{person.data.contact}</dd>
+    {person.data.contact && (
+      <>
+        <dt>Contact</dt>
+        <dd>{person.data.contact}</dd>
+      </>
+    )}
   </dl>
 
   <Content />

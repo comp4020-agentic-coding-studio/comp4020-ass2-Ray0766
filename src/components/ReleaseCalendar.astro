@@ -1,0 +1,128 @@
+---
+import { getPublishedCollection } from "astro-course-university/content";
+import { withBase } from "astro-theme-university/url";
+import { formatCourseDate } from "../lib/dates";
+import { phaseForWeek } from "../lib/phases";
+import "../styles/release-calendar.css";
+
+interface WeekRow {
+  kind: "week";
+  week: number;
+  date: Date;
+  phaseKey: string;
+  lecture?: { title: string; href: string };
+  session?: { title: string; href: string };
+  assessment?: { title: string; weight: number; href: string };
+}
+
+interface BreakRow {
+  kind: "break";
+  start: Date;
+  end: Date;
+}
+
+const [lectures, sessions, assessments] = await Promise.all([
+  getPublishedCollection("lectures"),
+  getPublishedCollection("sessions"),
+  getPublishedCollection("assessments"),
+]);
+
+const weekNumbers = [...new Set(lectures.map((entry) => entry.data.week))].sort((a, b) => a - b);
+
+const weekRows: WeekRow[] = weekNumbers.map((week) => {
+  const lecture = lectures.find((entry) => entry.data.week === week);
+  const session = sessions.find((entry) => entry.data.week === week);
+  const assessment = assessments.find((entry) => entry.data.week === week);
+  // spec/course-content.test.ts guarantees every week 1-12 has a lecture, so
+  // this lookup anchors the row's date without needing a fallback.
+  const date = lecture!.data.date;
+  return {
+    kind: "week",
+    week,
+    date,
+    phaseKey: phaseForWeek(week).key,
+    lecture: lecture && { title: lecture.data.title, href: withBase(`/lectures/${lecture.id}/`) },
+    session: session && { title: session.data.title, href: withBase(`/sessions/${session.id}/`) },
+    assessment: assessment && {
+      title: assessment.data.title,
+      weight: assessment.data.weight,
+      href: withBase(`/assessments/${assessment.id}/`),
+    },
+  };
+});
+
+// A gap of more than seven days between consecutive Mondays is a teaching
+// break — derived from the data, never a hard-coded date.
+const DAY_MS = 24 * 60 * 60 * 1000;
+const rows: Array<WeekRow | BreakRow> = [];
+weekRows.forEach((row, i) => {
+  rows.push(row);
+  const next = weekRows[i + 1];
+  if (next && (next.date.getTime() - row.date.getTime()) / DAY_MS > 7) {
+    rows.push({
+      kind: "break",
+      start: new Date(row.date.getTime() + 7 * DAY_MS),
+      end: new Date(next.date.getTime() - DAY_MS),
+    });
+  }
+});
+
+// Two columns of six teaching weeks, the break row sitting wherever it falls
+// chronologically — computed here rather than left to a CSS column-count,
+// which balances by height, not by item count.
+const columnSize = Math.ceil(weekRows.length / 2);
+const columns: Array<Array<WeekRow | BreakRow>> = [[], []];
+let weeksPlaced = 0;
+for (const row of rows) {
+  columns[weeksPlaced < columnSize ? 0 : 1].push(row);
+  if (row.kind === "week") weeksPlaced += 1;
+}
+---
+
+<section class="release-calendar" id="calendar" aria-labelledby="release-calendar-heading">
+  <h2 id="release-calendar-heading">Release calendar</h2>
+  <p class="release-calendar__lead">
+    Lecture Monday, Dailies Wednesday, due Friday. Twelve weeks, four phases, one break.
+  </p>
+  <div class="release-calendar__grid">
+    {
+      columns.map((column) => (
+        <ol class="release-calendar__column">
+          {column.map((row) =>
+            row.kind === "break" ? (
+              <li class="release-calendar__break">
+                Teaching break · {formatCourseDate(row.start)} – {formatCourseDate(row.end)}
+              </li>
+            ) : (
+              <li>
+                <article class={`release-calendar__week release-calendar__week--${row.phaseKey}`}>
+                  <h3>
+                    Week {row.week} · {formatCourseDate(row.date)}
+                  </h3>
+                  <dl>
+                    <div class="release-calendar__cell">
+                      <dt>Lecture</dt>
+                      <dd>{row.lecture ? <a href={row.lecture.href}>{row.lecture.title}</a> : "—"}</dd>
+                    </div>
+                    <div class="release-calendar__cell">
+                      <dt>Dailies</dt>
+                      <dd>{row.session ? <a href={row.session.href}>{row.session.title}</a> : "—"}</dd>
+                    </div>
+                    {row.assessment && (
+                      <div class="release-calendar__cell">
+                        <dt>Due</dt>
+                        <dd>
+                          <a href={row.assessment.href}>{row.assessment.title}</a> · {row.assessment.weight}%
+                        </dd>
+                      </div>
+                    )}
+                  </dl>
+                </article>
+              </li>
+            ),
+          )}
+        </ol>
+      ))
+    }
+  </div>
+</section>

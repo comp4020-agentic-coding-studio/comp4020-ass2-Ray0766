@@ -1,0 +1,98 @@
+/* Release calendar — home page. Every week/date/break in this markup comes
+   from ReleaseCalendar.astro's build-time read of the content collections;
+   nothing here is dated or numbered by hand. */
+
+.release-calendar {
+  margin-block: 3rem;
+}
+
+.release-calendar__lead {
+  color: var(--at-text-secondary);
+  max-width: 42rem;
+}
+
+.release-calendar__grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.5rem;
+  margin-block-start: 1.5rem;
+}
+
+@media (min-width: 1200px) {
+  .release-calendar__grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem 2rem;
+  }
+}
+
+.release-calendar__column {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.release-calendar__week {
+  display: block;
+  border-radius: 12px;
+  border: 1px solid var(--at-divider);
+  border-inline-start: 6px solid var(--phase-color);
+  background: var(--at-bg-alt);
+  padding: 0.9rem 1.1rem;
+  transition: background-color 0.15s ease;
+}
+
+.release-calendar__week:hover,
+.release-calendar__week:focus-within {
+  background: var(--at-bg-elevated);
+}
+
+.release-calendar__week h3 {
+  margin-block: 0 0.5rem;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.release-calendar__week dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.25rem 0.75rem;
+  margin: 0;
+}
+
+.release-calendar__cell {
+  display: contents;
+}
+
+.release-calendar__cell dt {
+  color: var(--at-text-secondary);
+  font-size: 0.85rem;
+}
+
+.release-calendar__cell dd {
+  margin: 0;
+}
+
+.release-calendar__week--foundations {
+  --phase-color: var(--phase-foundations);
+}
+.release-calendar__week--anime {
+  --phase-color: var(--phase-anime);
+}
+.release-calendar__week--liveaction {
+  --phase-color: var(--phase-liveaction);
+}
+.release-calendar__week--series {
+  --phase-color: var(--phase-series);
+}
+
+.release-calendar__break {
+  border-radius: 12px;
+  border: 1px dashed var(--at-border);
+  padding: 0.75rem 1.1rem;
+  color: var(--at-text-secondary);
+  font-size: 0.9rem;
+  font-style: italic;
+}

@@ -35,6 +35,9 @@ this list on the spot, in the same commit as the fix:
 - "delve" / "delve into"
 - "in today's fast-paced world" (or any "in today's ... world/landscape")
 
+Decks and pages state the same structure; a slide is content and is checked
+like a page.
+
 ## 3. Two layers of truth
 
 Everything about production craft — what a technique does, why it works, what

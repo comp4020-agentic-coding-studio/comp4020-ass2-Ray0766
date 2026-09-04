@@ -1,9 +1,9 @@
 ---
-title: Humans Are Hard
+title: Your Own Workflow
 description:
-  Why generated human performance is the hardest part of the pipeline — faces,
-  expression, and dialogue sync — and the workarounds the industry actually
-  uses.
+  Reading and rebuilding the workflow this course has been supplying —
+  loaders, conditioning, samplers, and a fix pass — and the permission to
+  go photoreal that comes with owning your own graph.
 week: 7
 date: 2027-04-19
 teachers:
@@ -13,52 +13,78 @@ related:
 draft: false
 ---
 
-The anime-first ramp of Weeks 1 through 6 was not only a stylistic choice; it
-was cover. Stylization absorbs the exact errors a generative model makes most
-often, so a slightly wrong hand or a slightly wrong eye reads as house style
-rather than failure. Live-action grammar removes that cover. The same
-generator and the same error rate now read as mistakes, because a human face
-has nowhere to hide them.
+Every exercise in Phase 2 ran on a graph this course supplied. That
+graph was never a black box — it was a specific arrangement of loaders,
+conditioning, and samplers doing the exact same job whether it was
+running text to image or image to video underneath. This week is spent
+opening it up, learning what each piece does, and rebuilding a version
+that's actually yours. From here forward, every exercise runs on your
+own graph, or your own API request shape, and photoreal work is
+permitted for the first time — because building your own graph is what
+demonstrates the reference discipline that photoreal work needs to
+survive the uncanny-valley problem stylisation was covering for until
+now.
 
-## The asymmetry
+## The four kinds of node
 
-As a rendered face approaches photorealism, small remaining errors produce a
-disproportionately strong negative reaction in a viewer, out of proportion to
-how minor the error looks in isolation — the uncanny valley effect. Anime
-style sits below that threshold, and an error there gets absorbed as style.
-Photorealism sits inside it, and the same category of error — a slightly
-wrong blink, a tooth that shifts between frames — gets amplified rather than
-forgiven. Nothing about the model changes between Week 6 and this week; only
-the tolerance for its mistakes does.
+A generation graph reduces to four recurring jobs, however many nodes it
+actually contains: loaders bring a model, a checkpoint, or a reference
+image into the graph; conditioning turns a prompt or a control signal
+into something the sampler can read; the sampler runs the actual
+denoising steps that turn noise into a result; and everything after the
+sampler is a fix pass — upscaling, a face restoration step, a colour
+correction — cleaning up what the sampler handed back. Recognising which
+of the four a node belongs to makes an unfamiliar graph readable in
+minutes instead of hours.
 
-## Where it breaks
+## Editing versus rebuilding
 
-Skin, eyes, teeth, and hands are where a realistic generated face fails first
-and most visibly: texture that reads slightly waxy, a gaze that doesn't quite
-track, teeth that shift shape between frames, fingers that fuse or multiply.
-These are not exotic failure modes; they are the default ones, and the only
-defense is checking for them specifically rather than trusting a shot that
-looks fine at a glance.
+Most of what a graph needs is a small edit, not a rewrite: swapping one
+loader's checkpoint, adding a second conditioning input, inserting one
+fix-pass node before the output. Rebuilding from an empty graph is rarely
+the right first move — it throws away a working arrangement of the four
+jobs above to relearn something that was already solved. The one
+exception is when this course's supplied graph does something the shot
+in front of it doesn't need at all, in which case removing that piece
+cleanly is worth more than working around it.
 
-## Casting a reference face
+## The graph has an equivalent in JSON
 
-Casting, on this rig, happens before a camera opens: it is the choice of one
-locked reference face that every later shot of that character gets checked
-against, the same discipline Week 4 used for anime leads. A realistic
-character without a locked reference will drift face to face in ways a
-simpler anime design hides. More takes get thrown away chasing a usable human
-performance than a usable anime one, so budget roughly double the render
-passes for the same number of finished shots.
+Every graph in a node-based workflow engine can be exported as a request
+body — the same loaders, conditioning, and sampler settings expressed as
+plain data rather than boxes and wires. That export is what an API-based
+rig sends instead of running the graph locally, and reading one is the
+same skill as reading the graph: find the four jobs inside the JSON the
+same way they'd be found inside the nodes.
+
+## The ladder
+
+The ladder this week climbs through how much of the supplied graph gets
+replaced, on one held-constant shot. The lowest tier is the bare
+supplied graph, unmodified, as a baseline. The next tier adds reference
+anchoring — a loader bringing in a locked reference image the original
+graph didn't use. The next tier adds an upscale and fix pass after the
+sampler. The top tier is a two-stage pipeline: a keyframe generated in
+one graph, then handed into a second graph that turns it into video.
 
 ## Before class
 
-Secure the rights to one real face you can legally use — your own, a
-consenting collaborator's, or a licensed reference set — and prepare one
-clean reference frame of it.
+Open the graph this course has been supplying and trace, node by node,
+which of the four jobs — loader, conditioning, sampler, fix pass — each
+one is doing.
 
 ## This week's exercise
 
-Generate three takes of that reference face performing one short line of
-dialogue. Reject at least one take in writing using the skin/eyes/teeth/hands
-checklist, and bring the reference frame, all three takes, and your rejection
-note to Wednesday's Dailies.
+Rebuild that graph across all four ladder tiers on one shot: the bare
+graph, plus reference anchoring, plus a fix pass, and finally the
+two-stage keyframe-then-video pipeline. Bring all four graph files and
+their outputs to Wednesday's Dailies.
+
+## Reading
+
+- [ComfyUI Examples](https://comfyanonymous.github.io/ComfyUI_examples/)
+  — worked graphs covering most of the loader, conditioning, and sampler
+  combinations this lecture describes.
+- [ComfyUI](https://github.com/comfyanonymous/ComfyUI) — the workflow
+  engine itself, including the JSON export format this week's reading
+  covers.

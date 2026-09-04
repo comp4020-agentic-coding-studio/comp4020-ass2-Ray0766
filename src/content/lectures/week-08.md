@@ -1,9 +1,9 @@
 ---
 title: Continuity
 description:
-  Holding a look across shots and episodes — costume, location, and prop
-  consistency — with the reference libraries that make it checkable rather
-  than remembered.
+  Holding a character and a location steady across shots with a reference
+  library and a model sheet — LoRA and DreamBooth against reference
+  adapters, the scene master plate, and the audit that checks it held.
 week: 8
 date: 2027-04-26
 teachers:
@@ -13,51 +13,84 @@ related:
 draft: false
 ---
 
-A generated character has no memory of its own face between shots; whatever
-consistency a scene has comes entirely from what gets fed back into the
-generator, not from anything the model remembers on its own. Continuity, on
-this rig, is an engineering problem before it's a craft one: hold the same
-reference inputs across every shot and the character holds; drop them and it
-drifts, shot by shot, in ways nobody notices until a scene is cut together.
+A generated character has no memory of its own face between shots;
+whatever consistency a scene has comes entirely from what gets fed back
+into the generator on your own graph, not from anything the model
+remembers on its own. This week turns that feeding-back into a system: a
+reference library built once, a model sheet that documents what's in it,
+and an audit that checks every new shot against it rather than trusting
+a general impression.
 
-## Identity is anchored, not remembered
+## Two ways to lock identity
 
-Cross-shot identity comes from reference anchoring, not from a model
-recognizing its own previous output. Every shot of a character should trace
-back to the same locked reference — the sheet or frame built in Week 4 or
-Week 7 — rather than being regenerated fresh from a text description each
-time and hoped into consistency. A description that reads the same on paper
-can still generate a visibly different face on two different days; only a
-shared reference input holds the face still.
+There are two genuinely different ways to make a generator produce the
+same face repeatedly. Reference adapters — the kind Phase 2 already
+used to carry identity from an image into a new generation — need no
+training and work the moment a reference image exists, but they hold
+identity loosely enough that drift is still possible under enough
+motion or style pressure. LoRA and DreamBooth work the opposite way:
+both fine-tune a small set of weights on several images of the same
+subject, producing a checkpoint that reproduces that subject more
+reliably than any single reference image can, at the cost of needing a
+training pass before the first shot instead of after it.
 
-## What drifts
+## The model sheet
 
-Faces are not the only thing that drifts. Costume details, props, and the
-specific look of a location drift the same way once a scene runs past a
-handful of shots — a jacket gains a zipper it didn't have, a mug changes
-color, a room gains a window it didn't have before. Anything a viewer could
-plausibly notice needs its own reference input, not just the character's
-face.
+A model sheet is the document a reference library becomes once it's
+organised for someone else to use: a face reference, a full costume
+reference, and a short list of props or details a viewer would notice if
+they changed. Building the sheet once, before the season's first real
+shot, is what turns "I remember what the costume looks like" into
+something a second person — or a second week of production — can check
+against without asking.
 
-## An audit, not a feeling
+## The scene master plate
 
-Checking continuity means comparing every new shot against its reference
-library item by item — face, costume, key props, location — not watching a
-rough cut and trusting a general sense that it worked. Once a reference set
-for a character or location is locked, it is frozen for the run of the
-season: no swapping to a different reference face partway through because a
-later shot generated a version someone preferred. A frozen reference is what
-makes cross-episode continuity possible at all.
+A scene that runs several shots in the same location needs one more
+reference beyond the character: a master plate of the location itself,
+locked the same way a face is locked, so a background detail doesn't
+drift between two shots that are supposed to be seconds apart in the
+same room. Without a master plate, a location regenerated fresh for each
+shot will look plausible in isolation and inconsistent the moment two
+shots sit next to each other in an edit.
+
+## The audit
+
+Checking continuity means comparing every new shot against the model
+sheet and the master plate item by item — face, costume, key props,
+location — not watching a rough cut and trusting that it felt right. An
+audit produces a pass or fail per item, not a single verdict for the
+whole shot, because a shot can pass on the face and fail on a prop in
+the background at the same time.
+
+## The ladder
+
+The ladder this week builds one two-shot scene, climbing through how
+complete the reference set behind it is. The lowest tier uses a single
+face crop as the only reference. The next tier adds a half-body and a
+full-body reference alongside the face. The next tier adds a full
+reference set covering multiple costume states. The top tier keeps the
+full set and adds a scene master plate for the location the two shots
+share.
 
 ## Before class
 
-Build a small reference library — one locked frame each for a character's
-face, their costume, and one recurring prop or location — from footage
-already on hand.
+Gather whatever reference images already exist for one character —
+even just a single face crop — to use as the starting point for this
+week's ladder.
 
 ## This week's exercise
 
-Generate three new shots of that character in the same costume, checked
-against the reference library shot by shot. Log where each shot passed or
-failed the audit, and bring the library, the three shots, and the audit notes
-to Wednesday's Dailies.
+Build all four ladder tiers of reference material, then generate the
+same two-shot scene against each tier and audit both shots item by
+item. Bring the four reference sets, the resulting shots, and the audit
+notes to Wednesday's Dailies.
+
+## Reading
+
+- [LoRA: Low-Rank Adaptation of Large Language Models](https://arxiv.org/abs/2106.09685)
+  — the fine-tuning technique behind the fastest way to lock a character
+  identity harder than a reference image alone can.
+- [DreamBooth: Fine Tuning Text-to-Image Diffusion Models for
+  Subject-Driven Generation](https://arxiv.org/abs/2208.12242) — the
+  technique this week's model-sheet training pass is built on.

@@ -1,9 +1,9 @@
 ---
-title: The Three-Second Hook
+title: Text to Video
 description:
-  The vertical-drama convention that a viewer decides whether to keep
-  watching inside the first three seconds, and what that does to every shot
-  before it.
+  The third generator — the four-sentence prompt that controls motion
+  directly from words, a model's native clip length, and how to read a
+  take that failed.
 week: 5
 date: 2027-03-22
 teachers:
@@ -13,51 +13,71 @@ related:
 draft: false
 ---
 
-import ThreeSecondDemo from "../../components/widgets/ThreeSecondDemo.astro";
+import PromptComposer from "../../components/widgets/PromptComposer.astro";
 
-Vertical drama is watched thumb-first: a viewer's default action is to keep
-scrolling, and a shot has roughly three seconds to give them a reason not
-to. Everything else this course teaches is wasted if the first three
-seconds don't earn the rest of the episode, so this week is entirely about
-the opening shot.
+Text to video generates motion from words alone, with nothing to anchor
+composition but the prompt itself. That's weaker control than starting
+from a keyframe, but it's the fastest way to test an idea before
+committing an image to it, and every video generator this course uses has
+a native clip length — the duration one pass reliably holds together
+before coherence starts to fall apart — that the prompt has to respect
+rather than fight.
 
-<ThreeSecondDemo />
+## The four sentences
 
-## Four kinds of hook
+A usable video prompt collapses into four sentences, each doing one job:
+who or what the subject is and what it's doing, how close the shot is —
+the shot size, from wide to close-up — what the camera itself is doing
+while the subject acts, and what the light is doing. Write those four in
+order, inside the model's native clip length, and the prompt is usable
+before style ever enters the conversation.
 
-A cold open reliably uses one of four devices in its first shot: a mystery
-hook, which shows a consequence without its cause and makes the viewer want
-the missing setup; a conflict-in-progress hook, which starts mid-argument
-or mid-chase rather than building up to it; a visual-anomaly hook, which
-puts something wrong or unexpected in frame before any dialogue explains
-it; and a direct-address hook, which has a character speak straight to
-camera as if to the viewer. Pick one on purpose — a shot trying to be all
-four at once earns none of them.
+<PromptComposer />
 
-## Cutting the setup
+## Reading a bad take
 
-The instinct to establish a location or a character before the story
-starts is exactly backwards for this format: cut the establishing shot and
-start inside the scene that would normally follow it. A viewer who needs
-context will stay for it if the hook worked; a viewer who was never going
-to stay was never going to sit through the establishing shot either.
+A failed text-to-video take tends to fail in one of three specific ways:
+motion that reads as physically wrong rather than merely stylised, a cut
+where the model quietly changes what the subject looks like partway
+through the clip, or a camera move that contradicts what the prompt asked
+for. Naming which of the three happened is more useful than a general
+"this doesn't look right," because each one points at a different
+sentence in the prompt to fix.
 
-## Beat rhythm
+## The ladder
 
-Inside the episode, attention is held the same way it was won: with a turn
-every few seconds, and the cut itself landing on or just after that turn
-rather than before it. A hook that isn't followed by beats at a similar
-rhythm just delays the scroll instead of preventing it.
+The ladder for a text-to-video prompt runs four rising tiers, plus one
+tier that is not a top but a warning. The lowest tier is one line naming
+only the subject. The next tier adds the subject's action. The next tier
+writes out the full four sentences — subject, shot size, camera, light.
+The top tier keeps those four and adds a specific beat the action turns
+on, plus a negative prompt naming what the shot must not do. And a
+counter-example, not a fifth rung: the same four sentences buried under
+contradictory camera and style demands at once, which reliably produces
+a worse result than the plain four sentences alone — worth generating
+once, on purpose, to see what over-specifying actually costs.
 
 ## Before class
 
-Bring the still and shot from Week 2 or Week 3 that you think is closest to
-hook material, plus one sentence on which of the four hook types it could
-become.
+Pick one action you want to see performed and write it as a single
+sentence, with no camera or light information yet.
 
 ## This week's exercise
 
-Build a cold open of one to three shots using one hook type on purpose,
-cutting straight into the scene with no establishing shot. Bring it to
-Wednesday's Dailies along with the hook type you were aiming for, written
-down before anyone else watches it.
+Build the ladder above for that action: one line, subject and action,
+the full four sentences, and the four sentences with a beat and a
+negative prompt. Generate the counter-example too, on purpose. Bring all
+five clips, in ladder order with the counter-example marked, to
+Wednesday's Dailies.
+
+## Reading
+
+- [Video generation models as world simulators](https://openai.com/index/video-generation-models-as-world-simulators/)
+  — on what a text-to-video model is actually learning, and why its
+  native clip length is not an arbitrary limit.
+- [Wan: Open and Advanced Large-Scale Video Generative Models](https://arxiv.org/abs/2503.20314)
+  — an openly available model built around exactly this kind of
+  sentence-structured prompting.
+- [Seedance 1.0: Exploring the Boundaries of Video Generation
+  Models](https://arxiv.org/abs/2506.09113) — on the specific failure
+  modes this lecture's "reading a bad take" section is describing.

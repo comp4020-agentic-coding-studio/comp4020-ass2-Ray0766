@@ -1,0 +1,84 @@
+---
+title: The Loop
+description:
+  The basic cycle every generator runs on — the interface against the
+  workflow underneath it, rolling and selecting rather than prompting once,
+  and the seed as the address of a specific result.
+week: 2
+date: 2027-03-01
+teachers:
+  - vera-lin
+related:
+  - sessions/week-02
+draft: false
+---
+
+Every generator this course touches runs the same loop underneath
+whatever interface sits on top of it: set some parameters, generate,
+look at what came back, decide whether to keep it, and either stop or go
+again. The interface is the part you see — a form, a chat box, a graph of
+nodes; the workflow is the actual sequence of operations underneath it,
+and the two are not the same thing. For the first six weeks this course
+supplies the workflow, as a starting graph, so the loop itself is the
+whole lesson.
+
+## Rolling is not re-prompting
+
+Running the same prompt more than once is called rolling, and it is not
+a sign the first attempt failed — it's the default way this loop is
+used. A generator is a sampler, not an oracle: the same prompt with a
+different random draw produces a genuinely different result, and the
+skill this course credits is choosing well among several rolls, not
+writing a prompt so precise it only needs one. Selection is the actual
+job. Generation is just what makes selection possible.
+
+## The seed as an address
+
+A generation seed is not a style knob; it's an address. On the same
+model, sampler, and software version, the same seed with the same
+parameters returns to the same result, which means a seed plus its full
+parameter list is the only thing that actually specifies a roll. Change
+one parameter and keep the seed, and a specific variable is being tested
+in isolation; change the seed and a different roll has been generated
+regardless of what else stayed the same. Log both, every time, or the
+roll that looked right yesterday is unfindable tomorrow.
+
+## The production log
+
+The log is not paperwork attached to the work; it is the record that
+turns a good roll into a repeatable one. A usable log names the
+workflow graph in use, the seed, and every parameter that could plausibly
+change the output — enough that someone who wasn't in the room could load
+the same graph and land on a comparable result. A roll without a log is a
+lucky accident the moment the tab closes.
+
+## The ladder
+
+This week's ladder runs sideways rather than up, because the skill being
+graded is selection, not escalating difficulty. The exercise is five
+rolls of exactly one prompt, on the graph the course supplies, with
+nothing changed between them but the random draw. Each of the five gets
+its own checklist verdict against the same four checks — hands, physics,
+text in frame, and overall framing — logged as pass or fail rather than a
+general impression. Climbing this ladder means getting more of the five
+to clear the checklist, and being able to say precisely which check
+failed on the ones that didn't.
+
+## Before class
+
+Install the workflow engine if it isn't already running from last week,
+and load the graph this course supplies for the semester's opening
+weeks.
+
+## This week's exercise
+
+Roll one prompt five times on the supplied graph, log the seed and
+parameters for every roll, and write a pass or fail verdict for each
+against the hands, physics, text, and framing checklist. Bring all five
+rolls, their logs, and your five verdicts to Wednesday's Dailies.
+
+## Reading
+
+- [High-Resolution Image Synthesis with Latent Diffusion Models](https://arxiv.org/abs/2112.10752)
+  — the paper behind the sampler doing the rolling underneath the
+  workflow you're running this week.

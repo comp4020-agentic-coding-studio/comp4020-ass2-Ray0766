@@ -1,8 +1,8 @@
 ---
-title: Repeatable Magic
+title: Text to Image
 description:
-  Turning a one-off trick into a repeatable technique, with reference frames,
-  seed reuse, and workflow templates that hold a look across many shots.
+  The first generator — prompt grammar for a single keyframe on
+  anime-trained checkpoints, from one line to a full colour script.
 week: 3
 date: 2027-03-08
 teachers:
@@ -12,43 +12,72 @@ related:
 draft: false
 ---
 
-A shot you can't get twice is a lucky accident, not a technique, and this
-course only credits technique. This week is about locking down everything
-between a prompt and a result so that the same inputs reliably produce the
-same output — because the Shot Portfolio due in three weeks is graded on
-exactly that reproducibility.
+Text to image is the first of four generators this course teaches, and it
+produces the smallest possible unit of work: one still frame, called a
+keyframe once it's good enough to build something else on top of it.
+Everything from here through Phase 2 either generates a keyframe or does
+something to one, so a prompt that reliably produces a usable keyframe is
+this week's entire craft question.
 
-## Seed as address
+## Why anime, first
 
-A generation seed is not a style knob — it's an address. On the same model,
-sampler, and software version, the same seed with the same parameters
-returns to the same result, which means a seed plus a full parameter list is
-the only thing that actually specifies a shot. Change one parameter and keep
-the seed, and you're testing that parameter in isolation; change the seed
-and you've generated a different shot regardless of what else stayed the
-same. Log both, every time, or the shot you liked yesterday is unfindable
-tomorrow.
+This phase works in anime grammar on purpose, and it's a technical
+decision, not an aesthetic one. A generator's small mistakes — a slightly
+wrong proportion, an edge that drifts — read differently depending on the
+style they land in: flat colour and clean linework compress detail into
+shape and outline, so a minor error gets absorbed as "that's the line
+style." The same magnitude of error on a photorealistic face lands
+squarely in the range human perception is most sensitive to and reads as
+wrong rather than stylised. Anime checkpoints buy room to make mistakes
+while the rest of the rig is still being learned; photoreal work waits
+until Phase 3, once the reference discipline exists to hold a face
+steady without that cover.
 
-## Golden reference, and the reshoot-or-patch decision
+## Four things a keyframe prompt should say
 
-Keep one shot from each technique you settle on as a golden reference — the
-exact output a correctly run version of that technique should produce.
-Every later shot using that technique gets checked against it the way a
-test suite checks against a known-good result. When a new shot drifts from
-the reference, there are two options: regenerate from scratch with the
-locked seed and parameters, or patch the specific broken region.
-Regeneration is cheaper when the whole shot is off; patching is cheaper when
-one small area is wrong and the rest is worth keeping. Guessing wrong costs
-the render time twice.
+A usable prompt for a still collapses into four decisions, each earning
+roughly one clause: who or what the subject is, how the shot is framed —
+size and angle — what the light is doing, and a style anchor naming the
+checkpoint's own aesthetic register rather than leaving it to chance.
+Write those four in order and the prompt is usable before any further
+polish gets added.
+
+## The checkpoint's own vocabulary
+
+Anime-trained checkpoints are largely trained on tag-style captions, not
+prose, so they respond more precisely to a checkpoint's own tag
+vocabulary than to a naturally written sentence saying the same thing.
+Pairing that vocabulary with a negative prompt — naming what to suppress,
+not just what to include — removes far more bad rolls than adding
+qualifiers to the positive prompt ever does.
+
+## The ladder
+
+The ladder for a text-to-image keyframe runs five tiers. The lowest tier
+is one line naming the subject alone. The next tier adds a line of
+setting and mood. The middle tier writes the full four-part grammar —
+subject, framing, light, and a style anchor. The next tier keeps that
+grammar and adds the checkpoint's own tag vocabulary plus a negative
+prompt. The top tier keeps everything below it and adds a specific shot
+size, camera angle, and a colour script naming the palette across the
+sequence the keyframe belongs to.
 
 ## Before class
 
-Bring one shot from Weeks 1–2 that you'd be willing to call a technique,
-along with its full seed and parameter log.
+Pick one anime-trained checkpoint and read through its own documentation
+or model card for the tag vocabulary it expects.
 
 ## This week's exercise
 
-Pick one technique from your last two weeks of work and reproduce it twice:
-once by rerunning the exact log, and once by handing that log to a
-classmate to run themselves. Bring all three results — original, your
-rerun, their rerun — plus the log itself to Wednesday's Dailies.
+Produce one keyframe at each of the five ladder tiers above, on the same
+subject, keeping a seed and parameter log for all five. Bring all five
+keyframes, in ladder order, to Wednesday's Dailies.
+
+## Reading
+
+- [SDXL: Improving Latent Diffusion Models for High-Resolution Image
+  Synthesis](https://arxiv.org/abs/2307.01952) — the base architecture
+  behind a lot of the checkpoints you'll be prompting this week.
+- [Illustrious: an Open Advanced Illustration Model](https://arxiv.org/abs/2409.19946)
+  — a checkpoint trained specifically on the anime tag vocabulary this
+  lecture asks you to use.

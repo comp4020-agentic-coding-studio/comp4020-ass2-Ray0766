@@ -1,8 +1,8 @@
 ---
-title: Cut & Sound
+title: Image to Video
 description:
-  Editing rhythm and sound design for short-form drama — pairing shots,
-  scoring beats, and using sound to cover what the picture can't.
+  The fourth generator — keyframe-first control, locking a first and last
+  frame, and the difference between directing motion and losing identity.
 week: 6
 date: 2027-03-29
 teachers:
@@ -12,44 +12,72 @@ related:
 draft: false
 ---
 
-A shot is not a scene, and this week is where five weeks of individual
-shots become one edited sequence with sound. Vertical drama's conventions
-are specific: faces read large, cuts are frequent, and captions are often
-on by default, which changes what a shot needs to contain and what the edit
-needs to carry instead.
+Image to video reverses the order of the last two weeks: rather than
+describing a subject in words and hoping the camera cooperates, a
+finished keyframe locks composition, framing, and art direction first,
+and the prompt's only remaining job is to say what happens next. This is
+the last of the four generators, and the strongest control the semester
+offers over a single shot — which is exactly why Phase 2 ends here.
 
-## Cutting for a vertical, captioned frame
+## Keyframe-first control
 
-A composition built for a widescreen frame wastes most of a vertical one:
-shot sizes skew tighter, close and medium-close, because a wide shot on a
-phone screen shows detail nobody can see. Captions, where used, sit in the
-same lower third every time, which means blocking and framing need to leave
-that region alone rather than fighting it.
+Starting from a keyframe fixes everything text to video leaves loose:
+who's in frame, how they're dressed, where the light falls, what the
+background looks like. The motion prompt that follows only has to
+describe change — what moves, and how — because everything that isn't
+supposed to change is already locked in the frame the model was given.
 
-## What sound is actually doing
+## First and last frame
 
-Sound is carrying three separate jobs that picture can't. Dialogue clarity
-is non-negotiable — a viewer who can't parse a line leaves, regardless of
-how the shot looks. Music sets and pushes pace, often doing more to make a
-cut feel fast than the cut itself. And a beat of near-silence immediately
-before a turn is what makes the turn land; scoring straight through it
-flattens the moment it's supposed to sell.
+Some workflows accept two keyframes instead of one: a starting frame and
+an ending frame, with the model generating everything in between. That
+constrains motion far more tightly than a first frame and a text prompt
+alone, at the cost of needing a second finished keyframe to already
+exist before the shot can be generated — a trade worth making when the
+ending pose matters as much as the starting one.
 
-## The cut is where the shot gets made
+## Motion versus identity
 
-None of the last five weeks' shots are the finished product — the edit is.
-A mediocre shot in a well-timed cut with the right sound reads as
-intentional; a strong shot in a slack cut with no sound design reads as a
-rough clip regardless of how good the frame was. This week treats the edit,
-not the generator, as the last thing that decides whether a scene works.
+The risk specific to this generator is a shot that drifts identity while
+chasing motion: a face or costume detail changing partway through the
+clip because the motion prompt asked for more movement than the model
+could deliver while holding the keyframe's details steady. When a take
+drifts, the fix is almost never a stronger motion prompt — it's a
+calmer one, asking for less change per second so identity has room to
+hold.
+
+## The ladder
+
+The ladder for image to video runs five tiers, climbing through how
+finished the starting keyframe is and how much the motion prompt is
+asked to do. The lowest tier starts from a rough sketch. The next tier
+starts from a flat, unlit keyframe. The next tier starts from a finished
+keyframe with lighting resolved. The next tier keeps that finished
+keyframe and adds a motion prompt written as the four sentences from
+earlier in the phase. The top tier keeps all of that and adds either a
+last frame or a small reference set to hold identity through more motion
+than a single keyframe alone can guarantee.
 
 ## Before class
 
-Gather every shot you're willing to use from Weeks 2 through 5, in one
-folder, in the order you think they belong.
+Bring one finished keyframe from earlier in the phase, and one rougher
+version of it to use as this week's lowest ladder tier.
 
 ## This week's exercise
 
-Cut those shots into one sequence of at least four shots with a temporary
-score and at least one deliberate silence before a turn. Bring the cut,
-exported with captions on, to Wednesday's Dailies.
+Build all five ladder tiers on the same subject, ending with either a
+first-and-last-frame pass or a reference-set-backed one. Bring all five
+clips, in ladder order, and a one-line note on where identity held or
+drifted, to Wednesday's Dailies.
+
+## Reading
+
+- [Stable Video Diffusion: Scaling Latent Video Diffusion Models to
+  Large Datasets](https://arxiv.org/abs/2311.15127) — the technique
+  behind turning one still into motion in the first place.
+- [MiniMax-H3](https://huggingface.co/Comfy-Org/MiniMax-H3) — a model
+  card showing what a production image-to-video workflow's inputs and
+  settings actually look like.
+- [Wan2.2](https://github.com/Wan-Video/Wan2.2) — an open repository
+  supporting the first-and-last-frame workflow this week's top ladder
+  tier can use.

@@ -1,8 +1,9 @@
 ---
-title: Anime Grammar
+title: Image to Image
 description:
-  The visual shorthand of anime storytelling — framing, expression, and
-  motion conventions — applied to generated footage.
+  The second generator — pushing an existing image toward a finished
+  keyframe with denoising strength, ControlNet, and IP-Adapter, on the
+  turnaround from rough input to finished frame.
 week: 4
 date: 2027-03-15
 teachers:
@@ -12,50 +13,73 @@ related:
 draft: false
 ---
 
-This course goes anime before it goes live-action, and that's a technical
-decision, not an aesthetic one. Stylised, flat-shaded footage tolerates the
-kind of small errors a generator makes far better than a photorealistic
-face does, which makes anime grammar the fastest route to a shot that reads
-as finished rather than broken.
+Text to image starts from nothing; image to image starts from something,
+and this week is about how much of that something survives. Denoising
+strength is the single number that decides it: low strength keeps most
+of the input's structure and repaints its surface, high strength keeps
+almost nothing and lets the prompt take over. Everything else this week
+is about giving the generator a better "something" to start from.
 
-## Why style absorbs error
+## Reading the strength dial
 
-A generator's small mistakes — a slightly wrong proportion, a flicker
-between frames, an edge that drifts — get read differently depending on the
-style they land in. Flat colour and clean linework compress detail into
-shape and outline, so a minor error gets absorbed into "that's just the
-line style." The same magnitude of error on a photorealistic face lands in
-exactly the range human perception is most sensitive to, and reads as
-unsettling rather than stylised — the uncanny valley effect. Stylisation
-isn't hiding the model's limits; it's choosing a register where those
-limits don't register as errors.
+Denoising strength runs from barely touching the input to nearly
+regenerating from scratch, and the useful range for turning a rough input
+into a finished keyframe sits well below the top of that scale — high
+enough to fix proportions and clean up linework, low enough that the
+composition the input already got right survives the pass. Pushing the
+number up because a result looks unfinished usually erases the one thing
+worth keeping.
 
-## Holding a character across shots
+## Controlling structure without controlling colour
 
-Anime production solves cross-shot consistency with a character reference
-sheet: a fixed set of turnaround poses and expression studies that every
-later shot gets checked against. Building and reusing a reference sheet —
-alongside a style anchor for palette and line weight — is how a character
-keeps looking like the same character across shots a generator made
-independently of each other.
+ControlNet reads a separate signal from the input — a pose skeleton or a
+depth map — and holds that signal fixed while everything else in the
+image regenerates, which is the difference between "keep this
+composition" and "keep this exact picture." IP-Adapter does the opposite
+job: it carries identity or style forward from a reference image into the
+new one, independent of the pose or depth signal entirely. Used together,
+a pose comes from one input and a face or style anchor comes from
+another, and the generator reconciles both.
 
-## Limited animation is a technique, not a shortcut
+## The turnaround
 
-Long-running anime television developed the practice of holding a pose for
-several frames and animating only the parts of a shot that need to move —
-mouths, hair, a single limb — while the rest stays still. That's a real
-stylistic idiom studios chose on purpose, not just a budget workaround, and
-it happens to suit generated footage unusually well: a generator's
-frame-to-frame coherence is often strongest exactly when less needs to move.
+A production turnaround is the distance between a rough input and a
+keyframe good enough to hand to the next stage, and this course measures
+it the same way a studio does: not by how good the first pass looks, but
+by how few passes it took to get somewhere usable. A short turnaround
+built on a clean sketch and one controlled pass beats a long one spent
+fighting a vague input with prompt changes alone.
+
+## The ladder
+
+The ladder this week holds the prompt and the denoising strength fixed
+and climbs by improving the input image instead — five tiers, one prompt,
+one strength, across all five. The lowest tier starts from a rough
+sketch. The next tier starts from clean lineart instead of a rough one.
+The next tier starts from a flat-coloured version of that lineart. The
+next tier starts from an already finished keyframe, refined rather than
+built. The top tier starts from that same finished keyframe plus a
+ControlNet pose signal locking its composition in place.
 
 ## Before class
 
-Bring a character or subject you'll use across the rest of the semester,
-and sketch or describe three reference poses for it.
+Bring one keyframe from Phase 2 so far, and sketch three rougher versions
+of it at decreasing levels of finish, to use as this week's ladder of
+inputs.
 
 ## This week's exercise
 
-Build a one-page reference sheet for that subject, then generate two
-separate shots of it using anime grammar and the held-pose principle above.
-Bring the reference sheet and both shots to Wednesday's Dailies, and be
-ready to say which shot breaks consistency with the sheet, if either does.
+Run the same prompt and denoising strength against your four rough
+inputs plus one ControlNet-locked pass, producing all five ladder tiers.
+Bring all five outputs, their shared prompt, and the strength value used
+to Wednesday's Dailies.
+
+## Reading
+
+- [SDEdit: Guided Image Synthesis and Editing with Stochastic
+  Differential Equations](https://arxiv.org/abs/2108.01073) — the
+  technique behind the strength dial this week's whole ladder runs on.
+- [Adding Conditional Control to Text-to-Image Diffusion Models](https://arxiv.org/abs/2302.05543)
+  — ControlNet, for holding a pose or depth signal fixed through a pass.
+- [IP-Adapter: Text Compatible Image Prompt Adapter](https://arxiv.org/abs/2308.06721)
+  — carrying identity or style forward from a reference image.

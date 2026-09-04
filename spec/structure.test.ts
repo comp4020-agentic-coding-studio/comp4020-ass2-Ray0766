@@ -25,6 +25,12 @@ import { loadContentDir } from "./lib/content";
 const lectures = loadContentDir("src/content/lectures");
 const sessions = loadContentDir("src/content/sessions");
 
+function ownWeek(slug: string): number {
+  const match = /^week-(\d{2})$/.exec(slug);
+  if (!match) throw new Error(`can't read a week number out of slug "${slug}"`);
+  return Number(match[1]);
+}
+
 describe("structure: every lecture runs Before class and the exercise", () => {
   for (const lecture of lectures) {
     it(`${lecture.slug} has "Before class" and "This week's exercise"`, () => {
@@ -52,6 +58,28 @@ describe("structure: every Dailies names something to bring", () => {
     it(`${session.slug} says what to bring`, () => {
       expect(session.body, `${session.path} never says what to bring to this Dailies`).toMatch(
         /\bbring\b/i,
+      );
+    });
+  }
+});
+
+// Protects decision 3: weeks 2-9 each carry a graded quality ladder, not just
+// a technique. Weeks 1, 10, 11, and 12 are deliberately exempt - the rig
+// week has nothing to grade yet, and the three production/wrap weeks work at
+// episode scale, where a single-shot ladder doesn't apply.
+//
+// Seen red by stripping "## The ladder" from week-06.md and running this
+// suite, which failed with:
+//   src/content/lectures/week-06.md is missing "## The ladder"
+// then reverted with `git checkout -- src/content/lectures/week-06.md`.
+describe("structure: weeks 2-9 each carry a ladder", () => {
+  for (const lecture of lectures.filter((entry) => {
+    const week = ownWeek(entry.slug);
+    return week >= 2 && week <= 9;
+  })) {
+    it(`${lecture.slug} has "The ladder"`, () => {
+      expect(lecture.body, `${lecture.path} is missing "## The ladder"`).toMatch(
+        /^## The ladder$/m,
       );
     });
   }

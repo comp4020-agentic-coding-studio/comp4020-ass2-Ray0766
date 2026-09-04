@@ -1,8 +1,9 @@
 ---
-title: The Series Bible
+title: "Production, Week One"
 description:
-  The document that holds a season together before a single new shot is
-  made — characters, tone, style, and the arc across episodes.
+  Turning nine weeks of technique into an actual episode — the shot
+  queue, split roles, the patch-or-reshoot decision, and the quality
+  gate nothing skips.
 week: 10
 date: 2027-05-10
 teachers:
@@ -12,44 +13,60 @@ related:
 draft: false
 ---
 
-A season only stays a season if whoever writes episode six can find, on
-paper, everything that got decided while making episode one. The series
-bible is that paper. This week is spent writing one, before a single new
-shot for the season gets made.
+Everything before this week produced one shot, one scene, or one
+reference set at a time. An episode is dozens of shots on a deadline,
+and that difference is not a matter of degree — it needs a queue, split
+roles, and a gate every shot has to clear, none of which a single
+person working alone actually needs.
 
-## Adapting a skeleton, legally
+## The queue and the roles
 
-Serialized drama runs on story skeletons older than any tool used to make
-it — a reversal, a rivalry, a countdown against a clock. Drawing on a
-public-domain plot structure, a genre convention, or a genuinely original
-premise of your own is a legal adaptation; lifting a specific copyrighted
-story's characters, setting, or dialogue and reskinning it is not, no matter
-how much the visuals change underneath it.
+A production line works because no one person carries a shot from
+prompt to finished frame alone: one role generates from the model sheet
+and master plate, one role runs the continuity audit against them, one
+role handles the edit and sound pass, and shots move through that queue
+in order rather than each person running their own end-to-end process.
+Splitting the work this way is what makes an episode's worth of shots
+possible on a deadline instead of one shot at a time, indefinitely.
 
-## The episode engine
+## Patch or reshoot
 
-A series that runs past one episode needs a repeatable situation, not just a
-repeatable visual style: a premise the format can return to every episode
-with a new complication stacked on the last one. The engine is what gets
-decided once, in the bible, so each new episode escalates from where the
-previous one left off instead of restarting from zero.
+At episode scale, a flawed shot is a cost decision as much as a craft
+one. Patching — fixing one wrong hand, one drifted prop — is cheap but
+only fixes what's local to that shot; a reshoot is a full new render at
+a full render's cost. The decision comes down to the log: patch when the
+log says the setup is reproducible and the flaw is small, reshoot when
+the log itself is what's broken and nothing local will fix it.
 
-## What the bible has to contain
+## The quality gate
 
-At minimum, a workable bible holds a character list with each character's
-locked reference and one line on what they want; the world's rules — what's
-true in this setting that a viewer needs in order to follow it; a tone page
-describing register and pacing precisely enough that two different people
-could shoot to it consistently; and a beat template for a single episode,
-showing where the hook, the escalation, and the cliffhanger fall.
+Nothing leaves the queue without clearing three checks: continuity
+against the model sheet and master plate, loudness at a level that
+won't clip or vanish next to the rest of the episode, and captions that
+are present and accurate. A shot that's beautiful but fails any one of
+these three does not ship. The gate exists so judgment doesn't have to
+be re-argued shot by shot, once a standard has been agreed.
+
+## Taking a reference episode apart
+
+This course keeps a one-minute reference episode specifically to take
+apart in this lecture, shot by shot: which shot is the hook, where the
+model sheet and master plate show up in the continuity, where a patch
+was clearly used instead of a reshoot, and where the quality gate would
+have caught something if it had been skipped. Watching the finished
+product with the queue and the gate in mind is a different exercise
+than watching it as a viewer, and it's the fastest way to see what a
+gate actually catches before running one on your own footage.
 
 ## Before class
 
-Sketch, in a few lines each, the premise and the one or two characters your
-season would follow.
+Bring the model sheet, master plate, and beat sheet from the last three
+weeks in a state someone else on the queue could actually use.
 
 ## This week's exercise
 
-Write a first-draft series bible: character list, world rules, tone page,
-and one episode's beat template, for the season you are about to shoot.
-Bring the draft to Wednesday's Dailies to be read aloud.
+Working in a small group, run three shots through the full queue —
+generation, continuity audit, edit and sound, quality gate — with each
+person holding one role for all three shots. Bring the three finished
+shots and a note on what the gate caught, or would have caught, to
+Wednesday's Dailies.

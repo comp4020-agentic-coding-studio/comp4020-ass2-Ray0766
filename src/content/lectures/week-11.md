@@ -1,9 +1,9 @@
 ---
-title: The Assembly Line
+title: "Production, Week Two"
 description:
-  Scaling a one-off workflow into a production line — batching, quality
-  control, and the review pass that catches a bad shot before it reaches an
-  episode.
+  Finishing an episode — assembling the queue's shots into one cut, sound
+  and captions, loudness standards, and the delivery spec a platform
+  actually expects.
 week: 11
 date: 2027-05-17
 teachers:
@@ -13,52 +13,71 @@ related:
 draft: false
 ---
 
-A technique proven on one shot in Week 3 now has to run across an entire
-season's worth of shots, on a schedule. The Assembly Line is the week where
-craft becomes logistics: a queue of shots to produce, roles to split the
-work across, and a gate every shot has to clear before it counts as
-finished.
+The queue produces shots; it does not produce an episode. Assembly is
+where every shot that cleared the quality gate gets cut into one
+sequence, and this lecture is entirely about the three things that turn
+a folder of approved clips into a piece someone can actually watch: the
+assembly itself, the sound and captions carried through it, and the
+delivery spec that gets it onto a platform without the platform
+mangling it on the way in.
 
-## The queue and the roles
+## Assembly is not re-litigating the gate
 
-A production line works because no single person carries a shot from prompt
-to finished frame alone: one role generates from the bible's reference set,
-one role runs continuity checks against the library, one role handles the
-edit and sound pass, and shots move through that queue in order rather than
-each person running their own end-to-end process. Splitting the work this
-way is what makes twenty shots a week possible instead of one.
+A shot that passed the quality gate does not get re-judged during
+assembly on its own merits; assembly only decides order, pacing, and
+where a cut lands relative to a beat. Reopening a gate decision at this
+stage means the gate wasn't doing its job earlier, and it's usually
+faster to flag that for next time than to relitigate one shot now.
 
-## Patch or reshoot
+## Sound and captions, carried through
 
-At series scale, a flawed shot is a cost decision, not just a craft one:
-patching — fixing one wrong hand, one drifted detail — is cheap but only
-fixes what's local to that shot, while a reshoot is a full new render at a
-full render's cost. The rule from Week 3 still holds: patch when the log
-says the setup is reproducible, reshoot when the log itself is broken.
+Dialogue clarity and captions are not a separate pass bolted on at the
+end; they're properties every shot in the queue was already supposed to
+carry, and assembly's job is making sure nothing got lost matching cuts
+against each other. A caption that's present but out of sync, or a
+dialogue line that reads clearly in isolation but gets buried once music
+is layered under it, is an assembly failure even though no single shot
+caused it alone.
 
-## The quality gate
+## Loudness is a standard, not a feeling
 
-Nothing leaves the queue without clearing three checks: continuity against
-the reference library, loudness at a level that won't clip or vanish next to
-other episodes, and captions that are present and accurate. A shot that's
-beautiful but fails any one of these three does not ship; the gate exists so
-judgment doesn't have to be re-argued shot by shot.
+Loudness gets measured against a published broadcast standard rather
+than judged by ear, because "sounds about right" varies between
+speakers, rooms, and the person listening. Matching a target loudness
+level means an episode won't clip on a phone speaker or vanish next to
+whatever plays before or after it in a feed — a technical requirement
+this course treats the same way it treats a licence clause: non-negotiable,
+and checked, not assumed.
 
-## The calendar is the product
+## Delivery is a spec, not a save button
 
-A serialized drama's audience is trained by the release calendar, not by any
-single episode's quality: a missed date reads as the show ending, whether or
-not it actually has. Calendar discipline is not layered on top of the craft
-for a series — it is part of the craft.
+Exporting a finished cut means matching whatever a platform's delivery
+spec actually asks for — resolution, frame rate, container format,
+caption format — rather than exporting on default settings and hoping
+it's close enough. A cut that looks correct on your own machine and
+fails a platform's delivery check has not shipped; it's failed at the
+very last step of a nine-week process, which is the most expensive place
+in the whole pipeline to fail.
 
 ## Before class
 
-Bring the reference library and bible from Weeks 8 and 10 in a state someone
-else on the line could actually use.
+Bring the three shots that cleared the quality gate together with any
+notes on where their sound or captions still need work before assembly.
 
 ## This week's exercise
 
-Working in a small group, run three shots through the full queue —
-generation, continuity check, edit and sound, quality gate — with each
-person holding one role. Bring the three finished shots and a note on what
-the quality gate caught to Wednesday's Dailies.
+Assemble the season's episode: cut the gated shots into one sequence,
+check loudness against the published standard, confirm captions are
+present and in sync, and export to the platform's delivery spec. This is
+the pilot's own production pass, so bring the finished pilot itself to
+Wednesday's Dailies.
+
+## Reading
+
+- [EBU R128](https://tech.ebu.ch/publications/r128) — the loudness
+  standard this lecture's assembly pass gets checked against.
+- [Media Accessibility](https://www.w3.org/WAI/media/av/) — on why
+  captions are a delivery requirement, not a nice-to-have layered on
+  top.
+- [FFmpeg Documentation](https://ffmpeg.org/documentation.html) — the
+  tool most delivery-spec exports actually run through.

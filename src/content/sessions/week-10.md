@@ -17,4 +17,4 @@ write episode two from this alone, using nothing but the character list,
 the world rules, and the beat template. Tone gets checked against the
 reference footage already on file for the season, not just against the
 page. A bible that only works read alongside its author goes back for
-another pass, not forward to Week 11.
+another pass, not forward to shooting.

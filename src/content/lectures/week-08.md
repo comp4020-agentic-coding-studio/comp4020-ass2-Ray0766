@@ -47,7 +47,7 @@ rough cut and trusting a general sense that it worked. Once a reference set
 for a character or location is locked, it is frozen for the run of the
 season: no swapping to a different reference face partway through because a
 later shot generated a version someone preferred. A frozen reference is what
-makes the cross-episode continuity of Week 10 possible at all.
+makes cross-episode continuity possible at all.
 
 ## Before class
 

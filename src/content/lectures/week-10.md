@@ -51,5 +51,5 @@ season would follow.
 ## This week's exercise
 
 Write a first-draft series bible: character list, world rules, tone page,
-and one episode's beat template, for the season built in Weeks 11 and 12.
+and one episode's beat template, for the season you are about to shoot.
 Bring the draft to Wednesday's Dailies to be read aloud.

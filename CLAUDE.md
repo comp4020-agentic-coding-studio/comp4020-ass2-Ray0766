@@ -158,7 +158,7 @@ find the real one or state the technique generically.
 
 ## 9. Interactives
 
-Three lecture pages (weeks 2, 5, 12) carry a small widget demonstrating that
+Three lecture pages (weeks 5, 9, 12) carry a small widget demonstrating that
 week's own teaching point, embedded inline in the lecture's markdown via MDX.
 Any future widget in this family follows the same rules:
 

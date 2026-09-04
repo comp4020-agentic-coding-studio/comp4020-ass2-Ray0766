@@ -6,6 +6,30 @@ collections, the generated API, the deck format; this file is what I add on
 top of it, and it grows as the work teaches me things. Read both before you
 plan or build.
 
+## 0. What a good course looks like
+
+Six decisions this course is built on, before any check enforces them:
+
+1. One idea, carried through — the machine shoots; only technique gets
+   credit. Every lecture names the one technique it adds to the rig.
+   (enforced: structure check)
+2. What is assessed is what was taught (Biggs, constructive alignment): an
+   assessment may only ask for an artefact an earlier week's exercise
+   produced, and may only cite weeks before its due date. (enforced:
+   alignment check)
+3. The course is a list of instruments (after *How to Make (Almost)
+   Anything*): twelve weeks, twelve distinct additions; no week repeats
+   another. (enforced: distinctness and required sections)
+4. A ramp, not a tour: anime before live action, shot before episode; a week
+   points back, never forward, except to an assessment. (enforced: order
+   check)
+5. Dailies are the formative loop (Sadler): every exercise is screened the
+   same week, and the Dailies page says what to bring. (enforced: coupling
+   check)
+6. Plain register, narrow audience (after CS 007): the voice contract.
+   (partly enforced — banned phrases and the builder-text sentinel; the rest
+   is read, not checked, on purpose.)
+
 ## 1. What gets marked
 
 - The deployed site, not this repo. A marker browses it like a prospective

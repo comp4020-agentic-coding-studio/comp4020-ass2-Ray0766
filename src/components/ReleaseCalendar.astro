@@ -12,7 +12,7 @@ interface WeekRow {
   phaseKey: string;
   lecture?: { title: string; href: string };
   session?: { title: string; href: string };
-  assessment?: { title: string; weight: number; href: string };
+  assessments: Array<{ title: string; weight: number; href: string }>;
 }
 
 interface BreakRow {
@@ -32,7 +32,10 @@ const weekNumbers = [...new Set(lectures.map((entry) => entry.data.week))].sort(
 const weekRows: WeekRow[] = weekNumbers.map((week) => {
   const lecture = lectures.find((entry) => entry.data.week === week);
   const session = sessions.find((entry) => entry.data.week === week);
-  const assessment = assessments.find((entry) => entry.data.week === week);
+  // A week can carry more than one due assessment (the showcase and Dailies
+  // participation both land in week 12), so every match is kept, not just
+  // the first.
+  const weekAssessments = assessments.filter((entry) => entry.data.week === week);
   // spec/course-content.test.ts guarantees every week 1-12 has a lecture, so
   // this lookup anchors the row's date without needing a fallback.
   const date = lecture!.data.date;
@@ -43,11 +46,11 @@ const weekRows: WeekRow[] = weekNumbers.map((week) => {
     phaseKey: phaseForWeek(week).key,
     lecture: lecture && { title: lecture.data.title, href: withBase(`/lectures/${lecture.id}/`) },
     session: session && { title: session.data.title, href: withBase(`/sessions/${session.id}/`) },
-    assessment: assessment && {
+    assessments: weekAssessments.map((assessment) => ({
       title: assessment.data.title,
       weight: assessment.data.weight,
       href: withBase(`/assessments/${assessment.id}/`),
-    },
+    })),
   };
 });
 
@@ -108,14 +111,14 @@ for (const row of rows) {
                       <dt>Dailies</dt>
                       <dd>{row.session ? <a href={row.session.href}>{row.session.title}</a> : "—"}</dd>
                     </div>
-                    {row.assessment && (
+                    {row.assessments.map((assessment) => (
                       <div class="release-calendar__cell">
                         <dt>Due</dt>
                         <dd>
-                          <a href={row.assessment.href}>{row.assessment.title}</a> · {row.assessment.weight}%
+                          <a href={assessment.href}>{assessment.title}</a> · {assessment.weight}%
                         </dd>
                       </div>
-                    )}
+                    ))}
                   </dl>
                 </article>
               </li>

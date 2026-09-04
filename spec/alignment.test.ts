@@ -7,18 +7,16 @@
 // `week`, and every "Week N" mentioned anywhere in an assessment body is
 // ≤ its own week), so both halves were seen red by synthetic injection:
 //
-// 1. Temporarily changed spec/fixtures/artefacts.ts's "workflow graph"
-//    entry from 1 to 20, ran this suite, then reverted. Failure text (one
-//    per assessment that names it):
-//      "src/content/assessments/shot-portfolio.md asks for "workflow
-//      graph" (first produced week 20) but is due week 3"
-//    (and the same shape for anime-short, due 6, and a-longer-cut, due 9).
+// 1. Temporarily changed spec/fixtures/artefacts.ts's "gated shot" entry
+//    from 10 to 20, ran this suite, then reverted. Failure text:
+//      "src/content/assessments/the-pilot.md asks for "gated shot" (first
+//      produced week 20) but is due week 11"
 //
-// 2. Temporarily appended "as covered back in Week 11." to
-//    src/content/assessments/shot-portfolio.md's body (due week 3), ran
-//    this suite, then reverted. Failure text:
-//      "src/content/assessments/shot-portfolio.md mentions Week 11, after
-//      its own due week 3"
+// 2. Temporarily appended "As covered back in Week 12." to
+//    src/content/assessments/a3.md's body (due week 3), ran this suite,
+//    then reverted. Failure text:
+//      "src/content/assessments/a3.md mentions Week 12, after its own due
+//      week 3"
 import { describe, expect, it } from "vitest";
 import { loadContentDir, weekMentions } from "./lib/content";
 import { ARTEFACT_FIRST_WEEK } from "./fixtures/artefacts";

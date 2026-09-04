@@ -13,6 +13,12 @@ export interface WeekWindow {
 // assessment's due week (week 1 for the first) and closes on its own due
 // week. Sorting by week first makes that fold well-defined regardless of
 // how many assessments exist or what their weeks are.
+//
+// Two assessments can share a due week (the showcase and Dailies
+// participation both land in week 12) - the second one in sort order must
+// not open its window past its own close, so the fold clamps `start` to
+// `end` and only ever advances `previousEnd`, never lets a tied week pull
+// it backward past a week another assessment already claimed.
 export function assessmentWeekWindows(
   assessments: CollectionEntry<"assessments">[],
 ): Map<string, WeekWindow> {
@@ -20,8 +26,9 @@ export function assessmentWeekWindows(
   const windows = new Map<string, WeekWindow>();
   let previousEnd = 0;
   for (const assessment of sorted) {
-    windows.set(assessment.id, { start: previousEnd + 1, end: assessment.data.week });
-    previousEnd = assessment.data.week;
+    const end = assessment.data.week;
+    windows.set(assessment.id, { start: Math.min(previousEnd + 1, end), end });
+    previousEnd = Math.max(previousEnd, end);
   }
   return windows;
 }

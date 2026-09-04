@@ -1,18 +1,19 @@
 ---
-title: Face Time
-description: Dailies for the week's human-performance exercise.
+title: The Graph Review
+description: Dailies for the week's own-workflow ladder, read node by node.
 week: 7
-date: 2027-04-21
+date: 2027-04-19
 teachers:
   - dutch-meridian
 draft: false
 ---
 
-Starting this week, Dailies runs face to face: every take screens next to
-the locked reference frame it's meant to match, not from memory of what the
-reference looked like. Bring the reference on a second screen or a separate
-print, not buried in the same file as the take — the room needs to see both
-at once. Notes are scoped to the skin/eyes/teeth/hands checklist first,
-framing and light second; a technically clean shot with a drifted face still
-fails review. A take that never gets checked against its reference doesn't
-get a note. It gets sent back.
+Bring all four graph files and their outputs — the graphs go up on
+screen before any clip plays, because this week's review is of the
+workflow, not just what it produced. Starting this week, Dailies runs
+graph to graph: someone else in the room traces each of the four tiers
+node by node, naming which loader, conditioning, sampler, or fix-pass
+job each addition is doing, before the matching output is allowed to
+play. An output that looks right from a graph nobody else in the room
+can read doesn't pass review; a graph is only finished once someone
+other than its author can follow it.

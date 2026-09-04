@@ -1,6 +1,6 @@
 ---
-title: Batch Review
-description: Dailies for the week's production-line exercise.
+title: Fine Cut
+description: Dailies for the assembled pilot, checked against the delivery spec.
 week: 11
 date: 2027-05-19
 teachers:
@@ -8,12 +8,14 @@ teachers:
 draft: false
 ---
 
-Bring the three finished shots and a note on what the quality gate caught.
-From this week, Dailies runs at the speed of the queue, not the speed of a
-crit: a full batch screens back to back, and each note is filed against the
-quality gate it belongs to — continuity, loudness, or captions — rather
-than as open commentary on the shot. Roles rotate through the room the way
-they rotated on the line: whoever ran continuity checks reports first, then
-edit and sound, then whoever ran the gate itself. A shot that already
-failed the gate doesn't get re-argued in the room. It goes back to the
-queue.
+Bring the finished pilot, assembled, captioned, and exported to the
+platform's delivery spec — this Dailies screens the whole cut, not a
+single shot, for the first time all semester. It plays once straight
+through on a phone speaker, the way it's actually going to be watched,
+before any note gets raised. Notes are filed against one of three
+checks: does the loudness sit inside the published standard, are the
+captions present and in sync all the way through, does the export
+actually open in the delivery spec it claims. A cut that plays back
+cleanly on a laptop but clips or drops captions on a phone hasn't passed
+this Dailies; it's failed the same way a shot fails the quality gate,
+just one level up.

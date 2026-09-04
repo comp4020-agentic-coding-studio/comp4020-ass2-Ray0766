@@ -1,20 +1,21 @@
 ---
 title: The Continuity Pass
-description: Dailies for the week's reference-library exercise.
+description: Dailies for the week's reference-ladder exercise.
 week: 8
-date: 2027-04-28
+date: 2027-04-26
 teachers:
   - dutch-meridian
 draft: false
 ---
 
-Bring the reference library, the three new shots, and the audit notes — the
-pass/fail log is what gets checked, not a general impression of the shots.
-The library goes up first, before any new footage plays, so the room has
-something fixed to check against. Each new shot screens
-immediately after its matching reference item — face next to face, prop
-next to prop — and notes are logged as pass or fail against that specific
-item, not as a general impression of the shot. A drifted detail gets named
-precisely: which item, which shot, what changed. Anyone proposing to swap a
-locked reference mid-season makes that case out loud, in the room, because
-after this week the library is meant to hold.
+Bring all four reference sets, the two-shot scene generated against each,
+and the audit notes — the pass/fail log is what gets checked, not a
+general impression of the shots. Each reference set goes up first,
+before its matching pair of shots plays, so the room has something fixed
+to check against. The two shots screen immediately after their set — face
+next to face, prop next to prop — and notes are logged item by item: does
+this shot match the model sheet, does it match the master plate, not as
+one verdict for the whole pair. A drifted detail gets named precisely:
+which item, which shot, what changed. The top tier's master plate is
+meant to hold from here on; anyone proposing to swap it mid-season makes
+that case out loud, in the room.

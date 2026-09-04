@@ -1,6 +1,6 @@
 ---
-title: Panel by Panel
-description: Dailies for the week's anime-grammar exercise.
+title: The Turnaround
+description: Dailies for the week's five-tier image-to-image exercise.
 week: 4
 date: 2027-03-17
 teachers:
@@ -8,10 +8,13 @@ teachers:
 draft: false
 ---
 
-Bring your reference sheet and both shots, pinned side by side rather than
-played one after the other — consistency is a comparison, not a memory
-test. The room reads each shot against the sheet before anyone says
-anything about the shot on its own terms: does the face, the palette, the
-line weight match what the sheet promised. A shot that looks good in
-isolation but drifts from its own reference sheet is marked as a
-continuity failure, not praised as a nice frame.
+Bring all five outputs, the shared prompt, and the strength value used —
+one prompt and one strength, held constant across five inputs of rising
+finish, is the whole exercise, so the room checks the log before it
+looks at a single frame. The five outputs screen in ladder order, input
+finish rising each time: rough sketch, clean lineart, flat colour,
+finished keyframe, finished keyframe under ControlNet. Notes ask one
+question per pair — did more finish in the input actually buy more
+control in the output, or did the prompt and strength swamp it anyway.
+An output that ignores its own input entirely is a strength-dial
+failure, not a style choice.

@@ -20,9 +20,9 @@ Six decisions this course is built on, before any check enforces them:
 3. The course is a list of instruments (after *How to Make (Almost)
    Anything*): twelve weeks, twelve distinct additions; no week repeats
    another. (enforced: distinctness and required sections)
-4. A ramp, not a tour: anime before live action, shot before episode; a week
-   points back, never forward, except to an assessment. (enforced: order
-   check)
+4. A ramp, not a tour: the anime-first generators phase fully before
+   photoreal is permitted, shot before episode; a week points back, never
+   forward, except to an assessment. (enforced: order check)
 5. Dailies are the formative loop (Sadler): every exercise is screened the
    same week, and the Dailies page says what to bring. (enforced: coupling
    check)

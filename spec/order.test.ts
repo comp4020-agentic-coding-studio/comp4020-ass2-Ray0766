@@ -2,17 +2,18 @@
 // never forward — an assessment can point at any week behind it because
 // it's read as accumulating everything so far, but a lecture or Dailies
 // body pointing forward promises a technique the student hasn't been given
-// yet. The phase order (anime before live action, shot before episode)
-// comes from src/lib/phases.ts, imported rather than restated here.
+// yet. The phase order (anime-first generators fully before photoreal is
+// permitted, shot before episode) comes from src/lib/phases.ts, imported
+// rather than restated here.
 //
 // The per-file check needed no synthetic injection: it was red on real
 // content the first time it ran (see "Real finding" below). The phase-order
 // check has no real violation to catch, so it was seen red by editing
-// src/lib/phases.ts to swap the anime and live-action week ranges
-// (anime 4–9, live action 4–6), running this suite, then reverting:
-//   failed "anime should be fully before live action, not a tour: expected
-//   9 to be less than 4", and separately "liveaction should pick up right
-//   where anime ends: expected 4 to be 10"
+// src/lib/phases.ts to swap the generators and holding week ranges
+// (generators 3–8, holding 5–6), running this suite, then reverting:
+//   failed "generators should be fully before holding, not a tour: expected
+//   8 to be less than 5", and separately "holding should pick up right
+//   where generators ends: expected 5 to be 9"
 //
 // Real finding (fixed in the same commit): three forward references pointed
 // past their own week —
@@ -70,12 +71,12 @@ describe("order: the phase map is a ramp, not a tour", () => {
     }
   });
 
-  it("anime is fully before live action, not a tour", () => {
-    const anime = PHASES.find((phase) => phase.key === "anime")!;
-    const liveaction = PHASES.find((phase) => phase.key === "liveaction")!;
+  it("the anime-first generators phase is fully before photoreal is permitted, not a tour", () => {
+    const generators = PHASES.find((phase) => phase.key === "generators")!;
+    const holding = PHASES.find((phase) => phase.key === "holding")!;
     expect(
-      anime.max,
-      "anime should be fully before live action, not a tour",
-    ).toBeLessThan(liveaction.min);
+      generators.max,
+      "generators should be fully before holding, not a tour",
+    ).toBeLessThan(holding.min);
   });
 });

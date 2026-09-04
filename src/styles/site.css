@@ -74,10 +74,10 @@ p {
    ---------------------------------------------------------------------- */
 
 :root {
-  --phase-foundations: var(--at-primary);
-  --phase-anime: var(--at-secondary);
-  --phase-liveaction: var(--at-tertiary);
-  --phase-series: oklch(from var(--at-primary) calc(l - 0.22) calc(c * 0.85) h);
+  --phase-rig: var(--at-primary);
+  --phase-generators: var(--at-secondary);
+  --phase-holding: var(--at-tertiary);
+  --phase-episode: oklch(from var(--at-primary) calc(l - 0.22) calc(c * 0.85) h);
 }
 
 /* ----------------------------------------------------------------------
@@ -465,17 +465,17 @@ p {
   color: var(--at-text-secondary);
 }
 
-.phase-card--foundations {
-  --phase-color: var(--phase-foundations);
+.phase-card--rig {
+  --phase-color: var(--phase-rig);
 }
-.phase-card--anime {
-  --phase-color: var(--phase-anime);
+.phase-card--generators {
+  --phase-color: var(--phase-generators);
 }
-.phase-card--liveaction {
-  --phase-color: var(--phase-liveaction);
+.phase-card--holding {
+  --phase-color: var(--phase-holding);
 }
-.phase-card--series {
-  --phase-color: var(--phase-series);
+.phase-card--episode {
+  --phase-color: var(--phase-episode);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -525,17 +525,17 @@ p {
   white-space: nowrap;
 }
 
-.phase-chip--foundations {
-  --phase-color: var(--phase-foundations);
+.phase-chip--rig {
+  --phase-color: var(--phase-rig);
 }
-.phase-chip--anime {
-  --phase-color: var(--phase-anime);
+.phase-chip--generators {
+  --phase-color: var(--phase-generators);
 }
-.phase-chip--liveaction {
-  --phase-color: var(--phase-liveaction);
+.phase-chip--holding {
+  --phase-color: var(--phase-holding);
 }
-.phase-chip--series {
-  --phase-color: var(--phase-series);
+.phase-chip--episode {
+  --phase-color: var(--phase-episode);
 }
 
 /* ----------------------------------------------------------------------
@@ -625,20 +625,20 @@ p {
   opacity: 0.85;
 }
 
-.weight-bar__segment--foundations {
-  --phase-color: var(--phase-foundations);
+.weight-bar__segment--rig {
+  --phase-color: var(--phase-rig);
 }
 
-.weight-bar__segment--anime {
-  --phase-color: var(--phase-anime);
+.weight-bar__segment--generators {
+  --phase-color: var(--phase-generators);
 }
 
-.weight-bar__segment--liveaction {
-  --phase-color: var(--phase-liveaction);
+.weight-bar__segment--holding {
+  --phase-color: var(--phase-holding);
 }
 
-.weight-bar__segment--series {
-  --phase-color: var(--phase-series);
+.weight-bar__segment--episode {
+  --phase-color: var(--phase-episode);
 }
 
 .weight-bar__legend {
@@ -717,47 +717,47 @@ p {
     box-shadow 0.15s;
 }
 
-.assessment-card--foundations {
-  --phase-color: var(--phase-foundations);
+.assessment-card--rig {
+  --phase-color: var(--phase-rig);
 }
 
-.assessment-card--anime {
-  --phase-color: var(--phase-anime);
+.assessment-card--generators {
+  --phase-color: var(--phase-generators);
 }
 
-.assessment-card--liveaction {
-  --phase-color: var(--phase-liveaction);
+.assessment-card--holding {
+  --phase-color: var(--phase-holding);
 }
 
-.assessment-card--series {
-  --phase-color: var(--phase-series);
+.assessment-card--episode {
+  --phase-color: var(--phase-episode);
 }
 
-.assessment-board:has(.weight-bar__segment--foundations a:is(:hover, :focus-visible))
-  .assessment-card--foundations,
-.assessment-board:has(.assessment-card--foundations:is(:hover, :focus-visible))
-  .weight-bar__segment--foundations {
+.assessment-board:has(.weight-bar__segment--rig a:is(:hover, :focus-visible))
+  .assessment-card--rig,
+.assessment-board:has(.assessment-card--rig:is(:hover, :focus-visible))
+  .weight-bar__segment--rig {
   box-shadow: inset 0 0 0 2px var(--at-text);
 }
 
-.assessment-board:has(.weight-bar__segment--anime a:is(:hover, :focus-visible))
-  .assessment-card--anime,
-.assessment-board:has(.assessment-card--anime:is(:hover, :focus-visible))
-  .weight-bar__segment--anime {
+.assessment-board:has(.weight-bar__segment--generators a:is(:hover, :focus-visible))
+  .assessment-card--generators,
+.assessment-board:has(.assessment-card--generators:is(:hover, :focus-visible))
+  .weight-bar__segment--generators {
   box-shadow: inset 0 0 0 2px var(--at-text);
 }
 
-.assessment-board:has(.weight-bar__segment--liveaction a:is(:hover, :focus-visible))
-  .assessment-card--liveaction,
-.assessment-board:has(.assessment-card--liveaction:is(:hover, :focus-visible))
-  .weight-bar__segment--liveaction {
+.assessment-board:has(.weight-bar__segment--holding a:is(:hover, :focus-visible))
+  .assessment-card--holding,
+.assessment-board:has(.assessment-card--holding:is(:hover, :focus-visible))
+  .weight-bar__segment--holding {
   box-shadow: inset 0 0 0 2px var(--at-text);
 }
 
-.assessment-board:has(.weight-bar__segment--series a:is(:hover, :focus-visible))
-  .assessment-card--series,
-.assessment-board:has(.assessment-card--series:is(:hover, :focus-visible))
-  .weight-bar__segment--series {
+.assessment-board:has(.weight-bar__segment--episode a:is(:hover, :focus-visible))
+  .assessment-card--episode,
+.assessment-board:has(.assessment-card--episode:is(:hover, :focus-visible))
+  .weight-bar__segment--episode {
   box-shadow: inset 0 0 0 2px var(--at-text);
 }
 

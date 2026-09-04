@@ -8,8 +8,9 @@ teachers:
 draft: false
 ---
 
-The two episodes and the bible screen back to back, for the first time as a
-set rather than as separate weekly exercises — continuity, the quality
+Bring the retrospective, alongside the finished season. The two episodes
+and the bible screen back to back, for the first time as a set rather than
+as separate weekly exercises — continuity, the quality
 gate, and the calendar are judged across the whole run, not shot by shot.
 Retrospectives get read after the screening, not before, so the room
 reacts to the season first and checks its own prediction against the page

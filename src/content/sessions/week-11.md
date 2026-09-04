@@ -8,6 +8,7 @@ teachers:
 draft: false
 ---
 
+Bring the three finished shots and a note on what the quality gate caught.
 From this week, Dailies runs at the speed of the queue, not the speed of a
 crit: a full batch screens back to back, and each note is filed against the
 quality gate it belongs to — continuity, loudness, or captions — rather

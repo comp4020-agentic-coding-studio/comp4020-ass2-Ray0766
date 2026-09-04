@@ -8,9 +8,10 @@ teachers:
 draft: false
 ---
 
-Sequences screen once, straight through, before anyone speaks — a join gets
-judged on how it plays in real time, not on a freeze-frame of the cut
-point. The room calls out a seam the moment it's felt, without waiting for
+Bring the full three-shot sequence and a one-line note on what signals the
+scene change. Sequences screen once, straight through, before anyone
+speaks — a join gets judged on how it plays in real time, not on a
+freeze-frame of the cut point. The room calls out a seam the moment it's felt, without waiting for
 the piece to finish, because that's the same moment a real viewer would
 notice it. Notes separate two questions: does the scene change read as
 intentional, and does the sound bridge or match cut actually hide the

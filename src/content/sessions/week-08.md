@@ -8,8 +8,10 @@ teachers:
 draft: false
 ---
 
-The reference library goes up first, before any new footage plays, so the
-room has something fixed to check against. Each new shot screens
+Bring the reference library, the three new shots, and the audit notes — the
+pass/fail log is what gets checked, not a general impression of the shots.
+The library goes up first, before any new footage plays, so the room has
+something fixed to check against. Each new shot screens
 immediately after its matching reference item — face next to face, prop
 next to prop — and notes are logged as pass or fail against that specific
 item, not as a general impression of the shot. A drifted detail gets named

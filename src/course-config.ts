@@ -57,6 +57,6 @@ export const courseMeta = slopCourseMetaSchema.parse({
   description:
     "Serialized melodrama is the fastest-growing form of screen drama on earth, and " +
     "machines now do most of the shooting. This studio course takes you from an empty " +
-    "GPU to a running vertical-drama series: one shot, one hook, one episode, one season.",
+    "GPU to one finished pilot episode of a vertical drama: one shot, one hook, one episode.",
   tags: ["generative video", "screen production", "serial drama"],
 }) satisfies CourseMetaInput;

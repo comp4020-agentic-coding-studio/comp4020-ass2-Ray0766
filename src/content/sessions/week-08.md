@@ -19,3 +19,6 @@ one verdict for the whole pair. A drifted detail gets named precisely:
 which item, which shot, what changed. The top tier's master plate is
 meant to hold from here on; anyone proposing to swap it mid-season makes
 that case out loud, in the room.
+
+The room places each piece on this ladder: [replay the full recorded
+run](/studio/#week-08:t1) before the session, tier by tier, log included.

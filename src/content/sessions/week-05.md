@@ -18,3 +18,6 @@ off" — doesn't count and gets sent back before the room moves on. The
 counter-example gets the same four-term treatment as the rest of the
 ladder; the room names which of the four sentences it was actually
 fighting itself on, not just that it looked strange.
+
+The room places each piece on this ladder: [replay the full recorded
+run](/studio/#week-05:t1) before the session, tier by tier, log included.

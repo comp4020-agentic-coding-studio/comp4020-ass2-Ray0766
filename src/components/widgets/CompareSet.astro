@@ -1,0 +1,76 @@
+---
+import { withBase } from "astro-theme-university/url";
+import { studioWeeks } from "../../lib/studio";
+import { toClientWeek } from "../../lib/studio-client";
+import "../../styles/compare-set.css";
+
+interface Props {
+  week: number;
+}
+
+const { week: weekNumber } = Astro.props;
+const weekRecord = studioWeeks.find((w) => w.week === weekNumber);
+if (!weekRecord) throw new Error(`CompareSet: no studio manifest for week ${weekNumber}`);
+const week = toClientWeek(weekRecord);
+
+const CREDIT_LINE =
+  "Recorded on the convener's rig with MiniMax H3 (local weights), keyframes with NoobAI-XL, reference stills for The Ninth Head with ChatGPT's image generator. Nothing is generated in the browser.";
+
+const weekTag = String(week.week).padStart(2, "0");
+const groupName = `compare-set-week-${weekTag}`;
+const firstTier = week.tiers[0];
+---
+
+<figure class="compare-set" data-compare-set aria-label={`Recorded ladder, week ${week.week}`}>
+  <div class="compare-set__tabs" role="group" aria-label="Tier">
+    {
+      week.tiers.map((tier, index) => (
+        <>
+          <input
+            class="compare-set__radio"
+            type="radio"
+            name={groupName}
+            id={`${groupName}-${tier.tier}`}
+            value={tier.tier}
+            checked={index === 0}
+          />
+          <label class="compare-set__tab" for={`${groupName}-${tier.tier}`}>
+            {tier.tier}
+          </label>
+        </>
+      ))
+    }
+  </div>
+
+  <div class="compare-set__panels">
+    {
+      week.tiers.map((tier) => (
+        <div class="compare-set__panel" data-tier={tier.tier}>
+          <p class="compare-set__label">{tier.label}</p>
+          {tier.output.kind === "video" ? (
+            <video
+              class="compare-set__media"
+              src={tier.output.file}
+              poster={tier.output.poster}
+              controls
+              preload="none"
+            />
+          ) : (
+            <img
+              class="compare-set__media"
+              src={tier.output.file}
+              alt={`Recorded output for ${tier.label}`}
+              loading="lazy"
+            />
+          )}
+          <p class="compare-set__note">{tier.note}</p>
+        </div>
+      ))
+    }
+  </div>
+
+  <figcaption class="compare-set__credit">
+    {CREDIT_LINE}{" "}
+    {firstTier && <a href={withBase(`/studio/#week-${weekTag}:${firstTier.tier}`)}>Run it in the Studio</a>}.
+  </figcaption>
+</figure>

@@ -13,6 +13,8 @@ related:
 draft: false
 ---
 
+import CompareSet from "../../components/widgets/CompareSet.astro";
+
 Text to image starts from nothing; image to image starts from something,
 and this week is about how much of that something survives. Denoising
 strength is the single number that decides it: low strength keeps most
@@ -60,6 +62,8 @@ The next tier starts from a flat-coloured version of that lineart. The
 next tier starts from an already finished keyframe, refined rather than
 built. The top tier starts from that same finished keyframe plus a
 ControlNet pose signal locking its composition in place.
+
+<CompareSet week={4} />
 
 ## Before class
 

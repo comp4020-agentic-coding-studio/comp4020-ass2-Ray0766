@@ -1,5 +1,5 @@
 import { withBase } from "astro-theme-university/url";
-import type { Tier, WeekManifest } from "../data/studio.schema";
+import type { ReferenceEpisode, Tier, WeekManifest } from "../data/studio.schema";
 
 type TierWithText = Tier & { promptText?: string; negText?: string };
 type WeekWithText = Omit<WeekManifest, "tiers"> & { tiers: TierWithText[] };
@@ -40,15 +40,23 @@ export interface ClientWeek {
   tiers: ClientTier[];
 }
 
+// `reference.json`'s own output paths keep their original "final/" prefix
+// (week manifests don't); strip it so both shapes land on the same flat
+// public/studio/ layout the copy step actually produced.
+function stripFinalPrefix(file: string): string {
+  return file.startsWith("final/") ? file.slice("final/".length) : file;
+}
+
 function assetUrl(file: string): string {
-  return withBase(`/studio/${file}`);
+  return withBase(`/studio/${stripFinalPrefix(file)}`);
 }
 
 // `inputs/**` paths are prompt/negative text read at build time (see
 // src/lib/studio.ts) and never copied into public/ — only a bare filename
-// (no directory) was copied into public/studio/ and can become a URL.
+// (no directory, or a "final/"-prefixed one) was copied into public/studio/
+// and can become a URL.
 function isPublicFile(file: string): boolean {
-  return !file.includes("/");
+  return !stripFinalPrefix(file).includes("/");
 }
 
 function toClientInput(input: Record<string, unknown>, promptText?: string, negText?: string): ClientTierInput {
@@ -99,6 +107,41 @@ export function toClientWeek(week: WeekWithText): ClientWeek {
       counterExample: tier.counterExample,
       input: toClientInput(tier.input as Record<string, unknown>, tier.promptText, tier.negText),
       output: toClientOutput(tier.output),
+    })),
+  };
+}
+
+export interface ClientReferenceCard {
+  id: string;
+  lines: string[];
+  timecode: string;
+}
+
+export interface ClientReferenceEpisode {
+  title: string;
+  model: string;
+  mode: string;
+  duration_s: number;
+  video: string;
+  poster: string;
+  cards: ClientReferenceCard[];
+}
+
+// `outputs.master` is metadata only (never copied to public/) and is
+// deliberately not surfaced here — only `web` (the playable clip) and
+// `poster` (its still) ever become a src.
+export function toClientReferenceEpisode(ref: ReferenceEpisode): ClientReferenceEpisode {
+  return {
+    title: ref.title,
+    model: ref.model,
+    mode: ref.mode,
+    duration_s: ref.duration_s,
+    video: assetUrl(ref.outputs.web.file),
+    poster: assetUrl(ref.outputs.poster.file),
+    cards: ref.cards.map((card) => ({
+      id: card.id,
+      lines: card.text,
+      timecode: card.timecode,
     })),
   };
 }

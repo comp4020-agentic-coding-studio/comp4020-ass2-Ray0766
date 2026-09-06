@@ -19,3 +19,6 @@ entry name a size and a reference — before the boarded panels are judged
 on how well they hit what the list already promised. A board that reads
 well but was never checked against its own shot list goes back for
 another pass, not forward to production.
+
+The room places each piece on this ladder: [replay the full recorded
+run](/studio/#week-09:t1) before the session, tier by tier, log included.

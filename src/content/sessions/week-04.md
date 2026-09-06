@@ -18,3 +18,6 @@ question per pair — did more finish in the input actually buy more
 control in the output, or did the prompt and strength swamp it anyway.
 An output that ignores its own input entirely is a strength-dial
 failure, not a style choice.
+
+The room places each piece on this ladder: [replay the full recorded
+run](/studio/#week-04:t1) before the session, tier by tier, log included.

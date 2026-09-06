@@ -17,3 +17,6 @@ the tag vocabulary and negative prompt earn its place, where does the
 top tier's shot size and colour script pay off versus the one before it.
 A tier that looks identical to the one before it is a real finding, not
 a shrug — say which grammar element failed to do anything and why.
+
+The room places each piece on this ladder: [replay the full recorded
+run](/studio/#week-03:t1) before the session, tier by tier, log included.

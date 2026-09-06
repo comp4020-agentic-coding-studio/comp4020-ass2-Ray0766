@@ -17,3 +17,6 @@ job each addition is doing, before the matching output is allowed to
 play. An output that looks right from a graph nobody else in the room
 can read doesn't pass review; a graph is only finished once someone
 other than its author can follow it.
+
+The room places each piece on this ladder: [replay the full recorded
+run](/studio/#week-07:t1) before the session, tier by tier, log included.

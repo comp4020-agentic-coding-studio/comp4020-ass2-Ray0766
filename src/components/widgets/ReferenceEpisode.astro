@@ -1,0 +1,35 @@
+---
+import "../../styles/site.css";
+import "../../styles/reference-episode.css";
+import { referenceEpisode } from "../../lib/studio";
+import { toClientReferenceEpisode } from "../../lib/studio-client";
+
+const ref = toClientReferenceEpisode(referenceEpisode);
+
+const CREDIT_LINE =
+  "Recorded on the convener's rig with MiniMax H3 (local weights), keyframes with NoobAI-XL, reference stills for The Ninth Head with ChatGPT's image generator. Nothing is generated in the browser.";
+---
+
+<figure class="reference-episode" aria-label={`${ref.title}, reference episode`}>
+  <div class="reference-episode__player phone-frame">
+    <video src={ref.video} poster={ref.poster} controls preload="none"></video>
+  </div>
+
+  <figcaption class="reference-episode__caption">
+    <p class="reference-episode__meta">
+      {ref.title} · {ref.model} · {ref.mode} · {Math.round(ref.duration_s)}s
+    </p>
+    <ol class="reference-episode__cards">
+      {
+        ref.cards.map((card) => (
+          <li class="reference-episode__card">
+            {card.lines.map((line) => (
+              <span class="reference-episode__card-line">{line}</span>
+            ))}
+          </li>
+        ))
+      }
+    </ol>
+    <p class="reference-episode__credit">{CREDIT_LINE}</p>
+  </figcaption>
+</figure>

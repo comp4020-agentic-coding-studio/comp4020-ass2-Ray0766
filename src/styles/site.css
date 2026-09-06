@@ -894,3 +894,28 @@ p {
     flex: 0 0 18rem;
   }
 }
+
+/* ----------------------------------------------------------------------
+   Phone-frame: the 9:16 card grammar from .home-hero__card, reused as a
+   plain (non-scroll-driven) utility wherever a recorded clip plays back in
+   a phone-shaped frame — the Studio console's result and the reference-
+   episode player. */
+
+.phone-frame {
+  margin: 0;
+  aspect-ratio: 9 / 16;
+  width: 100%;
+  max-width: 20rem;
+  max-height: 85dvh;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 2rem 4rem color-mix(in oklab, var(--at-black) 60%, transparent);
+}
+
+.phone-frame > video,
+.phone-frame > img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}

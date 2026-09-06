@@ -1,0 +1,105 @@
+/* CompareSet: a week's recorded ladder, embedded in a lecture page. Tab
+   switching is native radio+label driven by CSS :has() — no script, because
+   panel visibility here is a pure display concern with no state worth a
+   dedicated .ts module. */
+
+.compare-set {
+  margin: var(--at-spacing-lg) 0;
+  padding: 0;
+}
+
+.compare-set__tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--at-spacing-sm);
+  margin-block-end: var(--at-spacing-md);
+}
+
+.compare-set__radio {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.compare-set__tab {
+  display: inline-block;
+  border: 1px solid var(--at-border);
+  border-radius: var(--at-border-radius);
+  padding: var(--at-spacing-xs) var(--at-spacing-sm);
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.compare-set__radio:checked + .compare-set__tab {
+  background: var(--at-accent);
+  color: var(--at-on-accent);
+}
+
+.compare-set__radio:focus-visible + .compare-set__tab {
+  outline: 2px solid var(--at-accent);
+  outline-offset: 2px;
+}
+
+.compare-set__panels {
+  display: grid;
+  gap: var(--at-spacing-lg);
+}
+
+.compare-set__panel {
+  display: none;
+  border: 1px solid var(--at-border);
+  border-radius: var(--at-border-radius);
+  padding: var(--at-spacing-md);
+  background: var(--at-bg-alt);
+}
+
+/* Fixed t1-t5 vocabulary across every week manifest (3-5 tiers each) — five
+   rules cover every CompareSet instance with no per-week duplication. */
+.compare-set:has(.compare-set__radio[value="t1"]:checked) .compare-set__panel[data-tier="t1"],
+.compare-set:has(.compare-set__radio[value="t2"]:checked) .compare-set__panel[data-tier="t2"],
+.compare-set:has(.compare-set__radio[value="t3"]:checked) .compare-set__panel[data-tier="t3"],
+.compare-set:has(.compare-set__radio[value="t4"]:checked) .compare-set__panel[data-tier="t4"],
+.compare-set:has(.compare-set__radio[value="t5"]:checked) .compare-set__panel[data-tier="t5"] {
+  display: block;
+}
+
+.compare-set__label {
+  font-weight: 600;
+  margin: 0 0 var(--at-spacing-sm);
+}
+
+.compare-set__media {
+  display: block;
+  max-width: 100%;
+  max-height: 20rem;
+  margin-inline: auto;
+  border-radius: var(--at-border-radius);
+}
+
+.compare-set__note {
+  margin: var(--at-spacing-sm) 0 0;
+  color: var(--at-text-secondary);
+}
+
+.compare-set__credit {
+  margin-block-start: var(--at-spacing-md);
+  font-size: 0.85rem;
+  color: var(--at-text-secondary);
+}
+
+@media (min-width: 900px) {
+  .compare-set__tabs {
+    display: none;
+  }
+
+  .compare-set__panels {
+    grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  }
+
+  .compare-set__panel {
+    display: block;
+  }
+}

@@ -1,0 +1,44 @@
+.reference-episode {
+  display: grid;
+  gap: var(--at-spacing-lg);
+  margin: var(--at-spacing-lg) 0;
+  padding: 0;
+}
+
+.reference-episode__player {
+  justify-self: center;
+}
+
+.reference-episode__meta {
+  font-weight: 600;
+  margin: 0 0 var(--at-spacing-sm);
+}
+
+.reference-episode__cards {
+  list-style: decimal;
+  margin: 0 0 var(--at-spacing-md);
+  padding-inline-start: 1.25rem;
+  display: grid;
+  gap: var(--at-spacing-xs);
+}
+
+.reference-episode__card {
+  display: grid;
+}
+
+.reference-episode__card-line {
+  display: block;
+}
+
+.reference-episode__credit {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--at-text-secondary);
+}
+
+@media (min-width: 900px) {
+  .reference-episode {
+    grid-template-columns: minmax(0, 20rem) 1fr;
+    align-items: start;
+  }
+}

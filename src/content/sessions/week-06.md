@@ -18,3 +18,6 @@ and did identity survive the motion that happened. A tier that adds a
 motion prompt or a last frame and drifts worse than the tier before it is
 a real finding — name which one, sketch, flat colour, or the added
 control, actually caused it.
+
+The room places each piece on this ladder: [replay the full recorded
+run](/studio/#week-06:t1) before the session, tier by tier, log included.

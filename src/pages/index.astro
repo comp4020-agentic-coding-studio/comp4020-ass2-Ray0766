@@ -31,6 +31,12 @@ const team = (await getPublishedCollection("people")).sort(
   (a, b) => ROLE_ORDER.indexOf(a.data.role) - ROLE_ORDER.indexOf(b.data.role),
 );
 
+// The hero's one-line lead is the course record's own opening sentence, cut
+// out of it rather than retyped: the description is the single source for
+// what this course is, and a second copy of half of it is a second thing to
+// keep true.
+const heroLead = courseMeta.description.match(/^.*?\.(?=\s|$)/)?.[0] ?? courseMeta.description;
+
 const TEAM_BIOS: Record<string, string> = {
   "vera-lin":
     "Eleven years writing for a daytime soap before the jump to vertical drama; runs Monday lectures on a schedule that does not move for a rewrite.",
@@ -47,26 +53,45 @@ const TEAM_BIOS: Record<string, string> = {
   <DefaultDarkTheme slot="head" />
   <section class="home-hero" slot="hero" aria-label={`${courseMeta.code}: ${courseMeta.title}`}>
     <div class="home-hero__stage">
+      {/* The same still the video carries as its poster, so a visitor on a
+          slow connection pays for one image and the hero composes itself out
+          of it before a frame of video has arrived. */}
+      <div class="home-hero__backdrop" aria-hidden="true">
+        <img src={heroPoster.src} alt="" width={heroPoster.width} height={heroPoster.height} />
+      </div>
+      <div class="home-hero__frame">
+        <video
+          class="home-hero__video"
+          muted
+          loop
+          playsinline
+          preload="metadata"
+          poster={heroPoster.src}
+          width="1080"
+          height="1920"
+        >
+          <source src={withBase("/hero-loop.mp4")} type="video/mp4" />
+          <track kind="captions" src={withBase("/hero-loop.vtt")} srclang="en" label="English" default />
+        </video>
+      </div>
       <div class="home-hero__scrim" aria-hidden="true"></div>
+      <div class="home-hero__curtain" aria-hidden="true"></div>
       <div class="home-hero__content">
-        <p class="home-hero__kicker">{courseMeta.code} · Serialized AI Video Drama</p>
+        <div class="home-hero__intro">
+          <p class="home-hero__kicker">{courseMeta.code} · Serialized AI Video Drama</p>
+        </div>
         <h1 class="home-hero__title" aria-label="Slop Opera">
           <span class="home-hero__word home-hero__word--left">Slop</span>
           <span class="home-hero__word home-hero__word--right">Opera</span>
         </h1>
-        <div class="home-hero__card">
-          <video
-            class="home-hero__video"
-            muted
-            loop
-            playsinline
-            poster={heroPoster.src}
-            width="1080"
-            height="1920"
-          >
-            <source src={withBase("/hero-loop.mp4")} type="video/mp4" />
-            <track kind="captions" src={withBase("/hero-loop.vtt")} srclang="en" label="English" default />
-          </video>
+        <div class="home-hero__pitch">
+          <p class="home-hero__lead">{heroLead}</p>
+          <div class="home-hero__actions">
+            <a class="at-button home-hero__action" href="#calendar">Release calendar</a>
+            <a class="at-button at-button--outline home-hero__action" href={withBase("/studio/")}>
+              Open the Studio
+            </a>
+          </div>
         </div>
       </div>
     </div>

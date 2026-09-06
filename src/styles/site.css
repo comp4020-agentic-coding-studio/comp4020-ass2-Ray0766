@@ -72,10 +72,17 @@ p {
 }
 
 /* ----------------------------------------------------------------------
-   Home hero — the one signature scroll moment. A 300vh scroll region with
-   a sticky, full-screen stage; a --p custom property tracks progress
-   through it and drives everything else with calc(), so there is exactly
-   one animation to reason about.
+   Home hero — the one signature scroll moment, reversed on 2026-09-07.
+   The show fills the screen and the words sit on top of it; scrolling
+   shrinks the full-frame loop into the phone-shaped card, rather than
+   growing a small card out into the screen the way it used to.
+
+   A sticky stage over a runway; a --p custom property tracks progress
+   through it and drives every piece of geometry with calc(), so there is
+   exactly one number to reason about. Because of that, the
+   no-scroll-driven-animations and reduced-motion states are written by
+   pinning --p rather than by restating each animated value — which is what
+   used to let those blocks drift away from the animation they stand in for.
    ---------------------------------------------------------------------- */
 
 @property --p {
@@ -93,6 +100,57 @@ p {
   }
 }
 
+/* Entrance, on first paint only. Each one runs on its own element at its
+   own delay, and none of them touches a property --p drives: an element
+   can only have one owner for `opacity` or `transform`, and an animation
+   with `animation-fill-mode: both` would hold its end value over any
+   calc() declaration underneath it for the rest of the page's life. That
+   constraint is what the curtain and the two group wrappers exist to
+   satisfy — the media fades up behind a black layer of its own, and the
+   text that leaves on scroll leaves via a parent, so the child keeps its
+   own opacity for the entrance. */
+@keyframes hero-curtain-lift {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes hero-text-rise {
+  from {
+    opacity: 0;
+    transform: translateY(0.3em);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Everything but the title leaves early. `visibility` rides along with the
+   opacity so a faded link is neither clickable nor tabbable — an invisible
+   focus target is a worse bug than the crowding this fade exists to
+   prevent. It flips one step before the end rather than at the midpoint,
+   which is where a two-keyframe discrete property would otherwise switch. */
+@keyframes hero-dismiss {
+  from {
+    opacity: 1;
+    visibility: visible;
+  }
+
+  99% {
+    opacity: 0.01;
+    visibility: visible;
+  }
+
+  to {
+    opacity: 0;
+    visibility: hidden;
+  }
+}
+
 .home-hero {
   /* base.css lays body out as a named-line grid and defaults every direct
      child to the narrow `content` column (body > * { grid-column: content }
@@ -104,7 +162,14 @@ p {
      screen edge, which is what the animation's slide distance is tuned for. */
   grid-column: full;
   position: relative;
-  height: 300vh;
+
+  /* One stage plus the runway that plays --p out underneath it. Both the
+     stage's animation-range and the earlier range the lead and buttons
+     leave on are derived from these two, so the three can't drift apart. */
+  --hero-run: 200vh;
+  --hero-run-start: var(--at-nav-height);
+  --hero-dismiss-at: 0.4;
+  height: calc(100dvh + var(--hero-run));
 }
 
 .home-hero__stage {
@@ -113,23 +178,26 @@ p {
      rather than fixed, so it occupies real layout height above this stage.
      Matching both the offset and the height to --at-nav-height keeps the
      stage's in-flow position and its stuck position identical (no jump when
-     sticking kicks in) and keeps its whole box inside the viewport, instead
-     of the box overflowing the bottom by one nav-height whenever it renders
-     in-flow — the initial scroll position, and the entire reduced-motion and
-     @supports-fallback end states, which never scroll it into the stuck
-     state. */
+     sticking kicks in) and keeps its whole box inside the viewport. */
   top: var(--at-nav-height);
   height: calc(100dvh - var(--at-nav-height));
   overflow: hidden;
+
+  /* What the backdrop fades away to. Deliberately --at-bg's dark arm rather
+     than --at-bg itself: the hero is a media surface in both themes, and
+     the alternative — ending on a light page background under the light
+     theme — forces the title to cross-fade from white to near-black and
+     pass through a mid-grey-on-mid-grey midpoint halfway down the runway.
+     One title colour on one dark surface is the readable trade. */
   background: oklch(from var(--at-primary) 12% 0.008 h);
-  /* Shared with .home-hero__card and .home-hero__kicker: the card's start
-     size, hoisted here so the kicker can stay clear of it without knowing
-     the card's own rule. --card-w-end is hoisted here too (rather than
-     staying local to .home-hero__card) so the word transforms below can
-     read it without knowing the card's own rule either. */
-  --card-w-start: 17.5rem;
-  --card-h-start: calc(var(--card-w-start) * 16 / 9);
-  --card-w-end: min(calc(85dvh * 9 / 16), calc(100vw - 2rem));
+
+  /* The loop's two sizes. It starts as a 9:16 frame filling the stage's
+     height (the show, full frame) and ends at the phone card — the same
+     20rem grammar .phone-frame uses for a recorded clip everywhere else on
+     the site. Hoisted here because the word slide reads --card-w-end too. */
+  --card-w-start: min(calc((100dvh - var(--at-nav-height)) * 9 / 16), calc(100vw - 2rem));
+  --card-w-end: 20rem;
+
   /* Every animation-* sub-property stays fully longhand, none combined into
      the `animation` shorthand: if any of them use the shorthand, Lightning
      CSS's minifier folds animation-timeline back into it as
@@ -145,90 +213,43 @@ p {
   /* Nav is sticky, not fixed, so it occupies real layout height and pushes
      this stage's sticky-pin window down by --at-nav-height; the range has
      to start there rather than at 0 to line up with the stage's actual
-     scroll-through distance (300vh tall, 100dvh pinned = 200vh to play). */
-  animation-range: var(--at-nav-height) calc(var(--at-nav-height) + 200vh);
+     scroll-through distance. */
+  animation-range: var(--hero-run-start) calc(var(--hero-run-start) + var(--hero-run));
 }
 
-.home-hero__scrim {
+/* Backdrop: the poster still, covering the stage behind the loop's own 9:16
+   frame, so the screen is full of the show rather than of a colour. */
+.home-hero__backdrop {
   position: absolute;
   inset: 0;
-  background: var(--at-black);
-  opacity: calc(var(--p) * 0.55);
+  overflow: hidden;
+  opacity: calc(1 - var(--p));
   pointer-events: none;
 }
 
-.home-hero__content {
-  position: relative;
+.home-hero__backdrop img {
+  width: 100%;
   height: 100%;
-  display: grid;
-  place-items: center;
+  object-fit: cover;
+  /* A blur samples past the element's own edges, and what comes back is
+     transparent — an unscaled backdrop draws a soft empty border inside the
+     stage. Scaling it up pushes that sampled edge outside the clip.
+     Darkened here rather than under another overlay, so the scrim below is
+     free to do only its own job. */
+  filter: blur(40px) brightness(0.45);
+  transform: scale(1.15);
 }
 
-.home-hero__kicker {
-  position: absolute;
-  /* Anchored to the card's own start size, not a viewport percentage: on a
-     short mobile content box (100dvh minus the nav), 14% of the box lands
-     inside the card's vertical span at every scroll position, including the
-     very first frame — a course-code label a visitor never sees. Deriving
-     the offset from --card-h-start instead keeps it clear of the card at
-     rest on any viewport; it may still get covered as the card grows past
-     that size later in the scroll, which is an accepted trade-off, not a
-     re-fix of this same problem. */
-  top: 50%;
-  left: 50%;
-  margin: 0;
-  transform: translate(-50%, calc(-100% - (var(--card-h-start) / 2) - 1.5rem));
-  font-size: clamp(0.8rem, 0.7rem + 0.3vw, 1rem);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: color-mix(in oklab, var(--at-white) 70%, transparent);
-  white-space: nowrap;
-}
-
-.home-hero__title {
+.home-hero__frame {
   position: absolute;
   top: 50%;
   left: 50%;
-  margin: 0;
-  display: flex;
-  gap: 0.5em;
-  transform: translate(-50%, -50%);
-  font-size: clamp(2.5rem, 2rem + 4vw, 6rem);
-  font-weight: 400;
-  color: var(--at-primary);
-  pointer-events: none;
-  white-space: nowrap;
-}
-
-.home-hero__word {
-  display: inline-block;
-}
-
-.home-hero__word--left {
-  /* Slide to the centre of the free gutter beside the card's end size,
-     not a fixed 38vw: a fixed slide is tuned for one viewport and either
-     undershoots (leaves the words behind the card) or overshoots (pushes
-     a glyph past the edge) at any other width. -25vw - card-w-end/4 lands
-     the word's centre at the midpoint between the card's edge and the
-     viewport edge; 50% (the word's own width) and 0.25em (half the flex
-     gap) correct from the word's left edge, where translateX anchors, to
-     that centre. */
-  transform: translateX(calc(var(--p) * (-25vw - var(--card-w-end) / 4 + 0.25em + 50%)));
-}
-
-.home-hero__word--right {
-  transform: translateX(calc(var(--p) * (25vw + var(--card-w-end) / 4 - 0.25em - 50%)));
-}
-
-.home-hero__card {
-  /* --card-w-start and --card-w-end are inherited from .home-hero__stage,
-     shared with the kicker's and the words' own positioning. */
-  position: relative;
-  z-index: 1;
+  translate: -50% -50%;
   aspect-ratio: 9 / 16;
   width: calc(var(--card-w-start) + var(--p) * (var(--card-w-end) - var(--card-w-start)));
-  max-height: 85dvh;
-  border-radius: 16px;
+  max-height: 100%;
+  /* Square at full frame, phone-shaped once it has shrunk to one. */
+  border-radius: calc(var(--p) * 1.25rem);
   overflow: hidden;
   box-shadow: 0 2rem 4rem color-mix(in oklab, var(--at-black) 60%, transparent);
 }
@@ -240,24 +261,192 @@ p {
   object-fit: cover;
 }
 
+/* The scrim's job is a number, not a mood, and the number is not specific
+   to this loop. A browser composites this gradient over the video in sRGB's
+   own gamma space, so a pixel at alpha a comes out at channel value
+   (1 - a) however bright it started: at a = 0.88 even a pure white frame
+   lands at 0.12, which is 0.0155 relative luminance, and white text over
+   that clears 4.5:1 with room to spare. So a ramp that reaches 0.88 by 38%
+   of the stage's height makes every pixel of every frame safe under the
+   text, rather than every pixel of this particular one — which is why the
+   text block is anchored to the bottom rather than floated in the middle,
+   and why the top fifth stays nearly clear, since that is where the loop's
+   picture actually is. Measured against the rendered composite at nine
+   points across the loop, worst case: title 17.7:1, kicker 13.9:1, lead
+   18.5:1, and the outline button's brand gold — the tightest of the four,
+   because gold is dark ink — 5.5:1. */
+.home-hero__scrim {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to bottom,
+    color-mix(in oklab, var(--at-black) 26%, transparent) 0%,
+    color-mix(in oklab, var(--at-black) 20%, transparent) 18%,
+    color-mix(in oklab, var(--at-black) 48%, transparent) 30%,
+    color-mix(in oklab, var(--at-black) 88%, transparent) 38%,
+    color-mix(in oklab, var(--at-black) 94%, transparent) 100%
+  );
+  opacity: calc(1 - var(--p));
+  pointer-events: none;
+}
+
+/* The entrance's "up from black", as a layer of its own rather than an
+   opacity animation on the media: the backdrop and the scrim already spend
+   their opacity on --p, and an animation would take it off them for good. */
+.home-hero__curtain {
+  position: absolute;
+  inset: 0;
+  background: var(--at-black);
+  opacity: 0;
+  pointer-events: none;
+  animation-name: hero-curtain-lift;
+  animation-duration: 900ms;
+  animation-timing-function: ease-out;
+  animation-fill-mode: both;
+}
+
+.home-hero__content {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: grid;
+  align-content: end;
+  justify-items: center;
+  gap: 1.25rem;
+  padding: 2rem 1.5rem clamp(2rem, 8vh, 5rem);
+  text-align: center;
+  /* Rise as the loop shrinks, so the end state is the card centred with the
+     words beside it rather than the words stranded under it. A percentage
+     of this box, which is the stage, so it scales with the viewport. */
+  translate: 0 calc(var(--p) * -17%);
+}
+
+.home-hero__kicker {
+  margin: 0;
+  font-size: clamp(0.8rem, 0.7rem + 0.3vw, 1rem);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  /* Solid, not a transparent white: over a moving picture, a colour mixed
+     with transparent has no fixed contrast to check. */
+  color: var(--at-light-grey);
+}
+
+.home-hero__title {
+  margin: 0;
+  display: flex;
+  gap: 0.5em;
+  font-size: clamp(2.5rem, 2rem + 4vw, 6rem);
+  font-weight: 400;
+  line-height: 1.05;
+  /* White, where this used to be the brand gold. Gold needs a background
+     under 0.017 luminance to clear 4.5:1 and the loop cannot be scrimmed
+     that far without going out; white clears it at 0.183. The brand colour
+     stays on the primary button, where it is a fill with its own ink. */
+  color: var(--at-white);
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.home-hero__word {
+  display: inline-block;
+  /* The entrance owns `transform`; the scroll owns `translate`. They are
+     separate properties and compose in that order, which is what lets one
+     word both rise on load and slide on scroll without a wrapper each. */
+  animation-name: hero-text-rise;
+  animation-duration: 700ms;
+  animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+  animation-fill-mode: both;
+}
+
+.home-hero__word--left {
+  /* Slide to the centre of the free gutter beside the card's end size,
+     not a fixed 38vw: a fixed slide is tuned for one viewport and either
+     undershoots (leaves the words behind the card) or overshoots (pushes
+     a glyph past the edge) at any other width. -25vw - card-w-end/4 lands
+     the word's centre at the midpoint between the card's edge and the
+     viewport edge; 50% (the word's own width) and 0.25em (half the flex
+     gap) correct from the word's left edge, where translate anchors, to
+     that centre. */
+  translate: calc(var(--p) * (-25vw - var(--card-w-end) / 4 + 0.25em + 50%));
+}
+
+.home-hero__word--right {
+  translate: calc(var(--p) * (25vw + var(--card-w-end) / 4 - 0.25em - 50%));
+}
+
+.home-hero__lead {
+  margin: 0;
+  max-width: 46ch;
+  font-size: clamp(1rem, 0.95rem + 0.4vw, 1.35rem);
+  color: var(--at-white);
+}
+
+.home-hero__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.75rem;
+  margin-block-start: 0.5rem;
+}
+
+/* base.css's focus ring puts a 4px --at-bg band between the element and its
+   outline; over a moving picture that band is the only thing separating the
+   ring from whatever frame is underneath, so the hero states it in the
+   surface colour it actually sits on rather than the page's. */
+.home-hero__action:focus-visible {
+  box-shadow: 0 0 0 4px oklch(from var(--at-primary) 12% 0.008 h);
+}
+
+/* The two groups that leave on scroll. The wrapper carries the departure so
+   its children keep their own opacity for the entrance. */
+.home-hero__intro,
+.home-hero__pitch {
+  display: grid;
+  justify-items: center;
+  gap: 1.25rem;
+  animation-name: hero-dismiss;
+  animation-duration: 1s;
+  animation-timing-function: linear;
+  animation-fill-mode: both;
+  animation-timeline: scroll(root);
+  animation-range: var(--hero-run-start)
+    calc(var(--hero-run-start) + var(--hero-run) * var(--hero-dismiss-at));
+}
+
+.home-hero__kicker,
+.home-hero__lead,
+.home-hero__actions {
+  animation-name: hero-text-rise;
+  animation-duration: 700ms;
+  animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+  animation-fill-mode: both;
+  animation-delay: 200ms;
+}
+
+.home-hero__actions {
+  animation-delay: 400ms;
+}
+
+/* Both of these render the composition that has everything in it — the
+   loop at full frame with the words, the lead and both buttons on top of
+   it — rather than the scroll's end state. The end state is a handoff into
+   the page: it drops the lead and both links on purpose, because by then
+   the page itself is arriving underneath. As a resting composition for
+   someone whose browser can't run the scroll, or who has asked for less
+   motion, that is a hero missing two of its links, so these pin --p at 0
+   and keep the runway out of the way. Pinning the one number is also what
+   keeps these blocks from drifting away from the animation they stand in
+   for, which is what happened to the pair they replace. */
 @supports not (animation-timeline: scroll()) {
-  .home-hero__stage {
-    animation: none;
+  .home-hero {
+    height: calc(100dvh - var(--at-nav-height));
   }
-  .home-hero__card {
-    width: var(--card-w-end);
-  }
-  /* The p=1 case of the same gutter-centring formula above, not the old
-     fixed 38vw — this end state has to stay in sync with the animated one
-     or it re-introduces the same overshoot this section exists to fix. */
-  .home-hero__word--left {
-    transform: translateX(calc(-25vw - var(--card-w-end) / 4 + 0.25em + 50%));
-  }
-  .home-hero__word--right {
-    transform: translateX(calc(25vw + var(--card-w-end) / 4 - 0.25em - 50%));
-  }
-  .home-hero__scrim {
-    opacity: 0.55;
+
+  .home-hero__stage,
+  .home-hero__intro,
+  .home-hero__pitch {
+    animation-name: none;
+    --p: 0;
   }
 }
 
@@ -265,74 +454,64 @@ p {
   .home-hero {
     height: calc(100dvh - var(--at-nav-height));
   }
-  .home-hero__stage {
-    animation: none;
+
+  .home-hero__stage,
+  .home-hero__intro,
+  .home-hero__pitch {
+    animation-name: none;
+    --p: 0;
   }
-  .home-hero__card {
-    width: var(--card-w-end);
-  }
-  /* Hold the words at their fully-slid position rather than cancelling the
-     transform: this block is the "end state, no animation" render the spec
-     calls for, and the end state has the words apart, not centred — a bare
-     transform: none shows the animation's start pose next to a card already
-     at its end size, a mismatched hybrid of the two. Same gutter-centring
-     formula as the animated version, evaluated at p=1. */
-  .home-hero__word--left {
-    transform: translateX(calc(-25vw - var(--card-w-end) / 4 + 0.25em + 50%));
-  }
-  .home-hero__word--right {
-    transform: translateX(calc(25vw + var(--card-w-end) / 4 - 0.25em - 50%));
-  }
-  .home-hero__scrim {
-    opacity: 0.3;
+
+  /* The entrance's end state, rendered at once rather than played. */
+  .home-hero__curtain,
+  .home-hero__word,
+  .home-hero__kicker,
+  .home-hero__lead,
+  .home-hero__actions {
+    animation-name: none;
   }
 }
 
-/* Phone: no scroll runway. The desktop reveal depends on room beside the
-   card for the words to slide into; a screen this narrow doesn't have it.
-   One static composition instead — kicker, then the title on one line
-   above the card, then the card itself — inside a single dvh-minus-nav
-   screen, no word transforms, no scrim ramp (the words never overlap the
-   card here, so nothing needs darkening behind them). */
+/* Phone: no runway, nothing scroll-driven. The loop covers the viewport
+   instead of standing in it as a 9:16 frame — at this width the frame and
+   the screen are nearly the same shape anyway — and the same entrance
+   plays over it. Every scroll-driven value collapses on its own here,
+   because switching the stage's animation off returns --p to its
+   registered initial 0; that is also what makes a resize mid-scroll land
+   on this composition whole instead of half-animated. */
 @media (max-width: 640px) {
   .home-hero {
     height: calc(100dvh - var(--at-nav-height));
   }
 
-  .home-hero__stage {
-    animation: none;
+  .home-hero__stage,
+  .home-hero__intro,
+  .home-hero__pitch {
+    animation-name: none;
   }
 
-  .home-hero__scrim {
-    opacity: 0;
+  .home-hero__backdrop {
+    display: none;
   }
 
-  .home-hero__content {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 1rem;
-    padding-inline: 1.5rem;
-  }
-
-  .home-hero__kicker,
-  .home-hero__title {
-    position: static;
-    transform: none;
+  .home-hero__frame {
+    top: 0;
+    left: 0;
+    translate: none;
+    width: 100%;
+    height: 100%;
+    aspect-ratio: auto;
+    max-height: none;
+    border-radius: 0;
+    box-shadow: none;
   }
 
   .home-hero__title {
     font-size: clamp(1.75rem, 1.3rem + 5vw, 2.5rem);
   }
 
-  .home-hero__word--left,
-  .home-hero__word--right {
-    transform: none;
-  }
-
-  .home-hero__card {
-    width: 60vw;
+  .home-hero__actions {
+    width: 100%;
   }
 }
 
@@ -887,10 +1066,11 @@ p {
 }
 
 /* ----------------------------------------------------------------------
-   Phone-frame: the 9:16 card grammar from .home-hero__card, reused as a
-   plain (non-scroll-driven) utility wherever a recorded clip plays back in
-   a phone-shaped frame — the Studio console's result and the reference-
-   episode player. */
+   Phone-frame: the 9:16 card grammar the home hero's loop shrinks into,
+   reused as a plain (non-scroll-driven) utility wherever a recorded clip
+   plays back in a phone-shaped frame — the Studio console's result and the
+   reference-episode player. The hero reads its own end width off the same
+   20rem, so the phone is one size across the site. */
 
 .phone-frame {
   margin: 0;

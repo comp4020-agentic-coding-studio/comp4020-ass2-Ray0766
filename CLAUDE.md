@@ -105,20 +105,66 @@ find the real one or state the technique generically.
   scoped to page content (`.at-main > h1/h2/h3`, never bare elements), and a
   theme component is restyled only through its own class.
 
-## 5. Visual direction (decided 2026-09-01)
+## 5. Visual direction (hero reversed 2026-09-07)
 
 - Apple product-page layout grammar — full-bleed hero, oversized type, sticky
   sections — in the Slop palette. One signature scroll moment only: the home
-  hero, where a 9:16 loop plays as a phone-shaped card that expands on
-  scroll. Everything else is typography and spacing.
-- The hero is sticky + `animation-timeline: scroll()` driving a `--p` custom
-  property, with an IntersectionObserver fallback and `prefers-reduced-motion`
-  rendering the end state directly. No wheel hijacking, no `mix-blend-mode`.
+  hero. Everything else is typography and spacing.
+- The hero's thesis is that the show fills the screen and the words sit on
+  top of it. At rest the 9:16 loop is sized to the full stage height with a
+  blurred, darkened copy of its own poster covering the rest; scrolling
+  **shrinks** it into the phone-shaped card and slides the two title words
+  out into the gutters beside it. It used to run the other way — a small card
+  that grew — which sold the phone frame rather than the drama in it.
+- Layers inside the stage, bottom to top: backdrop, loop, scrim, curtain,
+  text. Text is above every media layer.
+- Sticky stage + `animation-timeline: scroll()` driving a `--p` custom
+  property, and every piece of geometry is a `calc()` off `--p`. There is no
+  IntersectionObserver fallback and there never was — an earlier version of
+  this section claimed one. The two states that stand in for the scroll,
+  `@supports not (animation-timeline: scroll())` and
+  `prefers-reduced-motion`, pin `--p` instead of restating each animated
+  value, which is what used to let them drift out of step with the
+  animation. No wheel hijacking, no `mix-blend-mode`.
+- Both of those pin `--p` to **0**, not 1. The end state is a handoff into
+  the page: it drops the lead and both buttons on purpose, because by then
+  the page is arriving underneath. Frozen as a resting composition it is a
+  hero missing two of its links, so a browser that can't run the scroll, and
+  a reader who asked for less motion, get the composition that has everything
+  in it.
+- Text over moving pictures is a contrast problem, and the scrim is sized by
+  arithmetic rather than by eye. A browser composites the scrim over the
+  video in sRGB's gamma space, so a pixel under alpha `a` comes out at
+  channel value `1 - a` no matter how bright it started: at 0.88 even a pure
+  white frame lands at 0.0155 relative luminance. A scrim that reaches 0.88
+  before the text starts is therefore safe for **any** clip, not just this
+  one — which is why the text block is anchored to the bottom and the scrim's
+  ramp finishes above it. The title is white for the same reason: the brand
+  gold needs a background under 0.017 to clear 4.5:1 and no watchable scrim
+  gets there. Gold stays on the buttons, where it is a fill with its own ink.
+- The hero stage keeps a dark surface in both themes rather than fading to
+  `--at-bg`. Ending on a light page background under the light theme would
+  force the title to cross-fade from white to near-black and pass through a
+  mid-grey-on-mid-grey midpoint halfway down the runway.
+- The entrance plays once on first paint: media up from black over ~900ms,
+  title words rising 0.3em, then kicker and lead, then buttons. CSS only,
+  `animation-fill-mode: both`, and it never gates `play()`. An element can
+  only have one owner for `opacity` or `transform`, and a filled animation
+  holds its end value over any `calc()` underneath it forever — so anything
+  that both enters on load and moves on scroll splits the two across separate
+  properties (`transform` against `translate`) or separate elements (the
+  curtain, the two group wrappers). If the video never arrives, the poster
+  composition is the hero; verified on Slow 3G with `readyState` still 0.
 - Write `animation-timeline` and `animation-range` as longhand properties,
   with a comment saying why: Lightning CSS folds them into the `animation`
   shorthand as a value Chrome rejects. Dev looks right, every check stays
   green, and the live animation is dead. Check the effect against
   `pnpm preview`'s minified output, not `pnpm dev`.
+- Phone (≤ 640px) has no runway and nothing scroll-driven: the loop covers
+  the viewport and the text sits on it. A resize across that breakpoint
+  mid-scroll must land on one composition whole — switching the stage's
+  animation off returns `--p` to its registered initial 0, which is what
+  makes that true rather than a pile of overrides.
 - Phase cards on the home page animate on hover only; the `/lectures/` chips
   are static gradients.
 

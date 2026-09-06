@@ -79,6 +79,15 @@ find the real one or state the technique generically.
 
 - Never hand-edit anything under `dist/` or `src/content/**/*.json` — build
   output. Fix the source and rebuild.
+- A build-time-only module (reads JSON/text off disk to feed a page) must not
+  resolve its own file paths at runtime via `import.meta.url`/`readFileSync`:
+  the prerender step bundles the module into a chunk that no longer sits next
+  to the files it wants to read, and the build fails with an ENOENT that only
+  shows up once some page actually imports the module. Use
+  `import.meta.glob(..., { eager: true })` (add `query: "?raw"` for plain
+  text) so Vite inlines the file contents at build time instead. Learned from
+  `src/lib/studio.ts`, which shipped this way in one commit and broke the
+  build in the next, the moment `/studio/` started importing it.
 - No root-absolute links (`href="/sessions/"`) in `.astro` files. Dev serves
   at `localhost:4321/comp4020-ass2-Ray0766/` and Pages mounts the site at the
   same sub-path; a root link works locally and 404s live. Use the theme's link

@@ -6,6 +6,7 @@ description:
   actually expects.
 week: 11
 date: 2027-05-17
+slides: /decks/week-11/
 teachers:
   - vera-lin
 related:

@@ -72,6 +72,53 @@ p {
 }
 
 /* ----------------------------------------------------------------------
+   Space for a section JavaScript is about to reveal
+   ----------------------------------------------------------------------
+   The Studio console and the Cut's sequence editor ship `hidden` and are
+   un-hidden by their own module, so a reader with JS off never meets a set
+   of dead controls. On a fast connection that swap happens before anything
+   is on screen. On Slow 3G the module lands seconds after first paint, and
+   un-hiding an 895px section shoves everything below it down the page —
+   measured at 0.11–0.13 CLS on /cut/ and /studio/, against 0.005 or less
+   everywhere else on the site.
+
+   So hold the space open from first paint. The reservation is keyed on
+   `[hidden]`, which means it releases itself the moment the module reveals
+   the section — no script has to remember to undo it — and it is switched on
+   by an inline `data-reserve` set during parsing, so it only ever applies
+   when JS is actually running. With JS off there is no reservation and no
+   hole where a console will never appear.
+
+   The heights are measured, not guessed (Chrome, both marking viewports, at
+   an 18px root). They are a reservation rather than a contract: if the
+   console's content changes and a number drifts, the cost is a smaller shift
+   than the one this replaces, never a broken page.
+   ---------------------------------------------------------------------- */
+
+[data-reserve][hidden] {
+  display: block;
+  visibility: hidden;
+}
+
+[data-reserve="cut-editor"][hidden] {
+  min-height: 50rem;
+}
+
+[data-reserve="studio-console"][hidden] {
+  min-height: 80rem;
+}
+
+@media (max-width: 640px) {
+  [data-reserve="cut-editor"][hidden] {
+    min-height: 86rem;
+  }
+
+  [data-reserve="studio-console"][hidden] {
+    min-height: 132rem;
+  }
+}
+
+/* ----------------------------------------------------------------------
    Focus rings the theme resets away
    ----------------------------------------------------------------------
    components.css builds the footer's theme toggle with `all: unset`, which

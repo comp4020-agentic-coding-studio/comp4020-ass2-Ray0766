@@ -241,5 +241,12 @@ function tierAnchor(weekNumber: number, tier: ClientTier): string {
     }
   </section>
 
+  <script is:inline>
+    // See the Cut page and site.css: reserve the console's space during
+    // parsing so revealing it on a slow connection doesn't shove the gallery
+    // down. Inline, so JS-off readers get no reservation and no empty hole.
+    document.querySelector("[data-studio-console]")?.setAttribute("data-reserve", "studio-console");
+  </script>
+
   <script src="../../scripts/studio/console.ts"></script>
 </ContentLayout>

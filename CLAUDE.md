@@ -215,6 +215,14 @@ find the real one or state the technique generically.
   sequential-focus-start hides how bad it is — the next Tab lands somewhere
   reasonable — so check `document.activeElement` after the press, not where
   Tab goes next.
+- A section that ships `hidden` and is revealed by its own module has to have
+  its space held open from first paint, or on a slow connection it shoves
+  everything below it down the page seconds after the reader started reading.
+  Key the reservation on `[hidden]` so it releases itself when the module
+  reveals the section, and switch it on from an inline script during parsing
+  so JS-off readers get neither a reservation nor a hole. Measure this under
+  Slow 3G with the cache disabled: on a fast connection the swap happens
+  before first paint and the page looks perfect.
 
 ## 8. Evidence
 

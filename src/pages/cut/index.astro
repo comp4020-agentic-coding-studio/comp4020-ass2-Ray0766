@@ -105,5 +105,14 @@ const CREDIT_LINE =
     </ol>
   </section>
 
+  <script is:inline>
+    // Runs while the document is still parsing, so the space the editor will
+    // occupy is reserved before the first paint rather than after the module
+    // arrives — see "Space for a section JavaScript is about to reveal" in
+    // site.css. Inline on purpose: with JS off nothing sets this and nothing
+    // is reserved.
+    document.querySelector("[data-cut-editor]")?.setAttribute("data-reserve", "cut-editor");
+  </script>
+
   <script src="../../scripts/cut.ts"></script>
 </ContentLayout>

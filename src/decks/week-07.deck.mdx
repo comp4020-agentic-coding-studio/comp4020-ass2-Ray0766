@@ -1,0 +1,163 @@
+---
+title: Week 7 · Your Own Workflow
+description: Reading and rebuilding the graph this course has been supplying — loaders, conditioning, samplers, a fix pass, and the permission to go photoreal that comes with owning it.
+---
+
+import LadderStill from "../components/deck/LadderStill.astro";
+
+{/* _class: deck-title deck-phase--holding */}
+
+# Your Own Workflow
+
+## Week 7 · SLOP8760
+
+<p class="deck-title__phase">Phase 3 of 4 · Holding It Together</p>
+
+---
+
+{/* _class: impact deck-adds */}
+
+## This week adds
+
+Your own graph: the supplied workflow opened up, understood, and rebuilt as a
+version that is actually yours.
+
+```notes
+Every exercise in Phase 2 ran on a graph this course supplied. That graph was
+never a black box — it was a specific arrangement of loaders, conditioning,
+and samplers doing the exact same job whether it was running text to image or
+image to video underneath. This week is spent opening it up, learning what
+each piece does, and rebuilding a version that's actually yours.
+```
+
+---
+
+## Photoreal is permitted from here
+
+Building your own graph is what demonstrates the reference discipline
+photoreal work needs, now that stylisation is no longer covering for the
+generator.
+
+```notes
+From here forward, every exercise runs on your own graph, or your own API
+request shape, and photoreal work is permitted for the first time — because
+building your own graph is what demonstrates the reference discipline that
+photoreal work needs to survive the uncanny-valley problem stylisation was
+covering for until now.
+```
+
+---
+
+{/* _class: deck-claim--still */}
+
+## The four kinds of node
+
+Loaders bring things in. Conditioning turns a prompt into something the
+sampler reads. The sampler denoises. Everything after it is a fix pass.
+
+<LadderStill week={7} tier="t1" />
+
+```notes
+A generation graph reduces to four recurring jobs, however many nodes it
+actually contains: loaders bring a model, a checkpoint, or a reference image
+into the graph; conditioning turns a prompt or a control signal into
+something the sampler can read; the sampler runs the actual denoising steps
+that turn noise into a result; and everything after the sampler is a fix pass
+— upscaling, a face restoration step, a colour correction — cleaning up what
+the sampler handed back. Recognising which of the four a node belongs to
+makes an unfamiliar graph readable in minutes instead of hours.
+```
+
+---
+
+{/* _class: deck-claim--still */}
+
+## Editing versus rebuilding
+
+Most of what a graph needs is a small edit. Rebuilding from empty throws away
+a working arrangement to relearn something already solved.
+
+<LadderStill week={7} tier="t2" />
+
+```notes
+Most of what a graph needs is a small edit, not a rewrite: swapping one
+loader's checkpoint, adding a second conditioning input, inserting one
+fix-pass node before the output. Rebuilding from an empty graph is rarely the
+right first move — it throws away a working arrangement of the four jobs
+above to relearn something that was already solved. The one exception is when
+this course's supplied graph does something the shot in front of it doesn't
+need at all, in which case removing that piece cleanly is worth more than
+working around it.
+```
+
+---
+
+## The graph has an equivalent in JSON
+
+The same loaders, conditioning and sampler settings as plain data. Reading
+one is the same skill: find the four jobs inside it.
+
+```notes
+Every graph in a node-based workflow engine can be exported as a request body
+— the same loaders, conditioning, and sampler settings expressed as plain
+data rather than boxes and wires. That export is what an API-based rig sends
+instead of running the graph locally, and reading one is the same skill as
+reading the graph: find the four jobs inside the JSON the same way they'd be
+found inside the nodes.
+```
+
+---
+
+{/* _class: deck-ladder */}
+
+## The ladder
+
+One shot, held constant, with more of the supplied graph replaced each time.
+
+1. The bare supplied graph, unmodified, as a baseline
+2. Plus reference anchoring — a loader bringing in a locked reference image
+3. Plus an upscale and fix pass after the sampler
+4. A two-stage pipeline: a keyframe in one graph, video in a second
+
+```notes
+The ladder this week climbs through how much of the supplied graph gets
+replaced, on one held-constant shot. The lowest tier is the bare supplied
+graph, unmodified, as a baseline. The next tier adds reference anchoring — a
+loader bringing in a locked reference image the original graph didn't use.
+The next tier adds an upscale and fix pass after the sampler. The top tier is
+a two-stage pipeline: a keyframe generated in one graph, then handed into a
+second graph that turns it into video.
+```
+
+---
+
+## Before class
+
+Open the graph this course has been supplying and trace, node by node, which
+of the four jobs — loader, conditioning, sampler, fix pass — each one is
+doing.
+
+---
+
+## This week's exercise
+
+Rebuild that graph across all four ladder tiers on one shot: the bare graph,
+plus reference anchoring, plus a fix pass, and finally the two-stage
+keyframe-then-video pipeline. Bring all four graph files and their outputs to
+Wednesday's Dailies.
+
+---
+
+{/* _class: deck-reading */}
+
+## Reading
+
+- [ComfyUI Examples](https://comfyanonymous.github.io/ComfyUI_examples/)
+- [ComfyUI](https://github.com/comfyanonymous/ComfyUI)
+
+```notes
+- ComfyUI Examples — worked graphs covering most of the loader, conditioning,
+  and sampler combinations this lecture describes.
+- ComfyUI — the workflow engine itself, including the JSON export format this
+  week's reading covers.
+```

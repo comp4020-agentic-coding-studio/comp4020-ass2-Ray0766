@@ -228,8 +228,17 @@
   accent-color: var(--at-accent);
 }
 
+/* .phone-frame's fixed 9:16 box assumes its media covers it edge to edge
+   (the home hero, the cut editor), but a recorded result's real aspect
+   ratio varies by week and must not be cropped, so result-media below is
+   contain-fit with its own max-height instead. Left as .phone-frame's plain
+   aspect-ratio, that mismatch showed up as empty bordered space under the
+   media once its max-height capped it short of the frame's fixed height.
+   Let the frame follow its actual content instead. */
 .studio-console__result {
   margin: 0;
+  aspect-ratio: auto;
+  height: auto;
   border: 1px solid var(--at-border);
   border-radius: var(--at-border-radius);
   padding: var(--at-spacing-sm);
@@ -242,6 +251,16 @@
   max-height: 22rem;
   margin-inline: auto;
   border-radius: var(--at-border-radius);
+}
+
+/* The class's own `display` beats the UA stylesheet's [hidden] rule at equal
+   specificity (same gotcha already handled this way in three-second-demo.css
+   and retention-curve.css), so the hidden attribute needs its own, more
+   specific rule to still take effect. Without this, the inactive video or
+   img (no src, no intrinsic size) still rendered its own ~150px default
+   replaced-element box in the flow — the other half of this same defect. */
+.studio-console__result-media[hidden] {
+  display: none;
 }
 
 .studio-console__resolved {

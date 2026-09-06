@@ -1,0 +1,173 @@
+---
+title: Week 8 · Continuity
+description: Holding a character and a location steady across shots — reference adapters against trained weights, the model sheet, the scene master plate, and the audit.
+---
+
+import LadderStill from "../components/deck/LadderStill.astro";
+
+{/* _class: deck-title deck-phase--holding */}
+
+# Continuity
+
+## Week 8 · SLOP8760
+
+<p class="deck-title__phase">Phase 3 of 4 · Holding It Together</p>
+
+---
+
+{/* _class: impact deck-adds */}
+
+## This week adds
+
+Continuity as a system: a reference library built once, a model sheet that
+documents it, and an audit that checks every new shot against both.
+
+```notes
+This week turns that feeding-back into a system: a reference library built
+once, a model sheet that documents what's in it, and an audit that checks
+every new shot against it rather than trusting a general impression.
+```
+
+---
+
+## The model remembers nothing
+
+A generated character has no memory of its own face between shots. Whatever
+consistency a scene has comes from what you feed back in.
+
+```notes
+A generated character has no memory of its own face between shots; whatever
+consistency a scene has comes entirely from what gets fed back into the
+generator on your own graph, not from anything the model remembers on its
+own.
+```
+
+---
+
+{/* _class: deck-claim--still */}
+
+## Two ways to lock identity
+
+Reference adapters need no training and hold loosely. LoRA and DreamBooth
+train first and hold harder. That is the whole trade.
+
+<LadderStill week={8} tier="t1" />
+
+```notes
+There are two genuinely different ways to make a generator produce the same
+face repeatedly. Reference adapters — the kind Phase 2 already used to carry
+identity from an image into a new generation — need no training and work the
+moment a reference image exists, but they hold identity loosely enough that
+drift is still possible under enough motion or style pressure. LoRA and
+DreamBooth work the opposite way: both fine-tune a small set of weights on
+several images of the same subject, producing a checkpoint that reproduces
+that subject more reliably than any single reference image can, at the cost
+of needing a training pass before the first shot instead of after it.
+```
+
+---
+
+## The model sheet
+
+A face, a full costume, and the props a viewer would notice if they changed —
+written down before the first real shot, for someone else to check against.
+
+```notes
+A model sheet is the document a reference library becomes once it's organised
+for someone else to use: a face reference, a full costume reference, and a
+short list of props or details a viewer would notice if they changed.
+Building the sheet once, before the season's first real shot, is what turns
+"I remember what the costume looks like" into something a second person — or
+a second week of production — can check against without asking.
+```
+
+---
+
+{/* _class: deck-claim--still */}
+
+## The scene master plate
+
+Lock the location the way a face is locked. Regenerated fresh per shot, a
+room looks plausible alone and inconsistent the moment two shots meet.
+
+<LadderStill week={8} tier="t4" />
+
+```notes
+A scene that runs several shots in the same location needs one more reference
+beyond the character: a master plate of the location itself, locked the same
+way a face is locked, so a background detail doesn't drift between two shots
+that are supposed to be seconds apart in the same room. Without a master
+plate, a location regenerated fresh for each shot will look plausible in
+isolation and inconsistent the moment two shots sit next to each other in an
+edit.
+```
+
+---
+
+## The audit
+
+Item by item against the sheet and the plate — face, costume, props, location
+— with a verdict per item, not one verdict for the shot.
+
+```notes
+Checking continuity means comparing every new shot against the model sheet
+and the master plate item by item — face, costume, key props, location — not
+watching a rough cut and trusting that it felt right. An audit produces a
+pass or fail per item, not a single verdict for the whole shot, because a
+shot can pass on the face and fail on a prop in the background at the same
+time.
+```
+
+---
+
+{/* _class: deck-ladder */}
+
+## The ladder
+
+One two-shot scene, with more reference behind it each time.
+
+1. A single face crop, and nothing else
+2. Plus a half-body and a full-body reference
+3. A full reference set covering multiple costume states
+4. Plus a scene master plate for the location the two shots share
+
+```notes
+The ladder this week builds one two-shot scene, climbing through how complete
+the reference set behind it is. The lowest tier uses a single face crop as
+the only reference. The next tier adds a half-body and a full-body reference
+alongside the face. The next tier adds a full reference set covering multiple
+costume states. The top tier keeps the full set and adds a scene master plate
+for the location the two shots share.
+```
+
+---
+
+## Before class
+
+Gather whatever reference images already exist for one character — even just
+a single face crop — to use as the starting point for this week's ladder.
+
+---
+
+## This week's exercise
+
+Build all four ladder tiers of reference material, then generate the same
+two-shot scene against each tier and audit both shots item by item. Bring the
+four reference sets, the resulting shots, and the audit notes to Wednesday's
+Dailies.
+
+---
+
+{/* _class: deck-reading */}
+
+## Reading
+
+- [LoRA: Low-Rank Adaptation of Large Language Models](https://arxiv.org/abs/2106.09685)
+- [DreamBooth: Fine Tuning Text-to-Image Diffusion Models for Subject-Driven Generation](https://arxiv.org/abs/2208.12242)
+
+```notes
+- LoRA — the fine-tuning technique behind the fastest way to lock a character
+  identity harder than a reference image alone can.
+- DreamBooth — the technique this week's model-sheet training pass is built
+  on.
+```

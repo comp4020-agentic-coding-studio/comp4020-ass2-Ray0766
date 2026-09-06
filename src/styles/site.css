@@ -1,3 +1,8 @@
+/* The four phase colours moved to their own file so the decks can share
+   them; see src/styles/phase-colours.css. An @import has to precede every
+   rule in the file, so it sits above this file's own opening comment. */
+@import url("./phase-colours.css");
+
 /* Site-wide visual pass on top of astro-theme-university's base styles.
    Deliberately outside any @layer: base.css/components.css declare
    `@layer at.base, at.components`, and per the cascade spec, unlayered
@@ -64,20 +69,6 @@
 
 p {
   letter-spacing: -0.006em;
-}
-
-/* ----------------------------------------------------------------------
-   Phase colours — one gold/copper/warm-grey family derived from the
-   theme's own brand tokens. Three are the tokens as-is; the fourth is the
-   same relative-colour recipe tokens.css itself uses for --at-bg's dark
-   variant, applied a second time to go one step further into the family.
-   ---------------------------------------------------------------------- */
-
-:root {
-  --phase-rig: var(--at-primary);
-  --phase-generators: var(--at-secondary);
-  --phase-holding: var(--at-tertiary);
-  --phase-episode: oklch(from var(--at-primary) calc(l - 0.22) calc(c * 0.85) h);
 }
 
 /* ----------------------------------------------------------------------

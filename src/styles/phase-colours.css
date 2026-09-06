@@ -1,0 +1,24 @@
+/* The four phase colours, in one file because two stylesheets need them and
+   a deck page loads neither of the other's.
+ *
+ * `site.css` styles the home page's phase cards and the /lectures/ chips;
+ * `src/decks/theme.css` fills the band behind a deck's title. Deck pages
+ * load only the brand CSS and the deck theme --- never site.css --- so
+ * before this file existed the deck would have had to restate the mapping,
+ * which is how the two start to disagree. Astromotion's own README suggests
+ * exactly this split for CSS custom properties a site and its decks share.
+ *
+ * One gold/copper/warm-grey family derived from the theme's own brand
+ * tokens. Three are the tokens as-is; the fourth is the same relative-colour
+ * recipe tokens.css uses for --at-bg's dark variant, applied a second time to
+ * go one step further into the family.
+ *
+ * Unlayered on purpose, like site.css: the theme wraps its own tokens in
+ * `@layer at.tokens`, and an unlayered declaration wins regardless of import
+ * order. */
+:root {
+  --phase-rig: var(--at-primary);
+  --phase-generators: var(--at-secondary);
+  --phase-holding: var(--at-tertiary);
+  --phase-episode: oklch(from var(--at-primary) calc(l - 0.22) calc(c * 0.85) h);
+}

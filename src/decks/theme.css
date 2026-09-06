@@ -1,4 +1,4 @@
-/* The deck stylesheet. It is one import on purpose.
+/* The deck stylesheet.
  *
  * astro-theme-university's deck.css derives every colour it uses from the
  * same --at-* brand tokens the site's own styles derive from, and
@@ -7,7 +7,122 @@
  * restating a colour here is how the two start to disagree.
  *
  * Deck pages are dark surfaces and they don't load the site's stylesheets ---
- * only the brand CSS and this file. Add your own rules below the import: a
- * slide class you reach for (`_class: quote`), a code-heavy layout, a
- * background. */
+ * only the brand CSS and this file. Everything below is the twelve decks'
+ * shared slide grammar: it adds layout and one phase-coloured band, and it
+ * introduces no colour of its own --- the four phase colours are imported
+ * from the same file site.css reads them from. */
 @import url("astro-theme-university/styles/deck.css");
+@import url("../styles/phase-colours.css");
+
+/* ----------------------------------------------------------------------
+   The title slide
+   ----------------------------------------------------------------------
+   Every deck opens on week number, lecture title, and the phase colour as a
+   band. The band is the theme's own h1 treatment (an inline block with
+   `box-decoration-break: clone`, so it wraps as a band per line); the only
+   thing these rules change is which brand token fills it. The title slide is
+   also the only slide in a deck carrying an h1, so the band appears exactly
+   once.
+
+   The ink is the same relative-colour recipe deck.css uses for
+   --at-on-primary --- lightness flipped around the 0.58 threshold, chroma
+   dropped --- applied to whichever phase colour the slide names, so gold
+   takes near-black and the three darker phases take white. Deriving it beats
+   listing four inks: a brand token can change without this file going quiet
+   about contrast. */
+.reveal .slides section.deck-title h1 {
+  background-color: var(--deck-phase);
+  color: oklch(from var(--deck-phase) clamp(0.16, (0.58 - l) * 1000, 1) 0 h);
+}
+
+.reveal .slides section.deck-phase--rig {
+  --deck-phase: var(--phase-rig);
+}
+
+.reveal .slides section.deck-phase--generators {
+  --deck-phase: var(--phase-generators);
+}
+
+.reveal .slides section.deck-phase--holding {
+  --deck-phase: var(--phase-holding);
+}
+
+.reveal .slides section.deck-phase--episode {
+  --deck-phase: var(--phase-episode);
+}
+
+/* The phase's name, under the title. Deliberately not in the phase colour:
+   three of the four are dark enough that body-sized text in them fails
+   contrast against a near-black slide, and the band above already carries
+   the colour. */
+.reveal .slides section.deck-title .deck-title__phase {
+  color: var(--at-text-secondary);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-size: 1.5rem;
+}
+
+/* ----------------------------------------------------------------------
+   Claim slides carrying a still
+   ----------------------------------------------------------------------
+   A claim slide can show one frame from that week's recorded ladder. The
+   still is pinned into a reserved right-hand column so the claim keeps a
+   readable measure on the left, and the slide widens its own end padding by
+   exactly that column so no line ever runs under the picture.
+
+   Absolutely positioned, like the theme's own .slide-bg and .image-credit:
+   the section is a grid whose row count varies with the slide, so a grid
+   track for the still would have to span a number of rows this file can't
+   know. The trade is Reveal's ?print-pdf view, which forces its own padding
+   back onto every section with !important --- the PDF export is not how this
+   course's decks are read, and the screen deck is what gets marked. */
+.reveal .slides section.deck-claim--still {
+  padding-inline-end: 25rem;
+}
+
+.reveal .slides .deck-still {
+  position: absolute;
+  inset-block-start: 4rem;
+  inset-inline-end: 5rem;
+  inline-size: 17rem;
+  margin: 0;
+}
+
+.reveal .slides .deck-still img {
+  display: block;
+  inline-size: 100%;
+  block-size: auto;
+  border-radius: var(--at-border-radius);
+}
+
+.reveal .slides .deck-still figcaption {
+  margin-block-start: 0.75rem;
+  font-size: 1.1rem;
+  line-height: 1.4;
+  color: var(--at-text-secondary);
+}
+
+/* ----------------------------------------------------------------------
+   The ladder, the reading list
+   ----------------------------------------------------------------------
+   The ladder is an ordered list because the tiers ascend and the numbers are
+   the point; it runs at list size rather than body size so five tiers fit on
+   one slide without the type shrinking mid-deck. The reading list drops its
+   markers --- a link is already its own bullet --- and keeps the annotations
+   in the speaker notes. */
+.reveal .slides section.deck-ladder ol {
+  margin-inline-start: 2.5rem;
+}
+
+.reveal .slides section.deck-ladder li::marker {
+  color: var(--at-primary);
+}
+
+.reveal .slides section.deck-reading ul {
+  list-style: none;
+  margin-inline-start: 0;
+}
+
+.reveal .slides section.deck-reading li {
+  margin-block-end: 1.5rem;
+}

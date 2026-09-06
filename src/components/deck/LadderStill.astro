@@ -1,0 +1,40 @@
+---
+// One frame from a week's recorded ladder, for a deck's claim slide.
+//
+// The manifest is the source of truth, not the deck: a tier is named by the
+// same `week` and `tier` keys the lecture's CompareSet uses, and the build
+// fails rather than shipping a slide pointing at a frame the ladder doesn't
+// have. Video tiers carry a poster still; image tiers are the still.
+//
+// The URL goes through withBase because public/studio/ sits under the site's
+// base path on Pages. The deck's own `![bg](...)` syntax was the alternative
+// and it can't be used here: astromotion resolves a background image relative
+// to the deck file and only rewrites paths landing under src/, so a poster
+// living in public/ would have to be duplicated into src/decks/ to be
+// reachable.
+import { withBase } from "astro-theme-university/url";
+import { studioWeeks } from "../../lib/studio";
+
+interface Props {
+  week: number;
+  tier: string;
+}
+
+const { week: weekNumber, tier: tierId } = Astro.props;
+
+const week = studioWeeks.find((entry) => entry.week === weekNumber);
+if (!week) throw new Error(`LadderStill: no studio manifest for week ${weekNumber}`);
+
+const tier = week.tiers.find((entry) => entry.tier === tierId);
+if (!tier) throw new Error(`LadderStill: week ${weekNumber} has no tier "${tierId}"`);
+
+const still = tier.output.poster ?? tier.output.file;
+if (!/\.(avif|png|jpe?g|webp)$/.test(still)) {
+  throw new Error(`LadderStill: week ${weekNumber} tier "${tierId}" has no still to show (${still})`);
+}
+---
+
+<figure class="deck-still">
+  <img src={withBase(`/studio/${still}`)} alt={`Recorded ${week.instrument.toLowerCase()} ladder, tier ${tier.tier}: ${tier.label}`} />
+  <figcaption>Ladder {tier.tier} · {tier.label}</figcaption>
+</figure>

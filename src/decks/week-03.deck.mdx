@@ -1,0 +1,155 @@
+---
+title: Week 3 · Text to Image
+description: The first generator — prompt grammar for a single keyframe on anime-trained checkpoints, from one line to a full colour script.
+---
+
+import LadderStill from "../components/deck/LadderStill.astro";
+
+{/* _class: deck-title deck-phase--generators */}
+
+# Text to Image
+
+## Week 3 · SLOP8760
+
+<p class="deck-title__phase">Phase 2 of 4 · Four Generators</p>
+
+---
+
+{/* _class: impact deck-adds */}
+
+## This week adds
+
+Text to image: a prompt that reliably produces one still frame good enough to
+build the rest of the week on.
+
+```notes
+Text to image is the first of four generators this course teaches, and it
+produces the smallest possible unit of work: one still frame, called a
+keyframe once it's good enough to build something else on top of it.
+```
+
+---
+
+## The keyframe is the unit
+
+Everything from here on either generates a keyframe or does something to one.
+A prompt that reliably produces a usable keyframe is this week's whole craft
+question.
+
+```notes
+Everything from here through Phase 2 either generates a keyframe or does
+something to one, so a prompt that reliably produces a usable keyframe is
+this week's entire craft question.
+```
+
+---
+
+{/* _class: deck-claim--still */}
+
+## Why anime, first
+
+Flat colour and clean linework absorb a generator's small errors as line
+style. The same error on a photoreal face reads as wrong.
+
+<LadderStill week={3} tier="t3" />
+
+```notes
+This phase works in anime grammar on purpose, and it's a technical decision,
+not an aesthetic one. A generator's small mistakes — a slightly wrong
+proportion, an edge that drifts — read differently depending on the style
+they land in: flat colour and clean linework compress detail into shape and
+outline, so a minor error gets absorbed as "that's the line style." The same
+magnitude of error on a photorealistic face lands squarely in the range human
+perception is most sensitive to and reads as wrong rather than stylised.
+Anime checkpoints buy room to make mistakes while the rest of the rig is
+still being learned.
+```
+
+---
+
+## Four things a keyframe prompt should say
+
+Subject. Framing — size and angle. What the light is doing. A style anchor
+naming the checkpoint's own register. In that order.
+
+```notes
+A usable prompt for a still collapses into four decisions, each earning
+roughly one clause: who or what the subject is, how the shot is framed —
+size and angle — what the light is doing, and a style anchor naming the
+checkpoint's own aesthetic register rather than leaving it to chance. Write
+those four in order and the prompt is usable before any further polish gets
+added.
+```
+
+---
+
+{/* _class: deck-claim--still */}
+
+## The checkpoint's own vocabulary
+
+Anime checkpoints are trained on tags, not prose. A negative prompt naming
+what to suppress removes more bad rolls than any added qualifier.
+
+<LadderStill week={3} tier="t4" />
+
+```notes
+Anime-trained checkpoints are largely trained on tag-style captions, not
+prose, so they respond more precisely to a checkpoint's own tag vocabulary
+than to a naturally written sentence saying the same thing. Pairing that
+vocabulary with a negative prompt — naming what to suppress, not just what to
+include — removes far more bad rolls than adding qualifiers to the positive
+prompt ever does.
+```
+
+---
+
+{/* _class: deck-ladder */}
+
+## The ladder
+
+1. One line naming the subject alone
+2. Plus a line of setting and mood
+3. The full four-part grammar — subject, framing, light, style anchor
+4. Plus the checkpoint's tag vocabulary and a negative prompt
+5. Plus shot size, camera angle, and a colour script for the sequence
+
+```notes
+The ladder for a text-to-image keyframe runs five tiers. The lowest tier is
+one line naming the subject alone. The next tier adds a line of setting and
+mood. The middle tier writes the full four-part grammar — subject, framing,
+light, and a style anchor. The next tier keeps that grammar and adds the
+checkpoint's own tag vocabulary plus a negative prompt. The top tier keeps
+everything below it and adds a specific shot size, camera angle, and a colour
+script naming the palette across the sequence the keyframe belongs to.
+```
+
+---
+
+## Before class
+
+Pick one anime-trained checkpoint and read through its own documentation or
+model card for the tag vocabulary it expects.
+
+---
+
+## This week's exercise
+
+Produce one keyframe at each of the five ladder tiers above, on the same
+subject, keeping a seed and parameter log for all five. Bring all five
+keyframes, in ladder order, to Wednesday's Dailies.
+
+---
+
+{/* _class: deck-reading */}
+
+## Reading
+
+- [SDXL: Improving Latent Diffusion Models for High-Resolution Image Synthesis](https://arxiv.org/abs/2307.01952)
+- [Illustrious: an Open Advanced Illustration Model](https://arxiv.org/abs/2409.19946)
+
+```notes
+- SDXL — the base architecture behind a lot of the checkpoints you'll be
+  prompting this week.
+- Illustrious — a checkpoint trained specifically on the anime tag vocabulary
+  this lecture asks you to use.
+```

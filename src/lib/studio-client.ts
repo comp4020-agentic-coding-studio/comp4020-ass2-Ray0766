@@ -1,5 +1,5 @@
 import { withBase } from "astro-theme-university/url";
-import type { ReferenceEpisode, Tier, WeekManifest } from "../data/studio.schema";
+import type { CutLibrary, ReferenceEpisode, Tier, WeekManifest } from "../data/studio.schema";
 
 type TierWithText = Tier & { promptText?: string; negText?: string };
 type WeekWithText = Omit<WeekManifest, "tiers"> & { tiers: TierWithText[] };
@@ -143,5 +143,56 @@ export function toClientReferenceEpisode(ref: ReferenceEpisode): ClientReference
       lines: card.text,
       timecode: card.timecode,
     })),
+  };
+}
+
+export interface ClientCutClip {
+  id: string;
+  /** `id` with its "cut-" prefix stripped — matches a subtitle line's `cut`
+   *  field and `corner_label.only_on`, both of which use the short form. */
+  key: string;
+  shot: string;
+  timecode: string;
+  duration_s: number;
+  file: string;
+  poster: string;
+}
+
+export interface ClientSubtitleLine {
+  cut: string;
+  text: string;
+}
+
+export interface ClientSubtitleSet {
+  set: string;
+  lines: ClientSubtitleLine[];
+}
+
+export interface ClientCutLibrary {
+  cuts: ClientCutClip[];
+  subtitleSets: ClientSubtitleSet[];
+  cornerLabel: { text: string; onlyOn: string };
+}
+
+function cutKey(id: string): string {
+  return id.startsWith("cut-") ? id.slice("cut-".length) : id;
+}
+
+export function toClientCutLibrary(lib: CutLibrary): ClientCutLibrary {
+  return {
+    cuts: lib.cuts.map((cut) => ({
+      id: cut.id,
+      key: cutKey(cut.id),
+      shot: cut.shot,
+      timecode: cut.timecode,
+      duration_s: cut.duration_s,
+      file: assetUrl(cut.file),
+      poster: assetUrl(cut.poster),
+    })),
+    subtitleSets: lib.subtitle_drafts.map((draft) => ({
+      set: draft.set,
+      lines: draft.lines.map((line) => ({ cut: line.cut, text: line.text })),
+    })),
+    cornerLabel: { text: lib.corner_label.text, onlyOn: lib.corner_label.only_on },
   };
 }

@@ -1,0 +1,109 @@
+---
+import ContentLayout from "astro-theme-university/layouts/ContentLayout.astro";
+import DefaultDarkTheme from "../../components/DefaultDarkTheme.astro";
+import { cutLibrary } from "../../lib/studio";
+import { toClientCutLibrary } from "../../lib/studio-client";
+import { siteConfig } from "../../site-config";
+import "../../styles/site.css";
+import "../../styles/cut.css";
+
+const library = toClientCutLibrary(cutLibrary);
+// Escaped for the same reason the Studio's payload is: a real subtitle draft
+// could in principle contain "</script" and nothing guarantees it never will.
+const payload = JSON.stringify(library).replace(/<\/script/gi, "<\\/script");
+
+const CREDIT_LINE =
+  "Recorded on the convener's rig with MiniMax H3 (local weights), keyframes with NoobAI-XL, reference stills for The Ninth Head with ChatGPT's image generator. Nothing is generated in the browser.";
+---
+
+<ContentLayout
+  title="The Cut"
+  description="A small library of real recorded clips from the reference episode, reordered and captioned right here — the same assembly decisions Week 11 makes at full scale."
+  {...siteConfig}
+>
+  <DefaultDarkTheme slot="head" />
+
+  <p>
+    Four clips, cut straight from the reference episode's own master. Below,
+    a sequence editor reorders them and previews the one that would play
+    first, captioned from one of three real subtitle drafts. {CREDIT_LINE}
+  </p>
+
+  <script type="application/json" is:inline data-cut-payload set:html={payload} />
+
+  <section class="cut-editor" data-cut-editor hidden aria-label="Sequence editor">
+    <h2>Sequence editor</h2>
+
+    <div class="cut-editor__layout">
+      <div class="cut-editor__sequence-block">
+        <ol class="cut-editor__sequence" data-cut-sequence></ol>
+
+        <div class="cut-editor__actions">
+          <label class="cut-editor__add-label">
+            Add back
+            <select class="cut-editor__add-select" data-cut-add-select></select>
+          </label>
+          <button type="button" class="at-button at-button--outline" data-cut-add>Add</button>
+        </div>
+
+        <div class="cut-editor__actions">
+          <button type="button" class="at-button at-button--outline" data-cut-hook-first>Hook first</button>
+          <button type="button" class="at-button at-button--outline" data-cut-reset>Reset</button>
+        </div>
+        <p class="cut-editor__hook-note">
+          Drops the establishing shot and opens on the hook instead — Week 9's
+          three-second-hook move, made on these four clips.
+        </p>
+      </div>
+
+      <div class="cut-editor__preview">
+        <div class="cut-editor__subtitle-tabs" role="group" aria-label="Subtitle draft" data-cut-subtitle-tabs></div>
+
+        <figure class="cut-editor__player phone-frame" data-cut-player>
+          <video data-cut-video controls preload="none"></video>
+          <p class="cut-editor__corner-label" data-cut-corner hidden></p>
+          <p class="cut-editor__subtitle-line" data-cut-subtitle></p>
+        </figure>
+
+        <button type="button" class="at-button at-button--outline" data-cut-download disabled>
+          Download production log
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <section class="cut-library" aria-label="The recorded clip library">
+    <h2>Library</h2>
+    <p>
+      Without a script, here is the library in its recorded order —
+      establishing, hook, reaction, turn — with all three subtitle drafts
+      underneath each clip.
+    </p>
+
+    <ol class="cut-library__list">
+      {
+        library.cuts.map((cut) => (
+          <li class="cut-library__clip" id={cut.id}>
+            <h3>
+              {cut.shot} — {cut.timecode}
+            </h3>
+            <video class="cut-library__media" src={cut.file} poster={cut.poster} controls preload="metadata" />
+            {cut.key === library.cornerLabel.onlyOn && (
+              <p class="cut-library__corner">Corner label: {library.cornerLabel.text}</p>
+            )}
+            <dl class="cut-library__lines">
+              {library.subtitleSets.map((set) => (
+                <>
+                  <dt>{set.set}</dt>
+                  <dd>{set.lines.find((line) => line.cut === cut.key)?.text}</dd>
+                </>
+              ))}
+            </dl>
+          </li>
+        ))
+      }
+    </ol>
+  </section>
+
+  <script src="../../scripts/cut.ts"></script>
+</ContentLayout>

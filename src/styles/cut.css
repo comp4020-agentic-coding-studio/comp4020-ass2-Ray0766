@@ -1,0 +1,198 @@
+/* The Cut: a static clip library by default; src/scripts/cut.ts reveals the
+   sequence editor once the payload and every required DOM node are present. */
+
+.cut-editor {
+  border: 1px solid var(--at-border);
+  border-radius: var(--at-border-radius);
+  padding: var(--at-spacing-md);
+  margin-block: var(--at-spacing-lg);
+  background: var(--at-bg-alt);
+}
+
+.cut-editor__layout {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--at-spacing-lg);
+  margin-block-start: var(--at-spacing-md);
+}
+
+.cut-editor__sequence {
+  list-style: none;
+  margin: 0 0 var(--at-spacing-md);
+  padding: 0;
+  display: grid;
+  gap: var(--at-spacing-sm);
+}
+
+.cut-editor__item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--at-spacing-sm);
+  border: 1px solid var(--at-border);
+  border-radius: var(--at-border-radius);
+  padding: var(--at-spacing-sm);
+  background: var(--at-bg);
+  cursor: grab;
+}
+
+.cut-editor__item-label {
+  font-weight: 600;
+}
+
+.cut-editor__item-controls {
+  display: flex;
+  gap: var(--at-spacing-xs);
+}
+
+.cut-editor__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: var(--at-spacing-sm);
+  margin-block-end: var(--at-spacing-sm);
+}
+
+.cut-editor__add-label {
+  display: flex;
+  flex-direction: column;
+  gap: var(--at-spacing-xs);
+  font-size: 0.9rem;
+}
+
+.cut-editor__add-select {
+  border: 1px solid var(--at-border);
+  border-radius: var(--at-border-radius);
+  padding: var(--at-spacing-xs) var(--at-spacing-sm);
+  background: var(--at-bg);
+  color: var(--at-text);
+}
+
+.cut-editor__hook-note {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--at-text-secondary);
+}
+
+.cut-editor__preview {
+  display: grid;
+  gap: var(--at-spacing-sm);
+  justify-items: center;
+}
+
+.cut-editor__subtitle-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--at-spacing-sm);
+  justify-self: start;
+}
+
+.cut-editor__subtitle-radio {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.cut-editor__subtitle-tab {
+  display: inline-block;
+  border: 1px solid var(--at-border);
+  border-radius: var(--at-border-radius);
+  padding: var(--at-spacing-xs) var(--at-spacing-sm);
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.cut-editor__subtitle-radio:checked + .cut-editor__subtitle-tab {
+  background: var(--at-accent);
+  color: var(--at-on-accent);
+}
+
+.cut-editor__subtitle-radio:focus-visible + .cut-editor__subtitle-tab {
+  outline: 2px solid var(--at-accent);
+  outline-offset: 2px;
+}
+
+.cut-editor__player {
+  position: relative;
+}
+
+.cut-editor__corner-label {
+  position: absolute;
+  inset-block-start: var(--at-spacing-sm);
+  inset-inline-start: var(--at-spacing-sm);
+  margin: 0;
+  padding: 0.15em 0.5em;
+  background: color-mix(in oklab, var(--at-black) 55%, transparent);
+  color: white;
+  font-size: 0.75rem;
+  letter-spacing: 0.05em;
+  border-radius: 4px;
+}
+
+.cut-editor__subtitle-line {
+  position: absolute;
+  inset-inline: var(--at-spacing-sm);
+  inset-block-end: var(--at-spacing-sm);
+  margin: 0;
+  padding: 0.3em 0.6em;
+  background: color-mix(in oklab, var(--at-black) 55%, transparent);
+  color: white;
+  font-size: 0.9rem;
+  text-align: center;
+  border-radius: 4px;
+}
+
+@media (min-width: 900px) {
+  .cut-editor__layout {
+    grid-template-columns: minmax(16rem, 1fr) minmax(14rem, 1fr);
+  }
+}
+
+/* Static library: every clip, in recorded order, always visible with JS off. */
+
+.cut-library__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--at-spacing-lg);
+}
+
+.cut-library__clip {
+  border: 1px solid var(--at-border);
+  border-radius: var(--at-border-radius);
+  padding: var(--at-spacing-md);
+}
+
+.cut-library__media {
+  display: block;
+  max-width: 100%;
+  max-height: 20rem;
+  border-radius: var(--at-border-radius);
+  margin-block-end: var(--at-spacing-sm);
+}
+
+.cut-library__corner {
+  font-size: 0.85rem;
+  color: var(--at-text-secondary);
+}
+
+.cut-library__lines {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: var(--at-spacing-xs) var(--at-spacing-sm);
+  margin: var(--at-spacing-sm) 0 0;
+}
+
+.cut-library__lines dt {
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.cut-library__lines dd {
+  margin: 0;
+}

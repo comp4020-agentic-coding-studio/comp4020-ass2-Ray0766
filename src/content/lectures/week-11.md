@@ -29,6 +29,10 @@ where a cut lands relative to a beat. Reopening a gate decision at this
 stage means the gate wasn't doing its job earlier, and it's usually
 faster to flag that for next time than to relitigate one shot now.
 
+[The Cut](/cut/) is exactly this decision at a small enough scale to
+try by hand: four gated clips, reordered, nothing about any single shot
+re-judged in the process.
+
 ## Sound and captions, carried through
 
 Dialogue clarity and captions are not a separate pass bolted on at the

@@ -1,3 +1,12 @@
+.studio-index ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--at-spacing-sm) var(--at-spacing-md);
+}
+
 /* Static gallery: every recorded result, in document order, always visible
    with JS off. */
 

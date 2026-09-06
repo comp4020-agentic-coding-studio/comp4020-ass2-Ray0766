@@ -72,6 +72,28 @@ p {
 }
 
 /* ----------------------------------------------------------------------
+   Focus rings the theme resets away
+   ----------------------------------------------------------------------
+   components.css builds the footer's theme toggle with `all: unset`, which
+   resets outline-style to `none` along with everything else. The theme's own
+   focus ring lives in base.css under `@layer at.base`, and that reset lives
+   under `@layer at.components` — a later layer, so it wins whatever the
+   specificity. The button matches :focus-visible (checked in the browser) and
+   still paints no ring, on every page that has a footer.
+
+   Restated here with the theme's own values, unlayered so it beats both
+   layers. This is the whole rule for that reset: `all: unset` is not a
+   styling shortcut, it is an opt-out of the focus indicator, and anything it
+   is used on has to put one back.
+   ---------------------------------------------------------------------- */
+
+.at-footer-theme-toggle:focus-visible {
+  outline: 2px solid var(--at-accent);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px var(--at-bg);
+}
+
+/* ----------------------------------------------------------------------
    Home hero — the one signature scroll moment, reversed on 2026-09-07.
    The show fills the screen and the words sit on top of it; scrolling
    shrinks the full-frame loop into the phone-shaped card, rather than

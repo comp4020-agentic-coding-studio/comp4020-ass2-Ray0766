@@ -197,6 +197,14 @@ find the real one or state the technique generically.
   must be fully readable at both viewports in every resting state.
 - Both colour themes are checked, because the OS chooses the default and the
   footer toggle exists.
+- Walk the page from the address bar with the keyboard alone before calling
+  an interactive change done: every control reachable, in document order,
+  with a ring you can see. `all: unset` is an opt-out of the focus indicator,
+  not a styling shortcut — and when the reset sits in a later cascade layer
+  than the `:focus-visible` rule (the theme puts them in `at.components` and
+  `at.base` respectively), the ring cannot come back on its own. The element
+  still matches `:focus-visible`; it just paints nothing, which is exactly
+  the failure a screenshot never shows.
 
 ## 8. Evidence
 

@@ -1,0 +1,159 @@
+---
+title: Week 5 · Text to Video
+description: The third generator — the four-sentence prompt that controls motion from words, a model's native clip length, and how to read a take that failed.
+---
+
+import LadderStill from "../components/deck/LadderStill.astro";
+
+{/* _class: deck-title deck-phase--generators */}
+
+# Text to Video
+
+## Week 5 · SLOP8760
+
+<p class="deck-title__phase">Phase 2 of 4 · Four Generators</p>
+
+---
+
+{/* _class: impact deck-adds */}
+
+## This week adds
+
+Text to video: motion generated from words alone, with the prompt as the only
+thing anchoring the shot.
+
+```notes
+Text to video generates motion from words alone, with nothing to anchor
+composition but the prompt itself.
+```
+
+---
+
+## Weaker control, faster answers
+
+Nothing anchors composition but the prompt. That is less control than
+starting from a keyframe, and the fastest way to test an idea before
+committing an image to it.
+
+```notes
+That's weaker control than starting from a keyframe, but it's the fastest way
+to test an idea before committing an image to it, and every video generator
+this course uses has a native clip length that the prompt has to respect
+rather than fight.
+```
+
+---
+
+## The native clip length
+
+The duration one pass reliably holds together before coherence falls apart.
+Write inside it rather than against it.
+
+```notes
+Every video generator this course uses has a native clip length — the
+duration one pass reliably holds together before coherence starts to fall
+apart — that the prompt has to respect rather than fight.
+```
+
+---
+
+{/* _class: deck-claim--still */}
+
+## The four sentences
+
+Subject and action. Shot size. What the camera is doing. What the light is
+doing. In that order, inside the clip length.
+
+<LadderStill week={5} tier="t3" />
+
+```notes
+A usable video prompt collapses into four sentences, each doing one job: who
+or what the subject is and what it's doing, how close the shot is — the shot
+size, from wide to close-up — what the camera itself is doing while the
+subject acts, and what the light is doing. Write those four in order, inside
+the model's native clip length, and the prompt is usable before style ever
+enters the conversation.
+```
+
+---
+
+{/* _class: deck-claim--still */}
+
+## Reading a bad take
+
+Wrong physics, a quiet change of subject partway through, or a camera move
+that contradicts the prompt. Each points at a different sentence.
+
+<LadderStill week={5} tier="t5" />
+
+```notes
+A failed text-to-video take tends to fail in one of three specific ways:
+motion that reads as physically wrong rather than merely stylised, a cut
+where the model quietly changes what the subject looks like partway through
+the clip, or a camera move that contradicts what the prompt asked for. Naming
+which of the three happened is more useful than a general "this doesn't look
+right," because each one points at a different sentence in the prompt to fix.
+```
+
+---
+
+{/* _class: deck-ladder */}
+
+## The ladder
+
+1. One line naming only the subject
+2. Plus the subject's action
+3. The full four sentences — subject, shot size, camera, light
+4. Plus a specific beat the action turns on, and a negative prompt
+
+And a counter-example, not a fifth rung: the same four sentences buried under
+contradictory camera and style demands, generated once on purpose.
+
+```notes
+The ladder for a text-to-video prompt runs four rising tiers, plus one tier
+that is not a top but a warning. The lowest tier is one line naming only the
+subject. The next tier adds the subject's action. The next tier writes out
+the full four sentences — subject, shot size, camera, light. The top tier
+keeps those four and adds a specific beat the action turns on, plus a
+negative prompt naming what the shot must not do. And a counter-example, not
+a fifth rung: the same four sentences buried under contradictory camera and
+style demands at once, which reliably produces a worse result than the plain
+four sentences alone — worth generating once, on purpose, to see what
+over-specifying actually costs.
+```
+
+---
+
+## Before class
+
+Pick one action you want to see performed and write it as a single sentence,
+with no camera or light information yet.
+
+---
+
+## This week's exercise
+
+Build the ladder above for that action: one line, subject and action, the
+full four sentences, and the four sentences with a beat and a negative
+prompt. Generate the counter-example too, on purpose. Bring all five clips,
+in ladder order with the counter-example marked, to Wednesday's Dailies.
+
+---
+
+{/* _class: deck-reading */}
+
+## Reading
+
+- [Video generation models as world simulators](https://openai.com/index/video-generation-models-as-world-simulators/)
+- [Wan: Open and Advanced Large-Scale Video Generative Models](https://arxiv.org/abs/2503.20314)
+- [Seedance 1.0: Exploring the Boundaries of Video Generation Models](https://arxiv.org/abs/2506.09113)
+
+```notes
+- Video generation models as world simulators — on what a text-to-video model
+  is actually learning, and why its native clip length is not an arbitrary
+  limit.
+- Wan — an openly available model built around exactly this kind of
+  sentence-structured prompting.
+- Seedance 1.0 — on the specific failure modes this lecture's "reading a bad
+  take" section is describing.
+```

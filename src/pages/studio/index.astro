@@ -1,0 +1,224 @@
+---
+import ContentLayout from "astro-theme-university/layouts/ContentLayout.astro";
+import DefaultDarkTheme from "../../components/DefaultDarkTheme.astro";
+import { studioWeeks } from "../../lib/studio";
+import { toClientWeek, type ClientTier } from "../../lib/studio-client";
+import { siteConfig } from "../../site-config";
+import "../../styles/site.css";
+import "../../styles/studio.css";
+
+const weeks = studioWeeks.map(toClientWeek);
+// Escaped so a literal "</script" inside a real prompt/negative-prompt file
+// (none currently, but nothing guarantees it never will) can't close this
+// tag early — the browser only ever sees valid JSON text either way.
+const payload = JSON.stringify(weeks).replace(/<\/script/gi, "<\\/script");
+
+const CREDIT_LINE =
+  "Recorded on the convener's rig with MiniMax H3 (local weights), keyframes with NoobAI-XL, reference stills for The Ninth Head with ChatGPT's image generator. Nothing is generated in the browser.";
+
+function inputKindLabel(kind: string): string {
+  const labels: Record<string, string> = {
+    seed: "Seed",
+    prompt: "Prompt",
+    image: "Image",
+    "image pair": "Image pair",
+    "reference set": "Reference set",
+    graph: "Workflow graph",
+    upscale: "Upscale graph",
+    script: "Script",
+  };
+  return labels[kind] ?? kind;
+}
+
+function formatSeed(seed: number | number[] | undefined): string | undefined {
+  if (seed === undefined) return undefined;
+  return Array.isArray(seed) ? seed.join(", ") : String(seed);
+}
+
+function weekAnchor(weekNumber: number): string {
+  return `week-${String(weekNumber).padStart(2, "0")}`;
+}
+
+function tierAnchor(weekNumber: number, tier: ClientTier): string {
+  return `${weekAnchor(weekNumber)}-${tier.tier}`;
+}
+---
+
+<ContentLayout
+  title="Studio"
+  description="Replay the real recorded results from every week's ladder: pick a week, pick a tier, generate. Nothing here is produced in the browser — every result is the exact file the rig recorded."
+  {...siteConfig}
+>
+  <DefaultDarkTheme slot="head" />
+
+  <p>
+    Every clip and still below is a real recorded result from the course's
+    own production rig, not a live model call. Picking an input and pressing
+    Generate looks a real workflow up in that recording and plays it back,
+    labelled as recorded throughout. {CREDIT_LINE}
+  </p>
+
+  <script type="application/json" is:inline data-studio-payload set:html={payload} />
+
+  <section class="studio-console" data-studio-console hidden aria-label="Studio console">
+    <h2>Console</h2>
+
+    <div class="studio-console__pickers">
+      <div class="studio-console__picker-buttons">
+        <nav class="studio-console__week-list" data-week-list aria-label="Week"></nav>
+        <div class="studio-console__tier-list" data-tier-list role="group" aria-label="Tier"></div>
+      </div>
+      <div class="studio-console__picker-selects">
+        <label class="studio-console__select-label">
+          Week
+          <select class="studio-console__select" data-week-select></select>
+        </label>
+        <label class="studio-console__select-label">
+          Tier
+          <select class="studio-console__select" data-tier-select></select>
+        </label>
+      </div>
+    </div>
+
+    <div class="studio-console__layout">
+      <div class="studio-console__panel" data-input-panel aria-label="Input"></div>
+
+      <div class="studio-console__run">
+        <button type="button" class="at-button studio-console__generate" data-generate>Generate</button>
+
+        <div class="studio-console__run-panel">
+          <p class="studio-console__run-status" data-run-status>Idle</p>
+          <progress class="studio-console__progress" data-run-progress max="100" value="0"></progress>
+        </div>
+
+        <figure class="studio-console__result phone-frame" data-result hidden>
+          <video class="studio-console__result-media" data-result-video hidden controls></video>
+          <img class="studio-console__result-media" data-result-image hidden alt="" />
+          <figcaption data-result-caption></figcaption>
+        </figure>
+
+        <dl class="studio-console__resolved" data-resolved></dl>
+
+        <button type="button" class="at-button at-button--outline" data-download disabled>
+          Download production log
+        </button>
+      </div>
+    </div>
+
+    <div class="studio-console__extra">
+      <div class="studio-console__history-block">
+        <p class="studio-console__history-label">History</p>
+        <div class="studio-console__history" data-history></div>
+      </div>
+
+      <div class="studio-console__compare-block">
+        <button
+          type="button"
+          class="at-button at-button--outline"
+          data-compare-toggle
+          aria-expanded="false"
+        >
+          Compare all
+        </button>
+        <div class="studio-console__compare-grid" data-compare-grid hidden></div>
+      </div>
+
+      <label class="studio-console__custom-label">
+        Custom prompt (live backend not available in this build)
+        <textarea class="studio-console__custom-input" data-custom-input disabled rows="2"></textarea>
+      </label>
+    </div>
+  </section>
+
+  <section class="studio-gallery" aria-label="Every recorded result, in order">
+    {
+      weeks.map((week) => (
+        <div class="studio-gallery__week" id={weekAnchor(week.week)}>
+          <h2>
+            Week {week.week} — {week.instrument}
+          </h2>
+          <p class="studio-gallery__meta">
+            {week.model} · {week.mode} · {week.resolution}
+            {formatSeed(week.seed) ? ` · seed ${formatSeed(week.seed)}` : ""}
+          </p>
+          <ol class="studio-gallery__tiers">
+            {week.tiers.map((tier) => (
+              <li class="studio-gallery__tier" id={tierAnchor(week.week, tier)}>
+                <h3>
+                  {tier.tier} — {tier.label}
+                </h3>
+                <div class="studio-gallery__grid">
+                  <div class="studio-gallery__input">
+                    <p class="studio-gallery__kind">{inputKindLabel(tier.input.kind)}</p>
+                    {typeof tier.input.value === "number" && <p>Seed: {tier.input.value}</p>}
+                    {tier.input.files?.length ? (
+                      <div class="studio-gallery__input-files">
+                        {tier.input.files.map((file) =>
+                          file.endsWith(".graph.json") ? (
+                            <a href={file} class="at-button at-button--outline">
+                              Download workflow graph
+                            </a>
+                          ) : file.endsWith(".mp4") ? (
+                            <video class="studio-gallery__media" src={file} controls preload="metadata" />
+                          ) : (
+                            <img
+                              class="studio-gallery__media"
+                              src={file}
+                              alt={`Input still for ${tier.label}`}
+                              loading="lazy"
+                            />
+                          ),
+                        )}
+                      </div>
+                    ) : null}
+                    {tier.input.promptText && <pre class="studio-gallery__text">{tier.input.promptText}</pre>}
+                    {tier.input.negText && (
+                      <>
+                        <p class="studio-gallery__neg-label">Negative prompt</p>
+                        <pre class="studio-gallery__text">{tier.input.negText}</pre>
+                      </>
+                    )}
+                  </div>
+                  <div class="studio-gallery__output">
+                    {tier.output.kind === "video" ? (
+                      <video
+                        class="studio-gallery__media"
+                        src={tier.output.file}
+                        poster={tier.output.poster}
+                        controls
+                        preload="metadata"
+                      />
+                    ) : (
+                      <img
+                        class="studio-gallery__media"
+                        src={tier.output.file}
+                        alt={`Recorded output for ${tier.label}`}
+                        loading="lazy"
+                      />
+                    )}
+                    {tier.output.cuts?.length ? (
+                      <p class="studio-gallery__cuts">
+                        Delivered as {tier.output.cuts.length} cut clips:{" "}
+                        {tier.output.cuts.map((cut, index) => (
+                          <>
+                            <a href={cut}>{`clip ${index + 1}`}</a>
+                            {index < tier.output.cuts!.length - 1 ? ", " : ""}
+                          </>
+                        ))}
+                      </p>
+                    ) : null}
+                  </div>
+                </div>
+                <p class="studio-gallery__note">{tier.note}</p>
+                {tier.sameAs && <p class="studio-gallery__sameas">Same recorded result as {tier.sameAs}.</p>}
+                {tier.counterExample && <p class="studio-gallery__counter">Deliberate counter-example.</p>}
+              </li>
+            ))}
+          </ol>
+        </div>
+      ))
+    }
+  </section>
+
+  <script src="../../scripts/studio/console.ts"></script>
+</ContentLayout>

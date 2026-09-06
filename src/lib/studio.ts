@@ -1,5 +1,3 @@
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
 import {
   cutLibrarySchema,
   referenceEpisodeSchema,
@@ -10,10 +8,31 @@ import {
   type WeekManifest,
 } from "../data/studio.schema.ts";
 
-const dataDir = fileURLToPath(new URL("../data/studio/", import.meta.url));
+// Vite inlines these at build time (import.meta.glob), instead of reading
+// off disk with node:fs — a runtime readFileSync resolved against
+// import.meta.url breaks once this module is bundled into the prerender
+// output, because the emitted chunk no longer lives next to src/data/studio/.
+const DATA_PREFIX = "../data/studio/";
+const jsonFiles = import.meta.glob<Record<string, unknown>>("../data/studio/*.json", {
+  eager: true,
+  import: "default",
+});
+const promptFiles = import.meta.glob<string>("../data/studio/inputs/**/*.md", {
+  eager: true,
+  query: "?raw",
+  import: "default",
+});
+
+function readJson(fileName: string): Record<string, unknown> {
+  const raw = jsonFiles[`${DATA_PREFIX}${fileName}`];
+  if (!raw) throw new Error(`Studio manifest not found: ${fileName}`);
+  return raw;
+}
 
 function readText(relativePath: string): string {
-  return readFileSync(`${dataDir}${relativePath}`, "utf-8").trimEnd();
+  const text = promptFiles[`${DATA_PREFIX}${relativePath}`];
+  if (text === undefined) throw new Error(`Studio prompt/negative file not found: ${relativePath}`);
+  return text.trimEnd();
 }
 
 // A tier's `prompt_file`/`neg_file` point at a real file on disk instead of
@@ -33,8 +52,7 @@ function withPromptText(tier: Tier): Tier & { promptText?: string; negText?: str
 }
 
 function loadWeek(fileName: string): WeekManifest & { tiers: ReturnType<typeof withPromptText>[] } {
-  const raw = JSON.parse(readFileSync(`${dataDir}${fileName}`, "utf-8"));
-  const parsed = weekManifestSchema.parse(raw);
+  const parsed = weekManifestSchema.parse(readJson(fileName));
   return { ...parsed, tiers: parsed.tiers.map(withPromptText) };
 }
 
@@ -51,13 +69,9 @@ const weekFiles = [
 
 export const studioWeeks = weekFiles.map(loadWeek);
 
-export const cutLibrary: CutLibrary = cutLibrarySchema.parse(
-  JSON.parse(readFileSync(`${dataDir}cut.json`, "utf-8")),
-);
+export const cutLibrary: CutLibrary = cutLibrarySchema.parse(readJson("cut.json"));
 
-export const referenceEpisode: ReferenceEpisode = referenceEpisodeSchema.parse(
-  JSON.parse(readFileSync(`${dataDir}reference.json`, "utf-8")),
-);
+export const referenceEpisode: ReferenceEpisode = referenceEpisodeSchema.parse(readJson("reference.json"));
 
 export function findTier(weekNumber: number, tierId: string) {
   const week = studioWeeks.find((w) => w.week === weekNumber);

@@ -85,7 +85,26 @@ if (root && payloadEl) {
       );
     }
 
-    function moveItem(from: number, to: number): void {
+    // Every reorder replaces the whole list, which destroys the button that
+    // was just pressed — and a destroyed button takes the keyboard user's
+    // place on the page with it, so each press sent them back to the top to
+    // Tab down again. Focus follows the clip rather than the position: press
+    // Down twice and the same clip moves twice, which is what pressing Down
+    // twice ought to mean. Falls back outward when the exact control is gone
+    // (Up disables itself on the top item; Remove takes the whole item away)
+    // rather than to nothing.
+    function focusAfterRender(clipId: string | undefined, control: string): void {
+      const pick = (selector: string) => sequenceList!.querySelector<HTMLButtonElement>(selector);
+      const target =
+        (clipId && pick(`button[data-clip="${clipId}"][data-control="${control}"]:not([disabled])`)) ||
+        (clipId && pick(`button[data-clip="${clipId}"]:not([disabled])`)) ||
+        pick(`button[data-control="${control}"]:not([disabled])`) ||
+        pick("button:not([disabled])") ||
+        (addButton!.disabled ? hookFirstButton! : addButton!);
+      target?.focus();
+    }
+
+    function moveItem(from: number, to: number, keepFocus?: { clip: string; control: string }): void {
       if (to < 0 || to >= sequence.length || from === to) return;
       const next = [...sequence];
       const [moved] = next.splice(from, 1);
@@ -93,12 +112,14 @@ if (root && payloadEl) {
       sequence = next;
       renderSequence();
       renderPlayer();
+      if (keepFocus) focusAfterRender(keepFocus.clip, keepFocus.control);
     }
 
-    function removeItem(index: number): void {
+    function removeItem(index: number, keepFocus?: { clip: string | undefined; control: string }): void {
       sequence = sequence.filter((_, i) => i !== index);
       renderSequence();
       renderPlayer();
+      if (keepFocus) focusAfterRender(keepFocus.clip, keepFocus.control);
     }
 
     function renderSequence(): void {
@@ -124,20 +145,30 @@ if (root && payloadEl) {
           upButton.className = "at-button at-button--outline";
           upButton.textContent = "Up";
           upButton.disabled = index === 0;
-          upButton.addEventListener("click", () => moveItem(index, index - 1));
+          upButton.dataset.clip = id;
+          upButton.dataset.control = "up";
+          upButton.addEventListener("click", () => moveItem(index, index - 1, { clip: id, control: "up" }));
 
           const downButton = document.createElement("button");
           downButton.type = "button";
           downButton.className = "at-button at-button--outline";
           downButton.textContent = "Down";
           downButton.disabled = index === sequence.length - 1;
-          downButton.addEventListener("click", () => moveItem(index, index + 1));
+          downButton.dataset.clip = id;
+          downButton.dataset.control = "down";
+          downButton.addEventListener("click", () => moveItem(index, index + 1, { clip: id, control: "down" }));
 
           const removeButton = document.createElement("button");
           removeButton.type = "button";
           removeButton.className = "at-button at-button--outline";
           removeButton.textContent = "Remove";
-          removeButton.addEventListener("click", () => removeItem(index));
+          removeButton.dataset.clip = id;
+          removeButton.dataset.control = "remove";
+          // The clip this button belongs to is about to stop existing, so aim
+          // focus at the one that takes its place in the list.
+          removeButton.addEventListener("click", () =>
+            removeItem(index, { clip: sequence[index + 1] ?? sequence[index - 1], control: "remove" }),
+          );
 
           controls.append(upButton, downButton, removeButton);
           item.append(controls);
@@ -202,6 +233,9 @@ if (root && payloadEl) {
       sequence = [...sequence, id];
       renderSequence();
       renderPlayer();
+      // Adding the last clip back disables Add itself, which would blur it the
+      // same way; hand focus to the clip that just arrived instead.
+      if (addButton!.disabled) focusAfterRender(id, "up");
     });
 
     hookFirstButton!.addEventListener("click", () => {

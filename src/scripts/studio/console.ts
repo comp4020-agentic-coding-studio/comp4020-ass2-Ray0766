@@ -318,9 +318,20 @@ if (root && payloadEl) {
       history.replaceState(null, "", hashFor(currentWeek.week, currentTier.id));
     }
 
+    // Both pickers replace their whole button list on every change, which
+    // destroys the button that was just pressed and drops focus to <body> —
+    // the same failure the Cut's reorder had, and the same fix: put focus on
+    // the button for whatever is now selected, so the keyboard lands on the
+    // choice it just made. The selects are left alone; replacing an option
+    // list doesn't blur the select that owns it.
+    function refocusPicker(list: HTMLElement, selector: string): void {
+      list.querySelector<HTMLButtonElement>(selector)?.focus();
+    }
+
     function selectWeek(weekNumber: number): void {
       const week = weeks.find((candidate) => candidate.week === weekNumber);
       if (!week || week.week === currentWeek.week) return;
+      const fromPicker = weekList!.contains(document.activeElement);
       currentWeek = week;
       currentTier = week.tiers[0];
       renderWeekPicker();
@@ -330,17 +341,20 @@ if (root && payloadEl) {
       renderCompareGrid();
       resetRunPanel();
       updateHash();
+      if (fromPicker) refocusPicker(weekList!, `button[data-week="${currentWeek.week}"]`);
     }
 
     function selectTier(tierId: string): void {
       const tier = findTier(currentWeek, tierId);
       if (!tier || tier.id === currentTier.id) return;
+      const fromPicker = tierList!.contains(document.activeElement);
       currentTier = tier;
       renderTierPicker();
       renderInputPanel();
       renderResolved();
       resetRunPanel();
       updateHash();
+      if (fromPicker) refocusPicker(tierList!, `button[data-tier="${currentTier.id}"]`);
     }
 
     // `disabled` is not available to a button that is running because the

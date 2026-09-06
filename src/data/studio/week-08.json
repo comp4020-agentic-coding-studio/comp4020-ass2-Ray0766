@@ -1,0 +1,92 @@
+{
+ "week": 8,
+ "instrument": "Continuity",
+ "model": "MiniMax H3",
+ "mode": "Ref2VA",
+ "seed": 66740,
+ "resolution": "576x1024",
+ "fps": 24,
+ "prompt": "subject_definitions:\n<<< per-tier variable >>>\n[Shot 2] At 00:07.000, the shot cuts to a close-up at eye level. <Subject 1> has stepped out into the rain: her hair is wet and plastered to her cheeks, drops run down her face, and the raised collar is dark with water. She turns her head to look back over her shoulder at the camera and holds the look, blinking once, while the rain keeps falling in diagonal streaks across the frame. The camera holds a static shot to the end.\n\noverall_soundscape:\nRain falls steadily on the awning fabric and the wet street with a low distant traffic hum underneath; one footstep lands on the paving, followed by rain ticking against her coat.\n\nnon_diegetic_music:\nN/A",
+ "tiers": [
+  {
+   "id": "week08-t1",
+   "tier": "t1",
+   "label": "1 reference: face",
+   "input": {
+    "kind": "reference set",
+    "value": [
+     "week08-ref-face.avif"
+    ],
+    "prompt_file": "inputs/week08/t1.md"
+   },
+   "output": {
+    "kind": "video",
+    "file": "week08-t1.mp4",
+    "poster": "week08-t1.avif"
+   },
+   "note": "One face reference across a two-shot cut: watch the coat and the street change at 00:07."
+  },
+  {
+   "id": "week08-t2",
+   "tier": "t2",
+   "label": "2 references: face + full body",
+   "input": {
+    "kind": "reference set",
+    "value": [
+     "hero-key-standin.avif",
+     "hero_full_wet.avif"
+    ],
+    "prompt_file": "inputs/week08/t2.md"
+   },
+   "output": {
+    "kind": "video",
+    "file": "week08-t2.mp4",
+    "poster": "week08-t2.avif"
+   },
+   "note": "Adding the full-length picture fixes the coat length and the boots across the cut."
+  },
+  {
+   "id": "week08-t3",
+   "tier": "t3",
+   "label": "4 references: + dry state",
+   "input": {
+    "kind": "reference set",
+    "value": [
+     "hero-key-standin.avif",
+     "hero_full_wet.avif",
+     "hero_half_dry.avif",
+     "hero_full_dry.avif"
+    ],
+    "prompt_file": "inputs/week08/t3.md"
+   },
+   "output": {
+    "kind": "video",
+    "file": "week08-t3.mp4",
+    "poster": "week08-t3.avif"
+   },
+   "note": "The dry pair is what makes Shot 1 read as dry - check the hair before she steps out."
+  },
+  {
+   "id": "week08-t4",
+   "tier": "t4",
+   "label": "5 references: + scene",
+   "input": {
+    "kind": "reference set",
+    "value": [
+     "hero-key-standin.avif",
+     "hero_full_wet.avif",
+     "hero_half_dry.avif",
+     "hero_full_dry.avif",
+     "week08-ref-scene.avif"
+    ],
+    "prompt_file": "inputs/week08/t4.md"
+   },
+   "output": {
+    "kind": "video",
+    "file": "week08-t4.mp4",
+    "poster": "week08-t4.avif"
+   },
+   "note": "With the street pinned too, both shots should look like the same place at the same hour."
+  }
+ ]
+}

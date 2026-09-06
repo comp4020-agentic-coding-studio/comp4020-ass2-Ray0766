@@ -1,0 +1,90 @@
+{
+ "week": 4,
+ "instrument": "Image to Image",
+ "model": "NoobAI-XL",
+ "mode": "I2I",
+ "resolution": "768x1344",
+ "prompt": "masterpiece, best quality, amazing quality, very aesthetic, absurdres, newest, official art, anime screencap, movie still,\n1girl, solo, young woman, cowboy shot, upper body, looking back, looking at viewer, over the shoulder, turning head,\nlong black hair, wet hair, hair between eyes, floating hair, strands of hair on face, fair skin, delicate features, natural makeup,\ncalm expression, restrained emotion, slightly parted lips, quiet gaze, melancholy,\ndark long coat, closed coat, buttoned coat, high collar, turtleneck, long sleeves, covered shoulders, fully clothed, damp clothes, wet collar,\nnight, rain, heavy rain, rain streaks, falling raindrops, wet street, wet asphalt, puddle, reflective ground, reflection, city street at night,\nwarm street lamp glow, amber light, golden light, orange light, bronze tone, warm backlight, rim light, warm light on skin,\nabstract glowing light bands, blurred colored light spots, colorful bokeh, glowing haze, streaks of light on wet pavement,\ndepth of field, shallow focus, blurry background, bokeh,\ncinematic lighting, cinematic composition, dramatic lighting, chiaroscuro, high contrast, dark theme, film grain,\nrule of thirds, head in upper third, empty space above head, headroom",
+ "tiers": [
+  {
+   "id": "week04-t1",
+   "tier": "t1",
+   "label": "rough sketch",
+   "input": {
+    "kind": "image",
+    "file": "week04-t1-input.avif",
+    "prompt_file": "inputs/week04/prompt.md",
+    "neg_file": "inputs/week04/neg.md"
+   },
+   "output": {
+    "kind": "image",
+    "file": "week04-t1.avif"
+   },
+   "note": "The prompt and strength are fixed from here to t5; only a rough sketch is guiding this pass."
+  },
+  {
+   "id": "week04-t2",
+   "tier": "t2",
+   "label": "clean lineart",
+   "input": {
+    "kind": "image",
+    "file": "week04-t2-input.avif",
+    "prompt_file": "inputs/week04/prompt.md",
+    "neg_file": "inputs/week04/neg.md"
+   },
+   "output": {
+    "kind": "image",
+    "file": "week04-t2.avif"
+   },
+   "note": "Cleaning the lines before the pass steadies the proportions the rough sketch left uncertain."
+  },
+  {
+   "id": "week04-t3",
+   "tier": "t3",
+   "label": "flat-coloured lineart",
+   "input": {
+    "kind": "image",
+    "file": "week04-t3-input.avif",
+    "prompt_file": "inputs/week04/prompt.md",
+    "neg_file": "inputs/week04/neg.md"
+   },
+   "output": {
+    "kind": "image",
+    "file": "week04-t3.avif"
+   },
+   "note": "A flat colour guide pins the palette and the silhouette before a single gradient exists."
+  },
+  {
+   "id": "week04-t4",
+   "tier": "t4",
+   "label": "finished keyframe, refined",
+   "input": {
+    "kind": "image",
+    "file": "week04-t4-input.avif",
+    "prompt_file": "inputs/week04/prompt.md",
+    "neg_file": "inputs/week04/neg.md"
+   },
+   "output": {
+    "kind": "image",
+    "file": "week04-t4.avif"
+   },
+   "note": "The input here is week03's own top-tier keyframe, refined rather than built again from a sketch."
+  },
+  {
+   "id": "week04-t5",
+   "tier": "t5",
+   "label": "finished keyframe + ControlNet pose lock",
+   "input": {
+    "kind": "image",
+    "file": "week04-t5-input.avif",
+    "prompt_file": "inputs/week04/prompt.md",
+    "neg_file": "inputs/week04/neg.md"
+   },
+   "output": {
+    "kind": "image",
+    "file": "week04-t5.avif"
+   },
+   "note": "A bare pose skeleton, with no colour or line detail at all, still holds this composition in place."
+  }
+ ]
+}

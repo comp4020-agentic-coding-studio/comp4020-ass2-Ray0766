@@ -1,0 +1,85 @@
+{
+ "week": 3,
+ "instrument": "Text to Image",
+ "model": "NoobAI-XL",
+ "mode": "T2I",
+ "resolution": "768x1344",
+ "prompt": "<<< per-tier variable >>>",
+ "tiers": [
+  {
+   "id": "week03-t1",
+   "tier": "t1",
+   "label": "one line",
+   "input": {
+    "kind": "prompt",
+    "prompt_file": "inputs/week03/t1.md",
+    "neg_file": "inputs/week03/t1-neg.md"
+   },
+   "output": {
+    "kind": "image",
+    "file": "week03-t1.avif"
+   },
+   "note": "One line names the subject and nothing else: the model picks its own wide, distant framing."
+  },
+  {
+   "id": "week03-t2",
+   "tier": "t2",
+   "label": "setting and mood",
+   "input": {
+    "kind": "prompt",
+    "prompt_file": "inputs/week03/t2.md",
+    "neg_file": "inputs/week03/t2-neg.md"
+   },
+   "output": {
+    "kind": "image",
+    "file": "week03-t2.avif"
+   },
+   "note": "Setting and mood fill the street with neon and a stray figure the prompt never asked for."
+  },
+  {
+   "id": "week03-t3",
+   "tier": "t3",
+   "label": "four-part grammar",
+   "input": {
+    "kind": "prompt",
+    "prompt_file": "inputs/week03/t3.md",
+    "neg_file": "inputs/week03/t3-neg.md"
+   },
+   "output": {
+    "kind": "image",
+    "file": "week03-t3.avif"
+   },
+   "note": "Subject, framing, light and style anchor land the over-the-shoulder shot in one cool blue pass."
+  },
+  {
+   "id": "week03-t4",
+   "tier": "t4",
+   "label": "+ tag vocabulary + negative prompt",
+   "input": {
+    "kind": "prompt",
+    "prompt_file": "inputs/week03/t4.md",
+    "neg_file": "inputs/week03/t4-neg.md"
+   },
+   "output": {
+    "kind": "image",
+    "file": "week03-t4.avif"
+   },
+   "note": "The first negative prompt bans cold colour outright, and the whole frame turns warm and golden."
+  },
+  {
+   "id": "week03-t5",
+   "tier": "t5",
+   "label": "+ shot size, camera angle, colour script",
+   "input": {
+    "kind": "prompt",
+    "prompt_file": "inputs/week03/t5.md",
+    "neg_file": "inputs/week03/t5-neg.md"
+   },
+   "output": {
+    "kind": "image",
+    "file": "week03-t5.avif"
+   },
+   "note": "Rule-of-thirds headroom and a named colour script finish the keyframe this course reuses from here on."
+  }
+ ]
+}

@@ -1,0 +1,88 @@
+{
+ "week": 5,
+ "instrument": "Text to video",
+ "model": "MiniMax H3",
+ "mode": "T2VA",
+ "seed": 66740,
+ "resolution": "576x1024",
+ "fps": 24,
+ "prompt": "<<< per-tier variable >>>\n\noverall_soundscape: Heavy rain falls on wet asphalt with a low distant traffic hum underneath; small drops tick against her coat.\n\nnon_diegetic_music: N/A",
+ "tiers": [
+  {
+   "id": "week05-t1",
+   "tier": "t1",
+   "label": "one line",
+   "input": {
+    "kind": "prompt",
+    "prompt_file": "inputs/week05/t1.md"
+   },
+   "output": {
+    "kind": "video",
+    "file": "week05-t1.mp4",
+    "poster": "week05-t1.avif"
+   },
+   "note": "One line gives the model everything to invent: watch the camera wander and the framing change."
+  },
+  {
+   "id": "week05-t2",
+   "tier": "t2",
+   "label": "subject + action",
+   "input": {
+    "kind": "prompt",
+    "prompt_file": "inputs/week05/t2.md"
+   },
+   "output": {
+    "kind": "video",
+    "file": "week05-t2.mp4",
+    "poster": "week05-t2.avif"
+   },
+   "note": "Naming the subject and the action locks the pose; the light and the camera are still free."
+  },
+  {
+   "id": "week05-t3",
+   "tier": "t3",
+   "label": "four sentences",
+   "input": {
+    "kind": "prompt",
+    "prompt_file": "inputs/week05/t3.md"
+   },
+   "output": {
+    "kind": "video",
+    "file": "week05-t3.mp4",
+    "poster": "week05-t3.avif"
+   },
+   "note": "The four-sentence shape pins style, motion, camera and continuity - watch the shot stop cutting."
+  },
+  {
+   "id": "week05-t4",
+   "tier": "t4",
+   "label": "four sentences + beats + negatives",
+   "input": {
+    "kind": "prompt",
+    "prompt_file": "inputs/week05/t4.md"
+   },
+   "output": {
+    "kind": "video",
+    "file": "week05-t4.mp4",
+    "poster": "week05-t4.avif"
+   },
+   "note": "Timecoded beats put the blink and the gust where you asked; check 00:02 and 00:03.5."
+  },
+  {
+   "id": "week05-t5",
+   "tier": "t5",
+   "label": "contradictory prompt (counter-example)",
+   "input": {
+    "kind": "prompt",
+    "prompt_file": "inputs/week05/t5.md"
+   },
+   "output": {
+    "kind": "video",
+    "file": "week05-t5.mp4",
+    "poster": "week05-t5.avif"
+   },
+   "note": "Every camera move and every look contradicts the last one - watch the model pick for you.",
+   "counterExample": true
+  }
+ ]
+}

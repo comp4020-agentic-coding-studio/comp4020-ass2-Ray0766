@@ -1,0 +1,96 @@
+{
+ "week": 6,
+ "instrument": "Image to video",
+ "model": "MiniMax H3",
+ "mode": "I2VA (t5 = FL2VA)",
+ "seed": 66740,
+ "resolution": "576x1024",
+ "fps": 24,
+ "prompt": "<<< per-tier variable >>>\n\noverall_soundscape: Heavy rain falls on wet asphalt with a low distant traffic hum underneath; small drops tick against her coat.\n\nnon_diegetic_music: N/A",
+ "tiers": [
+  {
+   "id": "week06-t1",
+   "tier": "t1",
+   "label": "sketch as first frame",
+   "input": {
+    "kind": "image",
+    "file": "week06-t1-input.avif",
+    "prompt_file": "inputs/week06/t1.md"
+   },
+   "output": {
+    "kind": "video",
+    "file": "week06-t1.mp4",
+    "poster": "week06-t1.avif"
+   },
+   "note": "A line sketch as the first frame: watch the model paint the whole look from nothing."
+  },
+  {
+   "id": "week06-t2",
+   "tier": "t2",
+   "label": "flat colour as first frame",
+   "input": {
+    "kind": "image",
+    "file": "week06-t2-input.avif",
+    "prompt_file": "inputs/week06/t2.md"
+   },
+   "output": {
+    "kind": "video",
+    "file": "week06-t2.mp4",
+    "poster": "week06-t2.avif"
+   },
+   "note": "Flat colour fixes the palette and the silhouette; the face is still up for grabs."
+  },
+  {
+   "id": "week06-t3",
+   "tier": "t3",
+   "label": "finished key frame",
+   "input": {
+    "kind": "image",
+    "file": "hero-key-standin.avif",
+    "prompt_file": "inputs/week06/t3.md"
+   },
+   "output": {
+    "kind": "video",
+    "file": "week06-t3.mp4",
+    "poster": "week06-t3.avif"
+   },
+   "note": "A finished frame holds the identity - compare the face here with t1 and t2."
+  },
+  {
+   "id": "week06-t4",
+   "sameAs": "week02-t1",
+   "tier": "t4",
+   "label": "finished key frame + four sentences",
+   "input": {
+    "kind": "image",
+    "file": "hero-key-standin.avif",
+    "prompt_file": "inputs/week06/t4.md"
+   },
+   "output": {
+    "kind": "video",
+    "file": "week06-t4.mp4",
+    "poster": "week06-t4.avif"
+   },
+   "note": "Same first frame as t3, richer prompt: the picture holds the look, the words hold the motion."
+  },
+  {
+   "id": "week06-t5",
+   "tier": "t5",
+   "label": "first frame + last frame (FL2VA)",
+   "input": {
+    "kind": "image pair",
+    "file": [
+     "hero-key-standin.avif",
+     "hero_tail.avif"
+    ],
+    "prompt_file": "inputs/week06/t5.md"
+   },
+   "output": {
+    "kind": "video",
+    "file": "week06-t5.mp4",
+    "poster": "week06-t5.avif"
+   },
+   "note": "Two anchors instead of one: watch the turn land exactly on the tail frame at 5.17 s."
+  }
+ ]
+}

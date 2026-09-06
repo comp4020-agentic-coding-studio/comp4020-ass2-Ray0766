@@ -1,0 +1,98 @@
+{
+ "week": 2,
+ "instrument": "The Loop",
+ "model": "MiniMax H3",
+ "mode": "I2VA",
+ "seed": [
+  66740,
+  66741,
+  66742,
+  66743,
+  66744
+ ],
+ "resolution": "576x1024",
+ "fps": 24,
+ "prompt": "For the target video, at 0.00 seconds into the target video, <Picture 1> (from [Shot 1]) is fully referenced.\n\nintegrated_multimodal_description: [Shot 1] 2D-animated, cinematic, the young woman shown in <Picture 1> stays where she stands on the wet night street, keeping her face, her long dark hair, her dark buttoned coat with the raised collar, and the warm amber lights behind her. Heavy rain keeps falling in diagonal streaks while loose strands of her hair lift and settle and her shoulders rise and fall with slow breathing. The camera holds a static shot for the whole duration. No other person enters the frame and the shot never cuts.\n\noverall_soundscape: Heavy rain falls on wet asphalt with a low distant traffic hum underneath; small drops tick against her coat.\n\nnon_diegetic_music: N/A",
+ "tiers": [
+  {
+   "id": "week02-t1",
+   "tier": "t1",
+   "label": "seed 66740",
+   "input": {
+    "kind": "seed",
+    "value": 66740,
+    "prompt_file": "inputs/week02/prompt.md"
+   },
+   "output": {
+    "kind": "video",
+    "file": "week02-t1.mp4",
+    "poster": "week02-t1.avif"
+   },
+   "note": "One prompt, five seeds: watch how much of the shot the seed alone decides."
+  },
+  {
+   "id": "week02-t2",
+   "tier": "t2",
+   "label": "seed 66741",
+   "input": {
+    "kind": "seed",
+    "value": 66741,
+    "prompt_file": "inputs/week02/prompt.md"
+   },
+   "output": {
+    "kind": "video",
+    "file": "week02-t2.mp4",
+    "poster": "week02-t2.avif"
+   },
+   "note": "Compare the rain direction and the hair drift against t1 - same words, different roll."
+  },
+  {
+   "id": "week02-t3",
+   "tier": "t3",
+   "label": "seed 66742",
+   "input": {
+    "kind": "seed",
+    "value": 66742,
+    "prompt_file": "inputs/week02/prompt.md"
+   },
+   "output": {
+    "kind": "video",
+    "file": "week02-t3.mp4",
+    "poster": "week02-t3.avif"
+   },
+   "note": "Watch whether the coat collar and the amber lights stay where the still put them."
+  },
+  {
+   "id": "week02-t4",
+   "tier": "t4",
+   "label": "seed 66743",
+   "input": {
+    "kind": "seed",
+    "value": 66743,
+    "prompt_file": "inputs/week02/prompt.md"
+   },
+   "output": {
+    "kind": "video",
+    "file": "week02-t4.mp4",
+    "poster": "week02-t4.avif"
+   },
+   "note": "Look for the seeds that drift the face: identity is the first thing a bad roll loses."
+  },
+  {
+   "id": "week02-t5",
+   "tier": "t5",
+   "label": "seed 66744",
+   "input": {
+    "kind": "seed",
+    "value": 66744,
+    "prompt_file": "inputs/week02/prompt.md"
+   },
+   "output": {
+    "kind": "video",
+    "file": "week02-t5.mp4",
+    "poster": "week02-t5.avif"
+   },
+   "note": "Pick the take you would keep; that choice is the whole loop."
+  }
+ ]
+}

@@ -1,0 +1,73 @@
+{
+ "tier": "t3",
+ "kind": "upscale-only (no generation)",
+ "source": "week07-t1.mp4 (576x1024, 124 frames, 24 fps)",
+ "pipeline": [
+  {
+   "step": 1,
+   "tool": "ffmpeg",
+   "args": [
+    "-v",
+    "error",
+    "-y",
+    "-i",
+    "week07-t1.mp4",
+    "work/_t3/in/%06d.png"
+   ],
+   "note": "拆帧，PNG 无损"
+  },
+  {
+   "step": 2,
+   "tool": "realesrgan-ncnn-vulkan",
+   "args": [
+    "-i",
+    "work/_t3/in",
+    "-o",
+    "work/_t3/out",
+    "-n",
+    "realesr-animevideov3",
+    "-s",
+    "2",
+    "-m",
+    "edit/tools/realesrgan/models",
+    "-f",
+    "png"
+   ],
+   "note": "animevideov3 x2：576x1024 -> 1152x2048"
+  },
+  {
+   "step": 3,
+   "tool": "ffmpeg",
+   "args": [
+    "-v",
+    "error",
+    "-y",
+    "-framerate",
+    "24",
+    "-i",
+    "work/_t3/out/%06d.png",
+    "-vf",
+    "scale=1080:1920:flags=lanczos",
+    "-an",
+    "-c:v",
+    "libx264",
+    "-preset",
+    "slow",
+    "-crf",
+    "<crf>",
+    "-pix_fmt",
+    "yuv420p",
+    "-movflags",
+    "+faststart",
+    "week07-t3.mp4"
+   ],
+   "note": "LANCZOS 下采到 1080x1920；crf 26 起，>2.5 MB 降到 28"
+  }
+ ],
+ "output": {
+  "file": "week07-t3.mp4",
+  "resolution": "1080x1920",
+  "poster": "week07-t3.avif",
+  "limit_mb": 2.5
+ }
+}

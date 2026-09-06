@@ -1,0 +1,11 @@
+masterpiece, best quality, amazing quality, very aesthetic, absurdres, newest, official art, anime screencap, movie still,
+1girl, solo, young woman, cowboy shot, upper body, looking back, looking at viewer, over the shoulder, turning head,
+long black hair, wet hair, hair between eyes, floating hair, strands of hair on face, fair skin, delicate features, natural makeup,
+calm expression, restrained emotion, slightly parted lips, quiet gaze, melancholy,
+dark long coat, closed coat, buttoned coat, high collar, turtleneck, long sleeves, covered shoulders, fully clothed, damp clothes, wet collar,
+night, rain, heavy rain, rain streaks, falling raindrops, wet street, wet asphalt, puddle, reflective ground, reflection, city street at night,
+warm street lamp glow, amber light, golden light, orange light, bronze tone, warm backlight, rim light, warm light on skin,
+abstract glowing light bands, blurred colored light spots, colorful bokeh, glowing haze, streaks of light on wet pavement,
+depth of field, shallow focus, blurry background, bokeh,
+cinematic lighting, cinematic composition, dramatic lighting, chiaroscuro, high contrast, dark theme, film grain,
+rule of thirds, head in upper third, empty space above head, headroom

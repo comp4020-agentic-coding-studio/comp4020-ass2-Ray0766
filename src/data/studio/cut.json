@@ -1,0 +1,168 @@
+{
+ "kind": "cut library",
+ "source": "final/reference-episode_master.mp4",
+ "source_resolution": "1080x1920",
+ "fps": 24,
+ "burned_text": false,
+ "note": "四条窗口与四张字卡时段零交集，母版截出即无字；三套字幕稿另给，压字层由 compose 做",
+ "cuts": [
+  {
+   "id": "cut-establishing",
+   "shot": "S3",
+   "start_s": 7.0,
+   "end_s": 11.0,
+   "duration_s": 4.0,
+   "master_frames": [
+    168,
+    263
+   ],
+   "timecode": "00:07.000-00:11.000",
+   "file": "final/cut-establishing.mp4",
+   "poster": "final/cut-establishing.avif",
+   "resolution": "576x1024",
+   "crf": 26,
+   "bytes": 440128,
+   "limit_bytes": 1048576,
+   "poster_bytes": 47202,
+   "crf_tag": 26.0,
+   "frames_probe": 96
+  },
+  {
+   "id": "cut-hook",
+   "shot": "S1",
+   "start_s": 0.0,
+   "end_s": 3.0,
+   "duration_s": 3.0,
+   "master_frames": [
+    0,
+    71
+   ],
+   "timecode": "00:00.000-00:03.000",
+   "file": "final/cut-hook.mp4",
+   "poster": "final/cut-hook.avif",
+   "resolution": "576x1024",
+   "crf": 26,
+   "bytes": 598503,
+   "limit_bytes": 1048576,
+   "poster_bytes": 64573,
+   "crf_tag": 26.0,
+   "frames_probe": 72
+  },
+  {
+   "id": "cut-reaction",
+   "shot": "S6",
+   "start_s": 19.0,
+   "end_s": 22.0,
+   "duration_s": 3.0,
+   "master_frames": [
+    456,
+    527
+   ],
+   "timecode": "00:19.000-00:22.000",
+   "file": "final/cut-reaction.mp4",
+   "poster": "final/cut-reaction.avif",
+   "resolution": "576x1024",
+   "crf": 26,
+   "bytes": 309530,
+   "limit_bytes": 1048576,
+   "poster_bytes": 28213,
+   "crf_tag": 26.0,
+   "frames_probe": 72
+  },
+  {
+   "id": "cut-turn",
+   "shot": "S10",
+   "start_s": 33.0,
+   "end_s": 38.0,
+   "duration_s": 5.0,
+   "master_frames": [
+    792,
+    911
+   ],
+   "timecode": "00:33.000-00:38.000",
+   "file": "final/cut-turn.mp4",
+   "poster": "final/cut-turn.avif",
+   "resolution": "576x1024",
+   "crf": 26,
+   "bytes": 806382,
+   "limit_bytes": 1048576,
+   "poster_bytes": 47935,
+   "crf_tag": 26.0,
+   "frames_probe": 120
+  }
+ ],
+ "subtitle_drafts": [
+  {
+   "set": "labour",
+   "file": "inputs/cut/subs-labour.md",
+   "lines": [
+    {
+     "cut": "establishing",
+     "text": "The second labour."
+    },
+    {
+     "cut": "hook",
+     "text": "Cut one."
+    },
+    {
+     "cut": "reaction",
+     "text": "Two grow."
+    },
+    {
+     "cut": "turn",
+     "text": "Fire."
+    }
+   ]
+  },
+  {
+   "set": "vendetta",
+   "file": "inputs/cut/subs-vendetta.md",
+   "lines": [
+    {
+     "cut": "establishing",
+     "text": "Nine years ago, at this water."
+    },
+    {
+     "cut": "hook",
+     "text": "He did not come for the labour."
+    },
+    {
+     "cut": "reaction",
+     "text": "Nine heads. Nine names."
+    },
+    {
+     "cut": "turn",
+     "text": "He brought the fire himself."
+    }
+   ]
+  },
+  {
+   "set": "teaser",
+   "file": "inputs/cut/subs-teaser.md",
+   "lines": [
+    {
+     "cut": "establishing",
+     "text": "Previously, at Lerna."
+    },
+    {
+     "cut": "hook",
+     "text": "One head was never killed."
+    },
+    {
+     "cut": "reaction",
+     "text": "He knows."
+    },
+    {
+     "cut": "turn",
+     "text": "Episode 2 — the stone moves."
+    }
+   ]
+  }
+ ],
+ "corner_label": {
+  "text": "LERNA",
+  "only_on": "establishing"
+ },
+ "subtitle_source": "projects/a2-slopu/ninth-head/cut_subtitles_v1.md（逐字）",
+ "selfcheck_verdict": "OK"
+}

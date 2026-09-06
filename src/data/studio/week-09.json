@@ -1,0 +1,137 @@
+{
+ "week": 9,
+ "instrument": "Script and storyboard",
+ "model": "MiniMax H3",
+ "mode": "Ref2VA",
+ "seed": 66740,
+ "resolution": "576x1024",
+ "fps": 24,
+ "prompt": "subject_definitions:\n<Subject 1> is Heracles in <Picture 1>: a bearded man in his early thirties with short curling dark hair, a scar through the left eyebrow, a lion-pelt cloak with the lion's head hood pushed back, a linen tunic, leather wrist wraps, and a short bronze sword; soaked, with black hydra blood on his face and pelt.\n<Subject 2> is the Lernaean hydra in <Picture 2>: a serpentine body rising from black water with eight viper-like necks of dark green scales, and a ninth head held highest at the center, a third larger, with gold eyes and a crown of bone spikes.\n<Subject 3> is the Lerna swamp at night in <Picture 3>: a muddy shore with a row of burning torch stakes, a chest-high boulder at the water's edge, black still water, reeds, dead trees, and thin mist.\n<<< per-tier variable >>>\n\noverall_soundscape:\nBlack swamp water sloshes and drips, hydra hisses overlap, one heavy blow lands, a torch flame flares, and burning flesh hisses; a low wind moves through the reeds.\n\nnon_diegetic_music:\nN/A",
+ "tiers": [
+  {
+   "id": "week09-t1",
+   "tier": "t1",
+   "label": "prose",
+   "input": {
+    "kind": "script",
+    "file": "inputs/week09/t1.md",
+    "prompt_file": "inputs/week09/t1.md"
+   },
+   "output": {
+    "kind": "video",
+    "file": "week09-t1.mp4",
+    "poster": "week09-t1.avif",
+    "cuts": [
+     "week09-t1-s1.mp4",
+     "week09-t1-s2.mp4",
+     "week09-t1-s3.mp4"
+    ],
+    "bytes": 1910982,
+    "crf": 26,
+    "limit_bytes": 2621440,
+    "poster_bytes": 61731,
+    "cuts_bytes": [
+     626332,
+     394824,
+     837673
+    ]
+   },
+   "note": "Prose leaves the order of events to the model: check whether the fire really comes after the fall."
+  },
+  {
+   "id": "week09-t2",
+   "tier": "t2",
+   "label": "beat sheet",
+   "input": {
+    "kind": "script",
+    "file": "inputs/week09/t2.md",
+    "prompt_file": "inputs/week09/t2.md"
+   },
+   "output": {
+    "kind": "video",
+    "file": "week09-t2.mp4",
+    "poster": "week09-t2.avif",
+    "cuts": [
+     "week09-t2-s1.mp4",
+     "week09-t2-s2.mp4",
+     "week09-t2-s3.mp4"
+    ],
+    "bytes": 1761842,
+    "crf": 26,
+    "limit_bytes": 2621440,
+    "poster_bytes": 71319,
+    "cuts_bytes": [
+     532205,
+     452121,
+     783279
+    ]
+   },
+   "note": "Beats give each moment a result state: watch 0-4 s for 'down in the water, hand on the stake'."
+  },
+  {
+   "id": "week09-t3",
+   "tier": "t3",
+   "label": "beat sheet + shot list",
+   "input": {
+    "kind": "script",
+    "file": "inputs/week09/t3.md",
+    "prompt_file": "inputs/week09/t3.md"
+   },
+   "output": {
+    "kind": "video",
+    "file": "week09-t3.mp4",
+    "poster": "week09-t3.avif",
+    "cuts": [
+     "week09-t3-s1.mp4",
+     "week09-t3-s2.mp4",
+     "week09-t3-s3.mp4"
+    ],
+    "bytes": 1814306,
+    "crf": 26,
+    "limit_bytes": 2621440,
+    "poster_bytes": 67035,
+    "cuts_bytes": [
+     648016,
+     475828,
+     700808
+    ]
+   },
+   "note": "The shot list fixes size and angle: 4-7 s should be a close-up on the hand, and the cuts should land on 4.0 and 7.0."
+  },
+  {
+   "id": "week09-t4",
+   "tier": "t4",
+   "label": "storyboard (+ 3 frames)",
+   "input": {
+    "kind": "script",
+    "file": "inputs/week09/t4.md",
+    "prompt_file": "inputs/week09/t4.md"
+   },
+   "output": {
+    "kind": "video",
+    "file": "week09-t4.mp4",
+    "poster": "week09-t4.avif",
+    "cuts": [
+     "week09-t4-s1.mp4",
+     "week09-t4-s2.mp4",
+     "week09-t4-s3.mp4"
+    ],
+    "bytes": 1959041,
+    "crf": 26,
+    "limit_bytes": 2621440,
+    "poster_bytes": 64323,
+    "cuts_bytes": [
+     685024,
+     540757,
+     755768
+    ]
+   },
+   "note": "Three attached frames on top of t3: check the torch in S9 and the profile in S10 against the boards."
+  }
+ ],
+ "packaging": {
+  "crf": 26,
+  "limit_bytes": 2621440,
+  "note": "12.25 s 厚涂 CG 在 crf 28 仍超 1 MB（见回执 §7），收尾改 crf 26 / 上限 2.5 MB；三条分镜切片仍 crf 26 / 1 MB"
+ }
+}

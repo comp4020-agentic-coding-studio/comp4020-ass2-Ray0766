@@ -1,0 +1,621 @@
+{
+ "title": "The Ninth Head",
+ "kind": "reference episode",
+ "model": "MiniMax H3",
+ "mode": "Ref2VA",
+ "fps": 24,
+ "duration_s": 60.0,
+ "frames": 1440,
+ "resolution": {
+  "generated": "576x1024",
+  "upscaled": "1152x2048",
+  "master": "1080x1920",
+  "web": "576x1024"
+ },
+ "segments": [
+  {
+   "seg": "A",
+   "shots": "S1-S4",
+   "source": "work/ninth-head/seg1_seed66740.mp4",
+   "seed": 66740,
+   "src_frames": 362,
+   "src_duration_s": 15.083,
+   "kept_frames": 360,
+   "kept_s": 15.0,
+   "trimmed_frames": 2,
+   "timeline_s": [
+    0.0,
+    15.0
+   ],
+   "timecode": "00:00.000-00:15.000",
+   "master_frames": [
+    0,
+    359
+   ]
+  },
+  {
+   "seg": "B",
+   "shots": "S5-S8",
+   "source": "work/ninth-head/seg2_seed66740.mp4",
+   "seed": 66740,
+   "src_frames": 362,
+   "src_duration_s": 15.083,
+   "kept_frames": 360,
+   "kept_s": 15.0,
+   "trimmed_frames": 2,
+   "timeline_s": [
+    15.0,
+    30.0
+   ],
+   "timecode": "00:15.000-00:30.000",
+   "master_frames": [
+    360,
+    719
+   ]
+  },
+  {
+   "seg": "C",
+   "shots": "S9-S12",
+   "source": "work/ninth-head/seg3_seed66740.mp4",
+   "seed": 66740,
+   "src_frames": 362,
+   "src_duration_s": 15.083,
+   "kept_frames": 360,
+   "kept_s": 15.0,
+   "trimmed_frames": 2,
+   "timeline_s": [
+    30.0,
+    45.0
+   ],
+   "timecode": "00:30.000-00:45.000",
+   "master_frames": [
+    720,
+    1079
+   ]
+  },
+  {
+   "seg": "D",
+   "shots": "S13-S16",
+   "source": "work/ninth-head/seg4_seed66742.mp4",
+   "seed": 66742,
+   "src_frames": 362,
+   "src_duration_s": 15.083,
+   "kept_frames": 360,
+   "kept_s": 15.0,
+   "trimmed_frames": 2,
+   "timeline_s": [
+    45.0,
+    60.0
+   ],
+   "timecode": "00:45.000-01:00.000",
+   "master_frames": [
+    1080,
+    1439
+   ]
+  }
+ ],
+ "takes": [
+  {
+   "seg": "A",
+   "seed": 66740,
+   "file": "work/ninth-head/seg1_seed66740.mp4",
+   "picked": true
+  },
+  {
+   "seg": "A",
+   "seed": 66741,
+   "file": "work/ninth-head/seg1_seed66741.mp4",
+   "picked": false
+  },
+  {
+   "seg": "A",
+   "seed": 66742,
+   "file": "work/ninth-head/seg1_seed66742.mp4",
+   "picked": false
+  },
+  {
+   "seg": "B",
+   "seed": 66740,
+   "file": "work/ninth-head/seg2_seed66740.mp4",
+   "picked": true
+  },
+  {
+   "seg": "B",
+   "seed": 66741,
+   "file": "work/ninth-head/seg2_seed66741.mp4",
+   "picked": false
+  },
+  {
+   "seg": "B",
+   "seed": 66742,
+   "file": "work/ninth-head/seg2_seed66742.mp4",
+   "picked": false
+  },
+  {
+   "seg": "C",
+   "seed": 66740,
+   "file": "work/ninth-head/seg3_seed66740.mp4",
+   "picked": true
+  },
+  {
+   "seg": "C",
+   "seed": 66741,
+   "file": "work/ninth-head/seg3_seed66741.mp4",
+   "picked": false
+  },
+  {
+   "seg": "C",
+   "seed": 66742,
+   "file": "work/ninth-head/seg3_seed66742.mp4",
+   "picked": false
+  },
+  {
+   "seg": "D",
+   "seed": 66740,
+   "file": "work/ninth-head/seg4_seed66740.mp4",
+   "picked": false
+  },
+  {
+   "seg": "D",
+   "seed": 66741,
+   "file": "work/ninth-head/seg4_seed66741.mp4",
+   "picked": false
+  },
+  {
+   "seg": "D",
+   "seed": 66742,
+   "file": "work/ninth-head/seg4_seed66742.mp4",
+   "picked": true
+  }
+ ],
+ "cards": [
+  {
+   "id": "c1",
+   "text": [
+    "LERNA",
+    "The second labour."
+   ],
+   "start_s": 3.5,
+   "end_s": 7.0,
+   "timecode": "00:03.500-00:07.000",
+   "first_frame": 84,
+   "last_frame": 167,
+   "png": "work/_nh/cards/c1.png",
+   "note": "LERNA 竖排右上 3% + 底注 The second labour. 4%"
+  },
+  {
+   "id": "c2",
+   "text": [
+    "Cut one. Two grow."
+   ],
+   "start_s": 11.5,
+   "end_s": 15.0,
+   "timecode": "00:11.500-00:15.000",
+   "first_frame": 276,
+   "last_frame": 359,
+   "png": "work/_nh/cards/c2.png",
+   "note": "底注 Cut one. Two grow. 4%"
+  },
+  {
+   "id": "c3",
+   "text": [
+    "The ninth head is immortal."
+   ],
+   "start_s": 42.5,
+   "end_s": 45.0,
+   "timecode": "00:42.500-00:45.000",
+   "first_frame": 1020,
+   "last_frame": 1079,
+   "png": "work/_nh/cards/c3.png",
+   "note": "底注 The ninth head is immortal. 4%"
+  },
+  {
+   "id": "c4",
+   "text": [
+    "THE NINTH HEAD"
+   ],
+   "start_s": 58.5,
+   "end_s": 60.0,
+   "timecode": "00:58.500-01:00.000",
+   "first_frame": 1404,
+   "last_frame": 1439,
+   "png": "work/_nh/cards/c4.png",
+   "note": "片尾卡 THE NINTH HEAD 居中 7%"
+  }
+ ],
+ "card_style": {
+  "font": "C:/Windows/Fonts/NotoSerifSC-VF.ttf",
+  "fill": "white",
+  "outline": false,
+  "shadow": false,
+  "backdrop": false,
+  "frame": [
+   1080,
+   1920
+  ],
+  "safe_w_ratio": 0.88
+ },
+ "black": {
+  "from_s": 58.0,
+  "duration_s": 0.5,
+  "tail_card_from_s": 58.5,
+  "audio": "有声（黑场内包络峰 -32.0 dBFS）",
+  "measured": {
+   "pure_black_spans": [
+    {
+     "first_frame": 1392,
+     "last_frame": 1403,
+     "frames": 12,
+     "start_s": 58.0,
+     "end_s": 58.5,
+     "duration_s": 0.5,
+     "audio_peak_db": -32.0,
+     "silent": false,
+     "over_limit": false,
+     "expected_tail": true
+    }
+   ],
+   "method": "整片灰度 270x480，亮度>16 像素占比<0.05% 为纯黑帧；黑场内 0.05 s 窗包络峰 >= -45 dBFS 为有声",
+   "tail_card_ink_ratio": [
+    0.01722,
+    0.01722
+   ]
+  }
+ },
+ "bgm": {
+  "model": "MiniMax Music 3.0 (local)",
+  "caption": "sparse low frame-drum hits at 72 BPM, one dry hit every two beats with long silence between, no bass instrument, no melody, no chords, nothing develops, stays as sparse at the end as at the start, dark and minimal",
+  "lyrics": "[intro]\n[interlude]\n[interlude]\n[interlude]\n[outro]",
+  "target_seconds": 70.0,
+  "pick": "C",
+  "seed": 20260907,
+  "source": "work/_nh/bgm/bgm.mp3",
+  "duration_s": 67.152,
+  "peak_normalize_db": -1.0,
+  "gain_db": -12.0,
+  "shift_s": 5.35,
+  "native_gain_db": -6.0,
+  "bus_limit_db": -1.0,
+  "tail_fade_s": 0.4,
+  "align": {
+   "checkpoints_s": [
+    0.0,
+    15.0,
+    30.0,
+    45.0
+   ],
+   "tol_s": 0.08,
+   "dev_s": [
+    0.0,
+    0.135,
+    0.135,
+    0.005
+   ],
+   "worst_dev_s": 0.135,
+   "within_tol": false
+  },
+  "mix_peak_db": -4.7,
+  "mix_mean_db": -26.3,
+  "align_on_mix": {
+   "track": "F:\\ai-video\\assets\\a2-slopu\\studio\\work\\_nh\\bgm60.wav",
+   "shift_s": 5.35,
+   "checkpoints_s": [
+    0.0,
+    15.0,
+    30.0,
+    45.0
+   ],
+   "tol_s": 0.08,
+   "hits_first_10_s": [
+    0.0
+   ],
+   "n_hits": 1,
+   "dev_s": [
+    0.0,
+    15.0,
+    30.0,
+    45.0
+   ],
+   "within_tol": [
+    true,
+    false,
+    false,
+    false
+   ],
+   "planned_dev_s": [
+    0.0,
+    0.135,
+    0.135,
+    0.005
+   ],
+   "alt_align_first_boundary": {
+    "shift_s": 3.195,
+    "dev_s": [
+     0.135,
+     0.0,
+     0.12,
+     0.14
+    ],
+    "worst_dev_s": 0.14
+   }
+  },
+  "ambient_bed": {
+   "file": "work/_nh/bed60.wav",
+   "loop_file": "work/_nh/bed_loop.wav",
+   "source": "work/ninth-head/seg1_seed66740.mp4",
+   "source_note": "段 A 终审选中原片（任务书写作 segA_seed66740.mp4；本片段 A = seg1）",
+   "window_tc": "00:08.200–00:10.300",
+   "loop_window_tc": "00:08.200–00:10.200",
+   "window_start_s": 8.2,
+   "pick_method": "成片保留的前 15.000 s 内 0.05 s RMS 包络最平的 2.0 s（帧间跳变 ≤4.5 dB、p95−p50 ≤6.0 dB、均电平 ∈[-56.8, -34.1] dBFS）",
+   "envelope": {
+    "mean_db": -43.02,
+    "std_db": 2.69,
+    "spread_db": 5.12,
+    "max_flux_db": 3.08
+   },
+   "loop_s": 2.0,
+   "crossfade_s": 0.1,
+   "crossfade_shape": "equal-power sqrt",
+   "tiles": 30,
+   "rms_target_db": -38.0,
+   "rms_measured_db": -38.0,
+   "rms_before_norm_db": -42.52,
+   "peak_db": -19.06,
+   "seam_step_db": 0.05,
+   "fade_out": "随总线 afade（0.4 s）一起淡出，底轨不单独淡出",
+   "content": "水声 / 风声，无嘶鸣、无刀声"
+  },
+  "mix_peak_db_before_bed": -4.9,
+  "mix_mean_db_before_bed": -26.7
+ },
+ "pipeline": [
+  {
+   "step": 1,
+   "tool": "ffmpeg",
+   "note": "四段各取前 360 帧（掐尾 2 帧）拆 PNG + 原生音 atrim 15.000 后 concat"
+  },
+  {
+   "step": 2,
+   "tool": "realesrgan-ncnn-vulkan",
+   "args": [
+    "-n",
+    "realesr-animevideov3",
+    "-s",
+    2
+   ],
+   "note": "576x1024 -> 1152x2048"
+  },
+  {
+   "step": 3,
+   "tool": "ffmpeg",
+   "note": "scale=1080:1920:flags=lanczos + drawbox 片尾黑场 + 四张字卡 overlay + 混音，crf 18"
+  },
+  {
+   "step": 4,
+   "tool": "ffmpeg",
+   "note": "母版 -> 576x1024 crf 30 网页版 + 第 0 帧 avif 海报"
+  }
+ ],
+ "outputs": {
+  "master": {
+   "file": "final/reference-episode_master.mp4",
+   "crf": 18,
+   "bytes": 49487576,
+   "resolution": "1080x1920",
+   "crf_tag": 18.0,
+   "video_stream": "自补丁前母版 -c:v copy（md5 一致：e2faa4a8817f99dc3be525d1feb1b2cb）"
+  },
+  "web": {
+   "file": "final/reference-episode.mp4",
+   "crf": 30,
+   "bytes": 5148555,
+   "limit_bytes": 6291456,
+   "resolution": "576x1024",
+   "crf_tag": 30.0
+  },
+  "poster": {
+   "file": "final/reference-episode.avif",
+   "bytes": 133651,
+   "limit_bytes": 153600
+  }
+ },
+ "segments_note": "段 A/B/C/D 的 H3 直出按 seg1..seg4 命名（work/ninth-head/segN_seedS.mp4）",
+ "cards_measured": [
+  {
+   "id": "c1",
+   "text": [
+    "LERNA",
+    "The second labour."
+   ],
+   "region_1080": [
+    185,
+    1704,
+    894,
+    1767
+   ],
+   "planned_frames": [
+    84,
+    167
+   ],
+   "planned_tc": [
+    "00:03.500",
+    "00:07.000"
+   ],
+   "detected_frames": [
+    84,
+    167
+   ],
+   "detected_tc": [
+    "00:03.500",
+    "00:07.000"
+   ],
+   "jump_in_luma": 36.2,
+   "drop_out_luma": 37.8,
+   "height_ratio": [
+    0.0302,
+    0.0401
+   ],
+   "font_px": [
+    58,
+    77
+   ],
+   "match": true
+  },
+  {
+   "id": "c2",
+   "text": [
+    "Cut one. Two grow."
+   ],
+   "region_1080": [
+    181,
+    1709,
+    899,
+    1786
+   ],
+   "planned_frames": [
+    276,
+    359
+   ],
+   "planned_tc": [
+    "00:11.500",
+    "00:15.000"
+   ],
+   "detected_frames": [
+    276,
+    359
+   ],
+   "detected_tc": [
+    "00:11.500",
+    "00:15.000"
+   ],
+   "jump_in_luma": 27.5,
+   "drop_out_luma": 16.3,
+   "height_ratio": [
+    0.0401
+   ],
+   "font_px": [
+    77
+   ],
+   "match": true
+  },
+  {
+   "id": "c3",
+   "text": [
+    "The ninth head is immortal."
+   ],
+   "region_1080": [
+    257,
+    1600,
+    822,
+    1767
+   ],
+   "planned_frames": [
+    1020,
+    1079
+   ],
+   "planned_tc": [
+    "00:42.500",
+    "00:45.000"
+   ],
+   "detected_frames": [
+    1020,
+    1079
+   ],
+   "detected_tc": [
+    "00:42.500",
+    "00:45.000"
+   ],
+   "jump_in_luma": 26.2,
+   "drop_out_luma": 31.0,
+   "height_ratio": [
+    0.0401
+   ],
+   "font_px": [
+    77
+   ],
+   "match": true
+  },
+  {
+   "id": "c4",
+   "text": [
+    "THE NINTH HEAD"
+   ],
+   "region_1080": [
+    146,
+    821,
+    933,
+    1099
+   ],
+   "planned_frames": [
+    1404,
+    1439
+   ],
+   "planned_tc": [
+    "00:58.500",
+    "01:00.000"
+   ],
+   "detected_frames": [
+    1404,
+    1439
+   ],
+   "detected_tc": [
+    "00:58.500",
+    "01:00.000"
+   ],
+   "jump_in_luma": 26.9,
+   "drop_out_luma": null,
+   "height_ratio": [
+    0.0698
+   ],
+   "font_px": [
+    134
+   ],
+   "match": true
+  }
+ ],
+ "selfcheck": {
+  "verdict": "OK",
+  "ng": [],
+  "warn": [
+   "鼓点对齐：[15.0, 30.0, 45.0] 不在 ±80 ms 内（BGM 实际间隔≈1.2 s，非 72 BPM/2 拍网格，四点无法同时落网）"
+  ],
+  "gaps_count": 0,
+  "report": "edit/_a2/s2_bed_selfcheck.json",
+  "report_before_bed": "edit/_a2/s2_finish_selfcheck.json",
+  "patch": {
+   "verdict_before": "NG",
+   "ng_before": [
+    "音频空洞 1 处"
+   ],
+   "gaps_before": 4,
+   "watch_window_s": [
+    54.1,
+    54.85
+   ],
+   "watch_before": [
+    {
+     "start_s": 54.1,
+     "end_s": 54.85,
+     "duration_s": 0.75,
+     "min_db": -53.1,
+     "ng": true
+    }
+   ],
+   "watch_after": [],
+   "fixed": true
+  }
+ },
+ "finish": {
+  "script": "edit/_a2/s2_finish.py",
+  "log": "work/s2_finish.log",
+  "time": "2026-09-06 17:53:59"
+ },
+ "patch": {
+  "script": "edit/_a2/s2_bed.py",
+  "log": "work/s2_bed.log",
+  "report": "edit/_a2/s2_bed.json",
+  "note": "加环境底轨并重混、重出母版 / 网页版 / Cut 四条、重跑自检",
+  "time": "2026-09-06 17:53:59"
+ }
+}

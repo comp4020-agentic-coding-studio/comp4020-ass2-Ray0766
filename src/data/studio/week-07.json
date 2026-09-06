@@ -1,0 +1,76 @@
+{
+ "week": 7,
+ "instrument": "Your own workflow",
+ "model": "MiniMax H3",
+ "mode": "per tier",
+ "seed": 66741,
+ "resolution": "576x1024",
+ "fps": 24,
+ "prompt": "<<< per-tier variable >>>",
+ "tiers": [
+  {
+   "id": "week07-t1",
+   "tier": "t1",
+   "label": "official T2V template",
+   "input": {
+    "kind": "graph",
+    "file": "week07-t1.graph.json",
+    "prompt_file": "inputs/week07/t1.md"
+   },
+   "output": {
+    "kind": "video",
+    "file": "week07-t1.mp4",
+    "poster": "week07-t1.avif"
+   },
+   "note": "The stock text-to-video graph, untouched: this is your baseline shot."
+  },
+  {
+   "id": "week07-t2",
+   "tier": "t2",
+   "label": "Ref2VA, two reference slots",
+   "input": {
+    "kind": "graph",
+    "file": "week07-t2.graph.json",
+    "prompt_file": "inputs/week07/t2.md"
+   },
+   "output": {
+    "kind": "video",
+    "file": "week07-t2.mp4",
+    "poster": "week07-t2.avif"
+   },
+   "note": "Same shot through the reference graph: the identity comes from the pictures, not the words."
+  },
+  {
+   "id": "week07-t3",
+   "tier": "t3",
+   "label": "t1 upscaled x2 to 1080x1920",
+   "input": {
+    "kind": "upscale",
+    "file": "week07-t3.graph.json"
+   },
+   "output": {
+    "kind": "video",
+    "file": "week07-t3.mp4",
+    "poster": "week07-t3.avif"
+   },
+   "note": "No new generation - the t1 clip through Real-ESRGAN: watch the line quality, not the content."
+  },
+  {
+   "id": "week07-t4",
+   "sameAs": "week02-t2",
+   "tier": "t4",
+   "label": "I2VA from the key frame",
+   "input": {
+    "kind": "graph",
+    "file": "week07-t4.graph.json",
+    "prompt_file": "inputs/week07/t4.md"
+   },
+   "output": {
+    "kind": "video",
+    "file": "week07-t4.mp4",
+    "poster": "week07-t4.avif"
+   },
+   "note": "The same shot again from a first frame: compare which of the three holds the face best."
+  }
+ ]
+}

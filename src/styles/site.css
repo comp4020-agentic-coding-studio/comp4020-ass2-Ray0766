@@ -919,3 +919,25 @@ p {
   height: 100%;
   object-fit: cover;
 }
+
+/* ----------------------------------------------------------------------
+   Nav: six real links plus the search button overflow to a second row at
+   desktop even at 1920px, because .at-nav-inner is pinned to the same
+   fixed content column as the rest of the page (measured 864px), not to
+   the viewport — a wider screen never gives the row more room. The
+   overflow isn't a lack of space in principle (.at-nav-links has its own
+   overflow-x: auto), but flexbox decides where a flex line wraps using
+   items' hypothetical (unshrunk) widths, so the search button still drops
+   to its own row instead of the link list scrolling. Tighten .at-nav-links'
+   own gap and step its label size down once (sm -> xs) so brand + links +
+   search fit on one row with margin, without shortening a label or
+   touching the theme. */
+@media (width >= 640px) {
+  .at-nav-links {
+    gap: var(--at-spacing-xs);
+  }
+
+  .at-nav-links a {
+    font-size: var(--at-font-size-xs);
+  }
+}

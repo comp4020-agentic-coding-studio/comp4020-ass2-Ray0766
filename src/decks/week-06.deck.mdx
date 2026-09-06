@@ -1,0 +1,155 @@
+---
+title: Week 6 · Image to Video
+description: The fourth generator — keyframe-first control, locking a first and last frame, and the difference between directing motion and losing identity.
+---
+
+import LadderStill from "../components/deck/LadderStill.astro";
+
+{/* _class: deck-title deck-phase--generators */}
+
+# Image to Video
+
+## Week 6 · SLOP8760
+
+<p class="deck-title__phase">Phase 2 of 4 · Four Generators</p>
+
+---
+
+{/* _class: impact deck-adds */}
+
+## This week adds
+
+Image to video: a finished keyframe locks the shot, and the prompt's only
+remaining job is to say what happens next.
+
+```notes
+Image to video reverses the order of the last two weeks: rather than
+describing a subject in words and hoping the camera cooperates, a finished
+keyframe locks composition, framing, and art direction first, and the
+prompt's only remaining job is to say what happens next.
+```
+
+---
+
+## The strongest control over one shot
+
+This is the last of the four generators and the most control the semester
+offers over a single shot, which is exactly why the phase ends here.
+
+```notes
+This is the last of the four generators, and the strongest control the
+semester offers over a single shot — which is exactly why Phase 2 ends here.
+```
+
+---
+
+{/* _class: deck-claim--still */}
+
+## Keyframe-first control
+
+The keyframe fixes who is in frame, how they are dressed, where the light
+falls. The motion prompt only has to describe change.
+
+<LadderStill week={6} tier="t3" />
+
+```notes
+Starting from a keyframe fixes everything text to video leaves loose: who's
+in frame, how they're dressed, where the light falls, what the background
+looks like. The motion prompt that follows only has to describe change — what
+moves, and how — because everything that isn't supposed to change is already
+locked in the frame the model was given.
+```
+
+---
+
+{/* _class: deck-claim--still */}
+
+## First and last frame
+
+Two keyframes constrain motion far more tightly than one frame and a prompt,
+at the cost of a second finished keyframe existing first.
+
+<LadderStill week={6} tier="t5" />
+
+```notes
+Some workflows accept two keyframes instead of one: a starting frame and an
+ending frame, with the model generating everything in between. That
+constrains motion far more tightly than a first frame and a text prompt
+alone, at the cost of needing a second finished keyframe to already exist
+before the shot can be generated — a trade worth making when the ending pose
+matters as much as the starting one.
+```
+
+---
+
+## Motion versus identity
+
+When a take drifts, the fix is almost never a stronger motion prompt. It is a
+calmer one, asking for less change per second.
+
+```notes
+The risk specific to this generator is a shot that drifts identity while
+chasing motion: a face or costume detail changing partway through the clip
+because the motion prompt asked for more movement than the model could
+deliver while holding the keyframe's details steady. When a take drifts, the
+fix is almost never a stronger motion prompt — it's a calmer one, asking for
+less change per second so identity has room to hold.
+```
+
+---
+
+{/* _class: deck-ladder */}
+
+## The ladder
+
+1. A rough sketch as the starting frame
+2. A flat, unlit keyframe
+3. A finished keyframe with lighting resolved
+4. That keyframe plus a motion prompt written as the four sentences
+5. Plus a last frame, or a small reference set, to hold identity
+
+```notes
+The ladder for image to video runs five tiers, climbing through how finished
+the starting keyframe is and how much the motion prompt is asked to do. The
+lowest tier starts from a rough sketch. The next tier starts from a flat,
+unlit keyframe. The next tier starts from a finished keyframe with lighting
+resolved. The next tier keeps that finished keyframe and adds a motion prompt
+written as the four sentences from earlier in the phase. The top tier keeps
+all of that and adds either a last frame or a small reference set to hold
+identity through more motion than a single keyframe alone can guarantee.
+```
+
+---
+
+## Before class
+
+Bring one finished keyframe from earlier in the phase, and one rougher
+version of it to use as this week's lowest ladder tier.
+
+---
+
+## This week's exercise
+
+Build all five ladder tiers on the same subject, ending with either a
+first-and-last-frame pass or a reference-set-backed one. Bring all five
+clips, in ladder order, and a one-line note on where identity held or
+drifted, to Wednesday's Dailies.
+
+---
+
+{/* _class: deck-reading */}
+
+## Reading
+
+- [Stable Video Diffusion: Scaling Latent Video Diffusion Models to Large Datasets](https://arxiv.org/abs/2311.15127)
+- [MiniMax-H3](https://huggingface.co/Comfy-Org/MiniMax-H3)
+- [Wan2.2](https://github.com/Wan-Video/Wan2.2)
+
+```notes
+- Stable Video Diffusion — the technique behind turning one still into motion
+  in the first place.
+- MiniMax-H3 — a model card showing what a production image-to-video
+  workflow's inputs and settings actually look like.
+- Wan2.2 — an open repository supporting the first-and-last-frame workflow
+  this week's top ladder tier can use.
+```

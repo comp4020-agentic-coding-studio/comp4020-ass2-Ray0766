@@ -269,7 +269,7 @@ if (root && payloadEl) {
       resultImage!.removeAttribute("src");
       if (resultCaption) resultCaption.textContent = "";
       downloadButton!.disabled = true;
-      generateButton!.disabled = false;
+      setGenerateBusy(false);
     }
 
     function renderCompareGrid(): void {
@@ -343,10 +343,22 @@ if (root && payloadEl) {
       updateHash();
     }
 
+    // `disabled` is not available to a button that is running because the
+    // keyboard just pressed it: disabling the focused element blurs it, focus
+    // falls to <body>, and the reader loses both the focus ring and their
+    // place on the page for the length of the run. aria-disabled says the same
+    // thing to assistive tech, the theme styles it identically to :disabled
+    // (components.css matches `[aria-disabled="true"]` alongside `:disabled`),
+    // and the `running` guard above is what actually refuses the second press.
+    function setGenerateBusy(busy: boolean): void {
+      generateButton!.setAttribute("aria-disabled", String(busy));
+      generateButton!.setAttribute("aria-busy", String(busy));
+    }
+
     async function generate(): Promise<void> {
       if (running) return;
       running = true;
-      generateButton!.disabled = true;
+      setGenerateBusy(true);
       downloadButton!.disabled = true;
       resultFrame!.hidden = true;
       runStatus!.textContent = "Queued";
@@ -382,7 +394,7 @@ if (root && payloadEl) {
         runStatus!.textContent = "No recorded result for this selection.";
       } finally {
         running = false;
-        generateButton!.disabled = false;
+        setGenerateBusy(false);
       }
     }
 

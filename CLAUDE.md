@@ -205,6 +205,16 @@ find the real one or state the technique generically.
   `at.base` respectively), the ring cannot come back on its own. The element
   still matches `:focus-visible`; it just paints nothing, which is exactly
   the failure a screenshot never shows.
+- A control must not take focus away from the person who just used it. The two
+  ways this happens are disabling the element that was pressed (`disabled`
+  blurs it; use `aria-disabled` plus a re-entrancy guard, which the theme
+  already styles the same way) and re-rendering the list it lives in (put
+  focus back on the same control of the same item, so pressing a key twice
+  means doing the thing twice). Both leave `document.activeElement` on
+  `<body>`: the ring vanishes, and a screen reader loses its place. Chrome's
+  sequential-focus-start hides how bad it is — the next Tab lands somewhere
+  reasonable — so check `document.activeElement` after the press, not where
+  Tab goes next.
 
 ## 8. Evidence
 

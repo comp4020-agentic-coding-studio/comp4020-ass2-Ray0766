@@ -1,18 +1,32 @@
 ---
-title: The Rig
-description: Week 1 opening lecture — budget, weights, licenses, and the graph.
+title: Week 1 · The Rig
+description: The two shapes of a budget, the licence on the weights, and the record that outlives the frame.
 ---
+
+{/* _class: deck-title deck-phase--rig */}
 
 # The Rig
 
-_SLOP8760 · Week 1_
+## Week 1 · SLOP8760
+
+<p class="deck-title__phase">Phase 1 of 4 · The Rig</p>
 
 ---
 
-## What this studio teaches
+{/* _class: impact deck-adds */}
 
-Serialized vertical drama, produced almost entirely with generative video —
-one shot, one hook, one episode, in that order.
+## This week adds
+
+The rig itself: one budget you can name, one licence you have read, and one
+record that survives the frame.
+
+```notes
+Every shot this semester comes out of a rig, and a rig is one of exactly two
+things: a graphics card with a VRAM ceiling, or an account with a credit
+balance. Neither is the legitimate one — a booked slot on the school's shared
+card and a metered API key are both rigs, and this course treats them as
+interchangeable inputs to the same discipline.
+```
 
 ---
 
@@ -22,117 +36,121 @@ one shot, one hook, one episode, in that order.
 - Weeks 3–6: **Four Generators** — anime-first: image, then video
 - Weeks 7–9: **Holding It Together** — your own workflow, continuity, the board
 - Weeks 10–12: **The Episode** — one episode, produced and delivered
-- Every technique is proven small before it's asked to carry an episode
+
+```notes
+The four phases, in the course's own words from the home page:
+
+- The Rig — getting the rig running: a VRAM or credit budget, the graph as the
+  artefact, one clip logged and repeated.
+- Four Generators — four generators, anime-first: text to image, image to
+  image, text to video, image to video, in that order.
+- Holding It Together — three ways of holding a story together across shots:
+  your own workflow, continuity, and the storyboard.
+- The Episode — one sixty-to-ninety-second episode, produced, cut, and
+  delivered: the queue, the assembly, the bible it starts.
+```
 
 ---
 
-## Before a single frame: the budget question
+## The two shapes of a budget
 
-VRAM, not price or processor speed, sets what you can run.
+A local rig is bounded by VRAM. An API rig is bounded by a credit balance.
+Know which number is yours before planning a shot around a model.
 
----
-
-## Reading a spec sheet
-
-- More VRAM → bigger models, higher resolution, longer clips
-- Less VRAM → not slower. Often: **doesn't run at all**
-- Know your number before you plan a shot around a model you've only read
-  about
-
----
-
-## Where the weights come from
-
-Public model repositories: one base release, then a long tail of
-community finetunes built on top of it.
+```notes
+A local rig is bounded by VRAM, not by price or processor speed — VRAM sets
+the largest model, the highest resolution, and the longest clip a single pass
+can produce. Running out of it doesn't mean slower; past a point, it means the
+model does not run at all. An API rig is bounded by a credit balance instead:
+no ceiling on model size, but every call has a metered cost, and a workflow
+that loops without a limit burns through a semester's budget in an afternoon.
+```
 
 ---
 
-## Licenses are not interchangeable
+## Licences are not interchangeable
 
-- Some: commercial use, no questions
-- Some: research-only, non-commercial
-- Some: a responsible-use clause on specific output, regardless of what you
-  paid
+Some weights permit commercial use, some are research-only, and some carry a
+responsible-use clause on specific output regardless of what you paid.
 
-Read the license before you build a shot around a checkpoint.
-
----
-
-## The graph is the artefact
-
-A node-based workflow engine: boxes are operations, wires carry data.
-
----
-
-## Save the graph, not the frame
-
-Today's frame isn't the point. The graph is a **recipe** — rerun it with a
-new seed and get a comparable result.
+```notes
+Local model weights come from public repositories — one base release, then a
+long tail of community finetunes built on top of it — and every file carries a
+licence that is not interchangeable with any other: some permit commercial use
+outright, some are research-only or non-commercial, and a few carry a
+responsible-use clause restricting specific output regardless of what was paid
+for access. An API model publishes the same information differently, as terms
+of service rather than a licence file, but the obligation to read it before
+building a shot around it is identical.
+```
 
 ---
 
-{/* _class: impact */}
+## The artefact is the record, not the frame
+
+Keep the workflow graph, or keep the request log. Today's frame is not the
+point; what lets someone rerun the decision behind it is.
+
+```notes
+On a local rig, the thing worth keeping is the workflow graph: a node-based
+description of the operations that produced a frame, saved so the same recipe
+runs again with a new seed for a comparable result. On an API rig there's no
+graph to save, but there is a request log — the exact parameters sent and the
+response received — and it does the same job. Either way, today's frame is not
+the point. What's worth keeping is whatever lets someone else rerun the
+decision that produced it.
+```
+
+---
 
 ## Render time is not shooting time
 
-A five-second shot does not render in five seconds.
+Call it five seconds of compute, or a few cents, per second of footage — at
+the optimistic end, before counting the takes you throw away.
+
+```notes
+On the fastest consumer card sold today, a five-second take renders in tens of
+seconds on the lighter models and over a minute on the heavier ones; mid-range
+hardware measures the same take in minutes, and an API call adds queue time on
+top of its metered cost. Call it five seconds of compute — or a few cents —
+per second of footage, at the optimistic end, before counting the takes thrown
+away. A shot that survives Dailies is rarely attempt one, on either kind of
+rig.
+```
 
 ---
 
-## The real numbers
+## Before class
 
-- Fastest consumer card sold today: tens of seconds a take on light models,
-  over a minute on heavy ones
-- Mid-range hardware: minutes per take
-- Call it **five seconds of compute per second of footage**, at the
-  optimistic end
-- Before counting the takes you throw away
-
----
-
-## Budget the wait
-
-- Iteration compounds: three takes is three full renders, not one
-- Run batches while you do something else
-- Log timing now — Week 3 asks you to trust that log
-
----
-
-## The semester, at a glance
-
-| Week | Assessment            | Weight |
-| ---- | --------------------- | ------ |
-| 3    | A3                    | 3%     |
-| 4    | A4                    | 3%     |
-| 5    | A5                    | 3%     |
-| 6    | A6                    | 3%     |
-| 7    | A7                    | 3%     |
-| 8    | A8                    | 3%     |
-| 9    | A9                    | 3%     |
-| 11   | The Pilot             | 35%    |
-| 12   | Dailies Participation | 24%    |
-| 12   | The Showcase          | 20%    |
-
----
-
-## Before next lecture
-
-Install a workflow engine. Download one base model and one small finetune
-of it.
+Pick one rig and commit to it: install a local workflow engine and download
+one base model plus one small community finetune, or open an account with a
+generative video API and note its per-call cost. Either way, arrive with two
+comparable checkpoints or settings to test against each other.
 
 ---
 
 ## This week's exercise
 
-One five-second clip, default settings. The same clip again, one parameter
-changed. Keep both graphs. Log both render times. Bring everything to
-Wednesday's Dailies.
+Generate one five-second clip on default settings, then generate it again
+after changing exactly one parameter. Keep both graph files or both request
+logs, and log both render times and, if relevant, both costs. Bring both
+clips, their graphs or logs, and your timing notes to Wednesday's Dailies.
 
 ---
 
-{/* _class: quote */}
+{/* _class: deck-reading */}
 
-## One shot, logged.
+## Reading
 
-Everything after this is easier if this week actually gets done.
+- [ComfyUI documentation](https://docs.comfy.org/)
+- [Hugging Face: repository licences](https://huggingface.co/docs/hub/repositories-licenses)
+- [Hugging Face: OpenRAIL](https://huggingface.co/blog/open_rail)
+
+```notes
+- ComfyUI documentation — the reference for the graph you'll be saving all
+  semester, not just this week.
+- Hugging Face: repository licences — what a model's licence field actually
+  restricts, before you build a shot around a checkpoint.
+- Hugging Face: OpenRAIL — the responsible-use clause behind a lot of the
+  checkpoints you'll download this semester.
+```

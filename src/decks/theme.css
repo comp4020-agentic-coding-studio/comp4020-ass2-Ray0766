@@ -15,6 +15,22 @@
 @import url("../styles/phase-colours.css");
 
 /* ----------------------------------------------------------------------
+   Every slide but the title
+   ----------------------------------------------------------------------
+   A claim is one sentence and a reading list is three links; on a 720-tall
+   canvas both sit high on the slide and leave a third of it empty unless
+   they're centred against it. `align-content` alone, never the
+   `place-content` shorthand the theme's own .centered class uses: this grid
+   has one column, and centring that column would size it to its own
+   max-content and take the flush-left measure with it.
+
+   The title slide is excluded because deck.css already centres any slide
+   carrying an h1, and that treatment is right for it. */
+.reveal .slides section:not(:has(h1)) {
+  align-content: center;
+}
+
+/* ----------------------------------------------------------------------
    The title slide
    ----------------------------------------------------------------------
    Every deck opens on week number, lecture title, and the phase colour as a
@@ -63,6 +79,21 @@
 }
 
 /* ----------------------------------------------------------------------
+   The instrument slide
+   ----------------------------------------------------------------------
+   "This week adds" is a label, not a heading competing with the sentence
+   under it, so it runs at body size in small caps and centres with the rest
+   of the slide --- deck.css forces every heading flush left, which reads as
+   a mistake on an .impact slide whose body is centred. */
+.reveal .slides section.deck-adds h2 {
+  text-align: center;
+  font-size: 1.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-block-end: 1rem;
+}
+
+/* ----------------------------------------------------------------------
    Claim slides carrying a still
    ----------------------------------------------------------------------
    A claim slide can show one frame from that week's recorded ladder. The
@@ -82,10 +113,11 @@
 
 .reveal .slides .deck-still {
   position: absolute;
-  inset-block-start: 4rem;
+  inset-block-start: 50%;
   inset-inline-end: 5rem;
   inline-size: 17rem;
   margin: 0;
+  transform: translateY(-50%);
 }
 
 .reveal .slides .deck-still img {
@@ -121,6 +153,10 @@
 .reveal .slides section.deck-reading ul {
   list-style: none;
   margin-inline-start: 0;
+  /* The theme restores a margin indent for list markers; with the markers
+     gone the browser's own padding is all that's left holding the links off
+     the heading's left edge. */
+  padding-inline-start: 0;
 }
 
 .reveal .slides section.deck-reading li {

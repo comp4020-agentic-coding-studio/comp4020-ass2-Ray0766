@@ -73,6 +73,14 @@ export const cutLibrary: CutLibrary = cutLibrarySchema.parse(readJson("cut.json"
 
 export const referenceEpisode: ReferenceEpisode = referenceEpisodeSchema.parse(readJson("reference.json"));
 
+/** The same build-time text the tiers get, for the files no tier points at:
+ *  the reference episode's four segment prompts. Returns undefined rather
+ *  than throwing, because a missing one costs a card its prompt, not the
+ *  build. */
+export function studioInputText(relativePath: string): string | undefined {
+  return promptFiles[`${DATA_PREFIX}${relativePath}`]?.trimEnd();
+}
+
 export function findTier(weekNumber: number, tierId: string) {
   const week = studioWeeks.find((w) => w.week === weekNumber);
   return week?.tiers.find((t) => t.id === tierId || t.tier === tierId);

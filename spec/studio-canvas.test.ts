@@ -5,12 +5,16 @@
 //
 // Seen red, one bug at a time, each injected into the real module then
 // reverted, output captured verbatim — see the block above each describe.
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
+import { canvasBundle } from "../src/lib/canvas/build";
 import { layoutBoard, placeBoard, wrapNodes, type PlaceAnchor } from "../src/lib/canvas/layout";
+import type { TakeNode } from "../src/lib/canvas/types";
 
 const FIXTURE_DIR = "src/lib/canvas/fixtures";
+const DATA_DIR = "src/data/studio";
+const PUBLIC_DIR = "public/studio";
 
 function fixture<T>(name: string): T {
   return JSON.parse(readFileSync(resolve(FIXTURE_DIR, name), "utf8")) as T;
@@ -78,4 +82,159 @@ describe("wrapNodes builds a padded board around what was dropped", () => {
   it(spec.name, () => {
     expect(wrapNodes(spec.items)).toEqual(spec.expected);
   });
+});
+
+// ---------------------------------------------------------------------------
+// The build-time conversion: manifests in, canvas document out.
+// ---------------------------------------------------------------------------
+
+const WEEK_FILES = [
+  "week-02.json",
+  "week-03.json",
+  "week-04.json",
+  "week-05.json",
+  "week-06.json",
+  "week-07.json",
+  "week-08.json",
+  "week-09.json",
+] as const;
+
+interface RawTier {
+  id: string;
+  tier: string;
+  sameAs?: string;
+}
+
+function readManifest(name: string): { week: number; tiers: RawTier[] } {
+  return JSON.parse(readFileSync(resolve(DATA_DIR, name), "utf8"));
+}
+
+const { doc } = canvasBundle;
+
+function pad2(n: number): string {
+  return String(n).padStart(2, "0");
+}
+
+// Seen red: dropped the input node from weekBoardDraft, pushing only the
+// take. Failed on all eight weeks, e.g. "week-05.json puts both its input and
+// its take on the canvas for every tier: expected 5 to be 10".
+describe("every tier in every manifest reaches the canvas", () => {
+  for (const file of WEEK_FILES) {
+    const manifest = readManifest(file);
+    const boardId = `week-${pad2(manifest.week)}`;
+
+    it(`${file} puts both its input and its take on the canvas for every tier`, () => {
+      const nodes = doc.nodes.filter((node) => node.boardId === boardId);
+      expect(nodes.length).toBe(manifest.tiers.length * 2);
+      for (const tier of manifest.tiers) {
+        expect(doc.nodes.find((node) => node.id === `${tier.id}-input`), `${tier.id} input`).toBeDefined();
+        expect(doc.nodes.find((node) => node.id === `${tier.id}-take`), `${tier.id} take`).toBeDefined();
+      }
+    });
+
+    it(`${file} draws one lineage edge per tier`, () => {
+      for (const tier of manifest.tiers) {
+        const edges = doc.edges.filter((edge) => edge.id === `lineage-${tier.id}`);
+        expect(edges.length, `lineage edges for ${tier.id}`).toBe(1);
+        expect(edges[0].from).toBe(`${tier.id}-input`);
+        expect(edges[0].to).toBe(`${tier.id}-take`);
+      }
+    });
+  }
+
+  it("the ten recorded boards are the eight weeks, the Cut and the reference episode", () => {
+    expect(doc.boards.map((board) => board.id)).toEqual([
+      "week-02",
+      "week-03",
+      "week-04",
+      "week-05",
+      "week-06",
+      "week-07",
+      "week-08",
+      "week-09",
+      "cut",
+      "reference",
+    ]);
+    expect(doc.boards.every((board) => board.kind === "recorded")).toBe(true);
+  });
+
+  it("the recorded boards run left to right, 120 apart, tops aligned", () => {
+    const boards = [...doc.boards].sort((a, b) => a.order - b.order);
+    for (let i = 1; i < boards.length; i += 1) {
+      expect(boards[i].x, `${boards[i].id} starts 120 past ${boards[i - 1].id}`).toBe(
+        boards[i - 1].x + boards[i - 1].w + 120,
+      );
+      expect(boards[i].y).toBe(boards[0].y);
+    }
+  });
+
+  it("the Cut board carries the master and its four windows", () => {
+    const cut = JSON.parse(readFileSync(resolve(DATA_DIR, "cut.json"), "utf8")) as { cuts: { id: string }[] };
+    const nodes = doc.nodes.filter((node) => node.boardId === "cut");
+    expect(nodes.length).toBe(cut.cuts.length + 1);
+    for (const clip of cut.cuts) {
+      expect(doc.edges.find((edge) => edge.id === `lineage-${clip.id}`), `${clip.id} lineage`).toBeDefined();
+    }
+  });
+
+  it("the reference board carries one input per segment and one finished episode", () => {
+    const ref = JSON.parse(readFileSync(resolve(DATA_DIR, "reference.json"), "utf8")) as { segments: unknown[] };
+    const nodes = doc.nodes.filter((node) => node.boardId === "reference");
+    expect(nodes.length).toBe(ref.segments.length + 1);
+    expect(nodes.filter((node) => node.type === "take").length).toBe(1);
+  });
+});
+
+// Seen red: made the sameAs branch push its edge unconditionally (dropping
+// the `if (tier.sameAs)` guard), so every tier claimed to reuse a file.
+// Failed on "no other edge claims two takes are the same file: expected 37
+// to be 2".
+describe("the two tiers that reuse a recorded file say so, exactly once each", () => {
+  const pairs = WEEK_FILES.flatMap((file) =>
+    readManifest(file).tiers.flatMap((tier) => (tier.sameAs ? [{ from: tier.id, to: tier.sameAs }] : [])),
+  );
+
+  it("the manifests declare the two pairs this check exists for", () => {
+    expect(pairs).toEqual([
+      { from: "week06-t4", to: "week02-t1" },
+      { from: "week07-t4", to: "week02-t2" },
+    ]);
+  });
+
+  for (const pair of pairs) {
+    it(`${pair.to} is cited by exactly one same-file edge`, () => {
+      const edges = doc.edges.filter((edge) => edge.kind === "same-file" && edge.to === `${pair.to}-take`);
+      expect(edges.length).toBe(1);
+      expect(edges[0].from).toBe(`${pair.from}-take`);
+      expect(edges[0].label).toBe("same file");
+    });
+  }
+
+  it("no other edge claims two takes are the same file", () => {
+    expect(doc.edges.filter((edge) => edge.kind === "same-file").length).toBe(pairs.length);
+  });
+});
+
+// Seen red: appended "-canvas" to the take node's file in weekBoardDraft.
+// Failed 37 times, e.g. "week02-t1-take shows week02-t1.mp4-canvas, which is
+// not in public/studio/: expected false to be true".
+describe("every take on the canvas is a file that shipped", () => {
+  const takes = doc.nodes.filter((node): node is TakeNode => node.type === "take");
+
+  it("there is a take for every tier, every cut window and the episode", () => {
+    const tierCount = WEEK_FILES.reduce((sum, file) => sum + readManifest(file).tiers.length, 0);
+    expect(takes.length).toBe(tierCount + 4 + 1);
+  });
+
+  for (const take of takes) {
+    it(`${take.id} shows a file that exists under public/studio/`, () => {
+      const name = take.file.split("/").pop() ?? take.file;
+      const path = resolve(PUBLIC_DIR, name);
+      expect(existsSync(path), `${take.id} shows ${name}, which is not in public/studio/`).toBe(true);
+      if (take.poster) {
+        const poster = take.poster.split("/").pop() ?? take.poster;
+        expect(existsSync(resolve(PUBLIC_DIR, poster)), `${take.id}'s poster ${poster} is missing`).toBe(true);
+      }
+    });
+  }
 });

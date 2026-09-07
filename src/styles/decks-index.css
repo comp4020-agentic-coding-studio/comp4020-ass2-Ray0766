@@ -1,0 +1,47 @@
+/* The deck listing at /decks/.
+ *
+ * Almost everything here is the theme's own card grid and this site's own
+ * phase chips, unchanged — the page is the lectures index in a different
+ * collection, and it should read that way. Two things are specific to it:
+ * the frames on the cards are 9:16 stills being shown in a 16:9 frame, and
+ * the page is the only one that names a keyboard key.
+ *
+ * Unlayered, like site.css: the theme wraps its own rules in `@layer`, so an
+ * unlayered declaration wins regardless of import order. Colour comes from
+ * --at-* tokens only, so both themes follow the page rather than this file. */
+
+/* Every frame in this production is 9:16 and every card image frame is 16:9,
+   so the crop throws away most of the picture either way. Bias it above
+   centre: these are all character frames, and a centred crop of a standing
+   9:16 figure lands on a coat rather than on a face.
+   Keyed on the link target rather than on a page-scoping wrapper — a deck
+   card is a deck card wherever it is rendered, and a wrapper would take the
+   phase headings out of `.at-main > h2` and off the page's type scale. */
+.at-card[href*="/decks/"] .at-card-image {
+  object-position: center 32%;
+}
+
+/* The slide count is the one number on the card, and it is the thing that
+   tells a reader whether they are opening a five-minute deck or a lecture's
+   worth. Give it the same muted weight the lecture cards give their date
+   line rather than letting it read as body copy. */
+.at-card[href*="/decks/"] .at-card-body > p:last-child {
+  margin-block-end: 0;
+  color: var(--at-text-secondary);
+}
+
+/* The only key this site names. Sized in em so it tracks the paragraph, and
+   coloured from the same tokens as everything else so the footer toggle
+   carries it. */
+.deck-index-note kbd {
+  display: inline-block;
+  padding: 0.1em 0.45em;
+  border: 1px solid var(--at-divider);
+  border-block-end-width: 2px;
+  border-radius: var(--at-border-radius);
+  background: var(--at-bg-elevated);
+  color: var(--at-text);
+  font-family: var(--font-roboto-mono, monospace);
+  font-size: 0.85em;
+  line-height: 1.4;
+}

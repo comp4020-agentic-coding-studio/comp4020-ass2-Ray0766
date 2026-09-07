@@ -5,6 +5,8 @@ description: Finishing an episode — assembling the gated shots into one cut, s
 
 {/* _class: deck-title deck-phase--episode */}
 
+![bg blur:6px brightness:0.35](./assets/cut-turn.avif)
+
 # Production, Week Two
 
 ## Week 11 · SLOP8760
@@ -21,34 +23,20 @@ Assembly: every gated shot cut into one sequence, carrying its sound and
 captions, and exported to a spec rather than a default.
 
 ```notes
-Assembly is where every shot that cleared the quality gate gets cut into one
-sequence, and this lecture is entirely about the three things that turn a
-folder of approved clips into a piece someone can actually watch: the
-assembly itself, the sound and captions carried through it, and the delivery
-spec that gets it onto a platform without the platform mangling it on the way
-in.
-```
-
----
-
-## The queue does not produce an episode
-
-It produces shots. Turning a folder of approved clips into something
-watchable is its own week's work.
-
-```notes
 The queue produces shots; it does not produce an episode. Assembly is where
 every shot that cleared the quality gate gets cut into one sequence, and this
 lecture is entirely about the three things that turn a folder of approved
-clips into a piece someone can actually watch.
+clips into a piece someone can actually watch: the assembly itself, the sound
+and captions carried through it, and the delivery spec that gets it onto a
+platform without the platform mangling it on the way in.
 ```
 
 ---
 
 ## Assembly is not re-litigating the gate
 
-Assembly decides order, pacing, and where a cut lands against a beat. A
-gated shot does not get re-judged on its own merits here.
+Assembly decides order, pacing, and where a cut lands against a beat. A gated
+shot does not get re-judged on its own merits here.
 
 ```notes
 A shot that passed the quality gate does not get re-judged during assembly on
@@ -60,58 +48,142 @@ time than to relitigate one shot now.
 
 ---
 
+## Loudness is a standard, not a feeling
+
+<p class="deck-figure">-23.0<span class="deck-figure__unit">LUFS, ±1.0 LU, true peak not above -1 dBTP</span></p>
+
+EBU R 128's target, and the reason "sounds about right" is not a delivery
+note: it varies with the speaker, the room, and the listener. The measurement
+does not.
+
+<p class="deck-source">Source: EBU R 128 v5.0 (Nov 2023) — https://tech.ebu.ch/publications/r128</p>
+
+```notes
+The recommendation's own wording is that "Programme Loudness Level shall be
+normalised to a Target Level of -23.0 LUFS", with the ±1.0 LU tolerance
+allowed where the target is "not achievable practically (for example, live
+programmes)", and True Peak Level "shall not exceed -1 dBTP". The meter has to
+be compliant with ITU-R BS.1770, currently at revision 5.
+
+One caveat that matters for a sixty-to-ninety-second episode: R 128 does not
+recommend using Loudness Range on programmes shorter than a minute. The target
+and the true-peak ceiling still apply; the range figure is not meaningful at
+that length.
+```
+
+---
+
+{/* _class: quote */}
+
+> Captions are a text version of the speech and non-speech audio information
+> needed to understand the content
+>
+> <cite>W3C WAI, Captions/Subtitles</cite>
+
+<p class="deck-source">Source: W3C WAI, Captions/Subtitles — https://www.w3.org/WAI/media/av/captions/</p>
+
+```notes
+Note what the sentence includes: non-speech audio. A caption track that
+carries the dialogue and nothing else has met half the definition. The door
+slamming off screen, the rain that stops, the music cue that tells you the
+scene has turned — if a viewer needs it to follow the episode, it belongs in
+the captions.
+
+Captions for prerecorded video with audio sit at WCAG Level A, which is the
+lowest conformance level rather than the highest: it is the floor. Open
+captions are burnt into the picture and travel wherever the file does; closed
+captions ride alongside it and can be turned off, restyled, or translated.
+Both count.
+```
+
+---
+
+{/* _class: deck-spec */}
+
+## Delivery is a spec, not a save button
+
+A cut that looks correct on your own machine and fails a platform's check has
+not shipped. It has failed at the most expensive point in the pipeline.
+
+| Requirement       | YouTube's published recommendation |
+| ----------------- | ---------------------------------- |
+| Container         | MP4, moov atom first               |
+| Video             | H.264 High Profile, closed GOP     |
+| Audio             | AAC-LC, 48 kHz                     |
+| 1080p SDR bitrate | 8 Mbps at 24-30 fps                |
+
+<p class="deck-source">Source: YouTube Help, recommended upload encoding settings — https://support.google.com/youtube/answer/1722171</p>
+
+```notes
+Exporting a finished cut means matching whatever a platform's delivery spec
+actually asks for — resolution, frame rate, container format, caption format —
+rather than exporting on default settings and hoping it's close enough.
+
+Two lines on that page are worth more than the rest put together. Upload at
+the frame rate the material was recorded at rather than converting it, and put
+the moov atom at the front of the file, which is what lets playback start
+before the whole file has arrived. Vertical needs no special handling on that
+platform: the player adapts. Chroma subsampling is 4:2:0, and 48 to 60 fps at
+1080p wants 12 Mbps rather than 8.
+```
+
+---
+
+## The same cut, more than one door
+
+![bg right:40%](./assets/cut-turn.avif)
+
+TikTok's ad spec wants 9:16 at 540x960 or better, under 500MB, at 516 kbps or
+above. Douyin's upload API caps a file at 128MB and 15 minutes and asks for
+720x1280 vertical or better. One master, several exports.
+
+<p class="deck-source">Source: TikTok Ads Manager, Video Ads Specifications — https://ads.tiktok.com/help/article/video-ads-specifications<br />Source: 抖音开放平台, 上传视频 — https://open.douyin.com/platform/resource/docs/openapi/video-management/douyin/create/upload/</p>
+
+```notes
+Both of these are worth labelling honestly, because neither is the consumer
+app's own rulebook. The first is an advertising spec, which is the strictest
+published statement that platform makes about a vertical file. The second is
+an open-platform upload API, which is what a publishing integration has to
+satisfy rather than what a person dragging a file into the app experiences.
+
+Read together they say something a single spec would not: the floors are low,
+the ceilings differ, and the only file that satisfies all of them is one you
+exported deliberately from a master you kept. Which is why the master is
+1080x1920 in this course's own reference episode, and the web copies are
+smaller.
+```
+
+---
+
 ## Sound and captions, carried through
 
 A caption out of sync, or a line buried once music goes under it, is an
-assembly failure even though no single shot caused it.
+assembly failure even though no single shot caused it. And the target moves
+with the door: Apple Podcasts asks for around -16 dB LKFS, not -23.
+
+<p class="deck-source">Source: Apple Podcasts for Creators, Audio requirements — https://podcasters.apple.com/support/893-audio-requirements</p>
 
 ```notes
 Dialogue clarity and captions are not a separate pass bolted on at the end;
 they're properties every shot in the queue was already supposed to carry, and
 assembly's job is making sure nothing got lost matching cuts against each
-other. A caption that's present but out of sync, or a dialogue line that
-reads clearly in isolation but gets buried once music is layered under it, is
-an assembly failure even though no single shot caused it alone.
-```
+other. A caption that's present but out of sync, or a dialogue line that reads
+clearly in isolation but gets buried once music is layered under it, is an
+assembly failure even though no single shot caused it alone.
 
----
-
-## Loudness is a standard, not a feeling
-
-Measured against a published broadcast standard, because "sounds about right"
-varies with the speaker, the room, and the listener.
-
-```notes
-Loudness gets measured against a published broadcast standard rather than
-judged by ear, because "sounds about right" varies between speakers, rooms,
-and the person listening. Matching a target loudness level means an episode
-won't clip on a phone speaker or vanish next to whatever plays before or
-after it in a feed — a technical requirement this course treats the same way
-it treats a licence clause: non-negotiable, and checked, not assumed.
-```
-
----
-
-## Delivery is a spec, not a save button
-
-Resolution, frame rate, container, caption format. A cut that fails a
-platform's check has failed at the most expensive point in the pipeline.
-
-```notes
-Exporting a finished cut means matching whatever a platform's delivery spec
-actually asks for — resolution, frame rate, container format, caption format
-— rather than exporting on default settings and hoping it's close enough. A
-cut that looks correct on your own machine and fails a platform's delivery
-check has not shipped; it's failed at the very last step of a nine-week
-process, which is the most expensive place in the whole pipeline to fail.
+The second sentence is there to stop -23 becoming a superstition. Apple's
+podcast target is around -16 dB LKFS with a ±1 dB tolerance, measured by the
+same ITU-R BS.1770 method, and its true-peak ceiling is the same -1. Different
+delivery, different target, same discipline: find the published number for the
+door you are going through, and measure rather than listen.
 ```
 
 ---
 
 ## Before class
 
-Bring the three shots that cleared the quality gate together with any notes
-on where their sound or captions still need work before assembly.
+Bring the three shots that cleared the quality gate together with any notes on
+where their sound or captions still need work before assembly.
 
 ---
 
@@ -128,15 +200,18 @@ production pass, so bring the finished pilot itself to Wednesday's Dailies.
 
 ## Reading
 
-- [EBU R128](https://tech.ebu.ch/publications/r128)
-- [Media Accessibility](https://www.w3.org/WAI/media/av/)
-- [FFmpeg Documentation](https://ffmpeg.org/documentation.html)
+- [EBU R 128: Loudness normalisation](https://tech.ebu.ch/publications/r128)
+- [W3C WAI: Captions and subtitles](https://www.w3.org/WAI/media/av/captions/)
+- [YouTube Help: recommended upload encoding settings](https://support.google.com/youtube/answer/1722171)
+- [TikTok Ads Manager: video ads specifications](https://ads.tiktok.com/help/article/video-ads-specifications)
 
 ```notes
-- EBU R128 — the loudness standard this lecture's assembly pass gets checked
-  against.
-- Media Accessibility — on why captions are a delivery requirement, not a
-  nice-to-have layered on top.
-- FFmpeg Documentation — the tool most delivery-spec exports actually run
-  through.
+- EBU R 128 — the target, the tolerance, the true-peak ceiling, and the note
+  about short programmes.
+- W3C WAI: Captions — what a caption track has to contain, and the conformance
+  level it sits at.
+- YouTube Help — the container, codec and bitrate table, and the two lines
+  about frame rate and the moov atom.
+- TikTok Ads Manager — the strictest published statement that platform makes
+  about a vertical file, read as an ad spec rather than as the app's rules.
 ```

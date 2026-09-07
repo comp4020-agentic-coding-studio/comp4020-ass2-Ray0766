@@ -77,7 +77,7 @@ a house rule.
 | Frame rate, YouTube | Uploaded at the rate it was shot — 24, 25, 30, 48, 50 or 60 |
 | Bitrate, YouTube 1080p SDR | 8 Mbps at 24–30 fps, 12 Mbps at 48–60 fps |
 | Vertical frame, TikTok ads spec | 9:16 at 540 × 960 or larger; .mp4, .mov, .mpeg, .3gp or .avi; under 500 MB; at least 516 kbps; up to 10 minutes |
-| Vertical frame, Douyin upload API | Under 128 MB and under 15 minutes; mp4 or webm recommended; 720p (1280 × 720) or better, vertical |
+| Vertical frame, Douyin upload API | Under 128 MB and under 15 minutes; mp4 or webm recommended; 720p or better, vertical |
 
 Source: EBU R 128 v5.0 — <https://tech.ebu.ch/publications/r128>\
 Source: ITU-R BS.1770 — <https://www.itu.int/rec/R-REC-BS.1770>\

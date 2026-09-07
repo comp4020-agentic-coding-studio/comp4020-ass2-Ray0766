@@ -7,6 +7,8 @@ import LadderStill from "../components/deck/LadderStill.astro";
 
 {/* _class: deck-title deck-phase--holding */}
 
+![bg blur:6px brightness:0.35](./assets/week07-t2.avif)
+
 # Your Own Workflow
 
 ## Week 7 · SLOP8760
@@ -48,62 +50,117 @@ covering for until now.
 
 ---
 
-{/* _class: deck-claim--still */}
+{/* _class: deck-spec */}
 
-## The four kinds of node
+## One file, three components
 
-Loaders bring things in. Conditioning turns a prompt into something the
-sampler reads. The sampler denoises. Everything after it is a fix pass.
+A graph reduces to four recurring jobs: loaders bring things in, conditioning
+feeds the sampler, the sampler denoises, and everything after it is a fix
+pass. The first of those is one node, and the docs say what falls out of it.
 
-<LadderStill week={7} tier="t1" />
+| Load Checkpoint gives | Which the docs describe as        |
+| --------------------- | --------------------------------- |
+| MODEL                 | denoising latents                 |
+| CLIP                  | encoding text prompts             |
+| VAE                   | encoding and decoding images      |
+
+<p class="deck-source">Source: ComfyUI docs, Load Checkpoint — https://docs.comfy.org/built-in-nodes/CheckpointLoaderSimple</p>
 
 ```notes
 A generation graph reduces to four recurring jobs, however many nodes it
 actually contains: loaders bring a model, a checkpoint, or a reference image
-into the graph; conditioning turns a prompt or a control signal into
-something the sampler can read; the sampler runs the actual denoising steps
-that turn noise into a result; and everything after the sampler is a fix pass
-— upscaling, a face restoration step, a colour correction — cleaning up what
-the sampler handed back. Recognising which of the four a node belongs to
-makes an unfamiliar graph readable in minutes instead of hours.
+into the graph; conditioning turns a prompt or a control signal into something
+the sampler can read; the sampler runs the actual denoising steps that turn
+noise into a result; and everything after the sampler is a fix pass — an
+upscale, a face restoration step, a colour correction — cleaning up what the
+sampler handed back. Recognising which of the four a node belongs to makes an
+unfamiliar graph readable in minutes instead of hours.
+
+The docs' own phrasing is that Load Checkpoint "decomposes [the checkpoint]
+into three core components", and the VAE line is worth reading in full: it
+handles "encoding and decoding images to and from latent space", which is both
+directions of the boundary the sampler works behind. The text side lands in
+CLIP Text Encode, whose output the docs call "a conditioning containing the
+embedded text used to guide the diffusion model".
 ```
 
 ---
 
-{/* _class: deck-claim--still */}
+{/* _class: quote */}
 
-## Editing versus rebuilding
+> Save and load workflows as JSON, or recover complete workflows and seeds
+> from supported generated media
+>
+> <cite>ComfyUI, README</cite>
 
-Most of what a graph needs is a small edit. Rebuilding from empty throws away
-a working arrangement to relearn something already solved.
-
-<LadderStill week={7} tier="t2" />
+<p class="deck-source">Source: ComfyUI — https://github.com/comfyanonymous/ComfyUI</p>
 
 ```notes
-Most of what a graph needs is a small edit, not a rewrite: swapping one
-loader's checkpoint, adding a second conditioning input, inserting one
-fix-pass node before the output. Rebuilding from an empty graph is rarely the
-right first move — it throws away a working arrangement of the four jobs
-above to relearn something that was already solved. The one exception is when
-this course's supplied graph does something the shot in front of it doesn't
-need at all, in which case removing that piece cleanly is worth more than
-working around it.
+This is the sentence that makes the graph an artefact rather than a
+configuration screen. A workflow is a file you can hand to someone; and a
+frame produced by one carries the workflow that produced it, so dragging a
+generated png back onto the page gives you the full graph including seeds.
+Week 1's rule about keeping the record rather than the frame turns out to be
+easier than it sounded — on this engine the frame is the record, as long as
+nobody re-encodes it on the way.
 ```
 
 ---
 
 ## The graph has an equivalent in JSON
 
-The same loaders, conditioning and sampler settings as plain data. Reading
-one is the same skill: find the four jobs inside it.
+![bg right:40%](./assets/week07-t2.avif)
+
+The recorded tier two is a two-reference workflow. Exported, it is data: nodes
+keyed by number, each carrying a `class_type`, its `inputs` and a `_meta`,
+posted to `/prompt`, which answers with a `prompt_id` or with `node_errors`.
+
+<p class="deck-source">Source: ComfyUI docs, Workflow API Format — https://docs.comfy.org/development/api-development/workflow-api-format<br />Source: ComfyUI docs, Server routes — https://docs.comfy.org/development/comfyui-server/comms_routes</p>
 
 ```notes
-Every graph in a node-based workflow engine can be exported as a request body
-— the same loaders, conditioning, and sampler settings expressed as plain
+Every graph in a node-based workflow engine can be exported as a request
+body — the same loaders, conditioning, and sampler settings expressed as plain
 data rather than boxes and wires. That export is what an API-based rig sends
 instead of running the graph locally, and reading one is the same skill as
 reading the graph: find the four jobs inside the JSON the same way they'd be
 found inside the nodes.
+
+The export is File → Export Workflow (API), and the format "omits UI
+metadata" — no positions, no colours, nothing about how the graph looked.
+Links appear as a pair, the source node's id and an output index, written like
+`["4", 0]`. The route that receives it "validates the prompt and adds it to an
+execution queue, returning either a prompt_id and number ... or error and
+node_errors", which is the whole contract between a graph and a rig that runs
+it somewhere else.
+```
+
+---
+
+{/* _class: deck-claim--still */}
+
+## Everything after the sampler is a fix pass
+
+The sampler hands back a latent. `VAEDecode` turns it into an image, an
+upscale node runs a specified upscale model over it, a LoRA loader's strength
+is typically used between 0 and 1. None of them revisit the decision.
+
+<p class="deck-source">Source: ComfyUI docs, LoraLoader — https://docs.comfy.org/built-in-nodes/LoraLoader</p>
+
+<LadderStill week={7} tier="t3" />
+
+```notes
+Most of what a graph needs is a small edit, not a rewrite: swapping one
+loader's checkpoint, adding a second conditioning input, inserting one
+fix-pass node before the output. Rebuilding from an empty graph is rarely the
+right first move — it throws away a working arrangement of the four jobs to
+relearn something that was already solved. The one exception is when the
+supplied graph does something the shot in front of it doesn't need at all, in
+which case removing that piece cleanly is worth more than working around it.
+
+The still here is the ladder's upscale tier, which is a fix pass and nothing
+else: the same take as the tier below it, at twice the size. Worth noticing
+that the upscale node's docs state no scale factor — the factor belongs to the
+model you load into it, not to the node.
 ```
 
 ---
@@ -123,9 +180,9 @@ One shot, held constant, with more of the supplied graph replaced each time.
 The ladder this week climbs through how much of the supplied graph gets
 replaced, on one held-constant shot. The lowest tier is the bare supplied
 graph, unmodified, as a baseline. The next tier adds reference anchoring — a
-loader bringing in a locked reference image the original graph didn't use.
-The next tier adds an upscale and fix pass after the sampler. The top tier is
-a two-stage pipeline: a keyframe generated in one graph, then handed into a
+loader bringing in a locked reference image the original graph didn't use. The
+next tier adds an upscale and fix pass after the sampler. The top tier is a
+two-stage pipeline: a keyframe generated in one graph, then handed into a
 second graph that turns it into video.
 ```
 
@@ -152,12 +209,18 @@ Wednesday's Dailies.
 
 ## Reading
 
-- [ComfyUI Examples](https://comfyanonymous.github.io/ComfyUI_examples/)
+- [ComfyUI: Load Checkpoint](https://docs.comfy.org/built-in-nodes/CheckpointLoaderSimple)
+- [ComfyUI: Workflow API Format](https://docs.comfy.org/development/api-development/workflow-api-format)
+- [ComfyUI: Server routes](https://docs.comfy.org/development/comfyui-server/comms_routes)
 - [ComfyUI](https://github.com/comfyanonymous/ComfyUI)
 
 ```notes
-- ComfyUI Examples — worked graphs covering most of the loader, conditioning,
-  and sampler combinations this lecture describes.
-- ComfyUI — the workflow engine itself, including the JSON export format this
-  week's reading covers.
+- ComfyUI: Load Checkpoint — the three components one file decomposes into,
+  which is where a graph's shape comes from.
+- ComfyUI: Workflow API Format — the export, and what it deliberately leaves
+  out.
+- ComfyUI: Server routes — what `/prompt` accepts and what it answers with,
+  which is the same contract whichever rig you are on.
+- ComfyUI — the engine, and the README sentence about workflows travelling
+  inside the frames they made.
 ```

@@ -230,6 +230,12 @@
   padding-block-start: 1.5rem;
 }
 
+/* A claim slide reserves its right-hand column for the still, and the footer
+   respects the same reservation rather than running under it. */
+.reveal .slides section.deck-claim--still .deck-source {
+  inset-inline-end: 25rem;
+}
+
 /* ----------------------------------------------------------------------
    The figure slide
    ----------------------------------------------------------------------

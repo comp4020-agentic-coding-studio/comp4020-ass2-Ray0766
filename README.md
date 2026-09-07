@@ -210,6 +210,17 @@ compiles the decks, and emits the versioned API the programs and courses page
 ingests. `spec/data-integrity.test.ts` only checks the one cross-page course
 fact the build cannot: dated material stays inside the teaching period.
 
+`pnpm check:links` is the one check you run by hand. It walks every source URL
+in `src/data/reading.json` --- the file both the lecture pages and the decks
+read their reading list out of --- through `linkinator`, so a citation that has
+rotted is found before a marker clicks it. It is deliberately outside
+`pnpm check` and outside CI: its answer depends on the open internet, so it can
+go red for a dead host, a rate limit or a bot challenge, none of which this repo
+can fix, and a check that fails for reasons you cannot act on is one people stop
+reading. Run it when the reading list changes, and again before you ship. Read
+the failures rather than counting them --- a 403 from behind Cloudflare is a
+site refusing a script, not a broken source.
+
 ## The generated course API
 
 Every build emits a versioned `dist/api/index.json` and per-entry JSON. This is

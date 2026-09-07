@@ -443,6 +443,140 @@
   font-weight: 600;
 }
 
+/* ------------------------------------------------------------- the thread */
+
+/* Above the composer on screen, after it in the markup: `order` moves the box,
+   not the tab ring, and the three steps have to come first for the keyboard.
+   Its own scroll area rather than the desk's, so a long conversation never
+   pushes Generate off the bottom of the column. */
+.studio-desk__thread {
+  order: -1;
+  max-block-size: 22rem;
+  overflow-y: auto;
+  padding-block-end: var(--at-spacing-xs);
+  border-block-end: 1px solid var(--at-border);
+}
+
+.studio-desk__turns {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--at-spacing-sm);
+}
+
+.studio-turn {
+  padding: var(--at-spacing-xs) var(--at-spacing-sm);
+  border-radius: var(--at-border-radius);
+  border: 1px solid var(--at-border);
+  font-size: 0.8rem;
+}
+
+.studio-turn--user {
+  background: var(--at-bg-alt);
+}
+
+.studio-turn--rig {
+  background: var(--at-bg-elevated);
+  border-inline-start: 3px solid var(--at-brand-ink);
+}
+
+.studio-turn__chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--at-spacing-xs);
+  margin: 0;
+}
+
+.studio-turn__chip {
+  padding-inline: 0.4em;
+  border-radius: var(--at-border-radius);
+  background: var(--at-bg-elevated);
+  border: 1px solid var(--at-border);
+  color: var(--at-text-secondary);
+  white-space: nowrap;
+}
+
+.studio-turn__chip-thumb {
+  inline-size: 1.6rem;
+  block-size: 1.6rem;
+  object-fit: cover;
+  border-radius: calc(var(--at-border-radius) / 2);
+}
+
+.studio-turn__prompt {
+  margin: var(--at-spacing-xs) 0 0;
+  color: var(--at-text-secondary);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* Two lines by default. A week-9 script runs to forty, and the thread is a
+   record of what was asked, not a reading view for it. */
+.studio-turn__prompt[data-expanded="false"] {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+.studio-turn__more {
+  margin-block-start: var(--at-spacing-xs);
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: var(--at-brand-ink);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.studio-turn__more:focus-visible {
+  outline: 2px solid var(--at-brand-ink);
+  outline-offset: 2px;
+}
+
+.studio-turn__line {
+  margin: 0;
+  font-family: ui-monospace, "SFMono-Regular", "Menlo", monospace;
+  font-size: 0.72rem;
+  color: var(--at-text-secondary);
+  overflow-wrap: anywhere;
+}
+
+.studio-turn__recorded {
+  margin: var(--at-spacing-xs) 0;
+  padding: var(--at-spacing-xs);
+  border-radius: var(--at-border-radius);
+  background: var(--at-bg-alt);
+  color: var(--at-text-secondary);
+  max-block-size: 6rem;
+  overflow-y: auto;
+  white-space: pre-wrap;
+}
+
+.studio-turn__result {
+  display: flex;
+  align-items: center;
+  gap: var(--at-spacing-sm);
+  margin-block-start: var(--at-spacing-xs);
+}
+
+.studio-turn__thumb {
+  inline-size: 3rem;
+  block-size: 3rem;
+  object-fit: cover;
+  border-radius: calc(var(--at-border-radius) / 2);
+  cursor: grab;
+}
+
+.studio-turn__removed {
+  margin: var(--at-spacing-xs) 0 0;
+  color: var(--at-text-muted);
+  font-style: italic;
+}
+
 /* --------------------------------------------------------- the three steps */
 
 .studio-desk__step {

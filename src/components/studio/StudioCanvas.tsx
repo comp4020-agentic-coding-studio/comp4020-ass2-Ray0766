@@ -21,7 +21,7 @@ import {
   type NodeTypes,
   type OnSelectionChangeParams,
 } from "@xyflow/react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import {
   boardUnder,
   createBoardFor,
@@ -58,7 +58,7 @@ import {
   TierIndexProvider,
   useReducedMotion,
 } from "./canvas-context";
-import { Desk, useDesk, type DeskState } from "./Desk";
+import { Desk, NODE_DRAG_TYPE, useDesk, type DeskState } from "./Desk";
 
 const NODE_TYPES: NodeTypes = {
   [RF_TYPE.board]: BoardNode,
@@ -375,6 +375,10 @@ function StudioCanvasInner({ bundle, weeks, assetPrefix }: CanvasPayload) {
     docRef.current = empty;
     setDocState(empty);
     clearDoc();
+    // The thread is a record of what produced the boards; emptying the stage
+    // and leaving the asking behind would leave every rig turn reading
+    // "removed".
+    deskRef.current?.resetThread();
     setConfirmingClear(false);
     // The button that was pressed is replaced by the pair of confirm buttons
     // and back again; put focus where the reader left it.
@@ -451,6 +455,47 @@ function StudioCanvasInner({ bundle, weeks, assetPrefix }: CanvasPayload) {
     focusNode(nodeId);
   };
 
+  // A rig turn's thumbnail and the card on the canvas are one node. Dragging
+  // it out of the thread therefore moves it rather than copying it, through
+  // the same two engine calls a card drag uses: onto a board it reparents,
+  // onto empty canvas it gets a board of its own (§3/§4).
+  const onCanvasDragOver = useCallback((event: DragEvent) => {
+    if (readOnly) return;
+    if (!event.dataTransfer.types.includes(NODE_DRAG_TYPE)) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+  }, [readOnly]);
+
+  const onCanvasDrop = useCallback(
+    (event: DragEvent) => {
+      if (readOnly) return;
+      const nodeId = event.dataTransfer.getData(NODE_DRAG_TYPE);
+      if (!nodeId) return;
+      event.preventDefault();
+
+      const current = docRef.current;
+      const node = current.nodes.find((candidate) => candidate.id === nodeId);
+      if (!node) return;
+
+      const at = flow.screenToFlowPosition({ x: event.clientX, y: event.clientY });
+      // The pointer is where the reader let go; the card is drawn from its own
+      // top-left, so it is centred on that point rather than hanging off it.
+      const dropped = { x: at.x - node.w / 2, y: at.y - node.h / 2 };
+      const target = boardUnder(current, { ...dropped, w: node.w, h: node.h });
+
+      if (!target) {
+        setDoc(createBoardFor(current, [nodeId], dropped).doc);
+      } else {
+        const staged = moveNodes(current, [
+          { id: nodeId, x: dropped.x - (current.boards.find((b) => b.id === node.boardId)?.x ?? 0), y: dropped.y - (current.boards.find((b) => b.id === node.boardId)?.y ?? 0) },
+        ]);
+        setDoc(reparentNodes(staged, [nodeId], target.id));
+      }
+      window.requestAnimationFrame(() => focusNode(nodeId));
+    },
+    [readOnly, flow, setDoc, focusNode],
+  );
+
   const rename = useCallback((boardId: string, title: string) => setDoc(renameBoard(docRef.current, boardId, title)), [setDoc]);
 
   const fitSelectedBoard = useCallback(() => {
@@ -470,6 +515,8 @@ function StudioCanvasInner({ bundle, weeks, assetPrefix }: CanvasPayload) {
             <div
               className="studio-canvas__stage"
               ref={stage}
+              onDragOver={onCanvasDragOver}
+              onDrop={onCanvasDrop}
               tabIndex={0}
               role="group"
               aria-label="Lineage canvas"
@@ -573,7 +620,13 @@ function StudioCanvasInner({ bundle, weeks, assetPrefix }: CanvasPayload) {
               </ReactFlow>
             </div>
             <div className="studio-desk__column" ref={desk}>
-              <Desk desk={deskState} readOnly={readOnly} onFocusNode={focusNode} startOpen={!readOnly} />
+              <Desk
+                desk={deskState}
+                doc={doc}
+                readOnly={readOnly}
+                onFocusNode={focusNode}
+                startOpen={!readOnly}
+              />
             </div>
           </div>
         </PlaybackProvider>

@@ -12,19 +12,40 @@
 // for the second turn onwards: once something is on the canvas, a card can go
 // on the desk and the answer lands under the board it came from.
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { planLine } from "../../lib/canvas/lines";
 import { beginDeskGeneration, completeDeskGeneration } from "../../lib/canvas/engine";
 import { beginReplay, completeReplay } from "../../lib/canvas/session";
 import { DESK_MESSAGES, resolveDeskRequest, tierIdOfNode, type DeskResolution } from "../../lib/canvas/resolve";
-import type { CanvasDoc, ID, Node, NodeMeta, TakeNode } from "../../lib/canvas/types";
+import {
+  appendMessages,
+  clearThread,
+  emptyThread,
+  readStoredThread,
+  isRefusal,
+  resolveTurn,
+  writeThread,
+  type RefusalTurn,
+  type RigTurn,
+  type Thread,
+  type ThreadMessage,
+  type UserTurn,
+} from "../../lib/canvas/thread";
+import type { CanvasDoc, ID, Node, NodeMeta } from "../../lib/canvas/types";
 import type { ClientTier, ClientWeek } from "../../lib/studio-client";
 import { createRecordedBackend } from "../../scripts/studio/backends/recorded";
 import type { RunResult } from "../../scripts/studio/backends/types";
 import type { TierEntry } from "./canvas-context";
 
 export const MAX_REFERENCES = 6;
-const RECENT_MAX = 5;
+
+/** Roughly two lines of the thread column at 0.8rem. Below this a prompt is
+ *  shown whole and the "show more" control would be a lie. */
+const CLAMPED_PROMPT = 110;
+
+/** The drag payload the thread hands the canvas. One node, two views: this is
+ *  a move, never a copy. */
+export const NODE_DRAG_TYPE = "application/x-studio-node";
 
 /** The desk's own step-2 pick, standing in for a canvas node so the resolver
  *  answers a selection and a reference through exactly the same five rules. */
@@ -40,7 +61,10 @@ export interface DeskState {
   running: boolean;
   lastResult: RunResult | undefined;
   lastPlan: string | undefined;
-  recent: TakeNode[];
+  /** Everything that has been asked and answered, oldest first. */
+  thread: Thread;
+  /** Emptied by "Clear canvas", behind the same inline confirm. */
+  resetThread(): void;
   selectWeek(week: number): void;
   selectTier(tierId: string): void;
   addReference(nodeId: ID): void;
@@ -80,10 +104,39 @@ export function useDesk({ getDoc, setDoc, built, weeks, meta, tierIndex, setProg
   const [lastResult, setLastResult] = useState<RunResult | undefined>(undefined);
   const [lastPlan, setLastPlan] = useState<string | undefined>(undefined);
   const [running, setRunning] = useState(false);
-  const [recentIds, setRecentIds] = useState<ID[]>([]);
+  const [thread, setThreadState] = useState<Thread>(emptyThread);
   // The guard that actually refuses a second press, so Generate never needs
   // `disabled` — which would blur the button the keyboard just used.
   const busy = useRef(false);
+
+  const threadRef = useRef(thread);
+  threadRef.current = thread;
+
+  const setThread = useCallback((next: Thread) => {
+    threadRef.current = next;
+    setThreadState(next);
+    writeThread(next);
+  }, []);
+
+  // What was asked last time, alongside the document that answered it. Read
+  // once on mount, the same way the canvas reads its own storage.
+  useEffect(() => {
+    const stored = readStoredThread();
+    threadRef.current = stored;
+    setThreadState(stored);
+  }, []);
+
+  const say = useCallback(
+    (...messages: ThreadMessage[]) => setThread(appendMessages(threadRef.current, ...messages)),
+    [setThread],
+  );
+
+  const resetThread = useCallback(() => {
+    const empty = emptyThread();
+    threadRef.current = empty;
+    setThreadState(empty);
+    clearThread();
+  }, []);
 
   const backend = useMemo(() => createRecordedBackend(weeks), [weeks]);
 
@@ -190,20 +243,48 @@ export function useDesk({ getDoc, setDoc, built, weeks, meta, tierIndex, setProg
     setAnswer(undefined);
   }, [resolution, tierIndex]);
 
-  const remember = useCallback((nodeId: ID) => {
-    setRecentIds((current) => [nodeId, ...current.filter((id) => id !== nodeId)].slice(0, RECENT_MAX));
-  }, []);
-
   const generate = useCallback(async () => {
     if (busy.current) return;
     const request = resolution();
     setAnswer(request);
-    if (request.kind !== "resolved") return;
+
+    // Every press writes a user turn first, refused or not: the thread is the
+    // record of what was asked, and an ask the rig turned down is still an ask.
+    const stamp = Date.now().toString(36);
+    const at = new Date().toISOString();
+    const askedTierId = "tierId" in request ? request.tierId : selectedTier?.id;
+    const asked = askedTierId ? tierIndex.get(askedTierId) : undefined;
+    const userTurn: UserTurn = {
+      id: `ask-${stamp}`,
+      role: "user",
+      at,
+      week: asked?.week.week ?? week,
+      tierId: asked?.tier.id ?? "",
+      label: asked?.tier.label ?? "",
+      kind: asked?.tier.input.kind ?? "",
+      thumbnail: asked ? inputThumbnail(asked.tier) : undefined,
+      prompt,
+      references: references.length,
+    };
+
+    if (request.kind !== "resolved") {
+      const refusal: RefusalTurn = {
+        id: `rig-${stamp}`,
+        role: "rig",
+        at,
+        kind: "refused",
+        answer: request.kind,
+        recordedInput: request.kind === "prompt-differs" ? request.recordedInput : undefined,
+      };
+      say(userTurn, refusal);
+      return;
+    }
 
     const recordedNodeId = `${request.tierId}-take`;
     const recorded = built.nodes.find((node) => node.id === recordedNodeId);
     if (!recorded || recorded.type !== "take") return;
 
+    say(userTurn);
     busy.current = true;
     setRunning(true);
 
@@ -245,21 +326,45 @@ export function useDesk({ getDoc, setDoc, built, weeks, meta, tierIndex, setProg
       );
       setProgress(started.nodeId, undefined);
       setLastResult(result);
-      remember(started.nodeId);
 
       const entry = tierIndex.get(request.tierId);
-      setLastPlan(
-        entry
-          ? planLine(recorded.takeId, entry.week.model, entry.week.mode, entry.week.resolution)
-          : `Replayed ${recorded.takeId}`,
-      );
+      const plan = entry
+        ? planLine(recorded.takeId, entry.week.model, entry.week.mode, entry.week.resolution)
+        : `Replayed ${recorded.takeId}`;
+      setLastPlan(plan);
+
+      // The turn points at the node, not at a copy of it: the poster it shows,
+      // the board it names and whether it is still there are read off the
+      // document every render.
+      const rigTurn: RigTurn = {
+        id: `rig-${stamp}`,
+        role: "rig",
+        at: new Date().toISOString(),
+        kind: "replayed",
+        nodeId: started.nodeId,
+        planLine: plan,
+      };
+      say(rigTurn);
     } catch {
       setLastPlan(undefined);
     } finally {
       busy.current = false;
       setRunning(false);
     }
-  }, [resolution, getDoc, setDoc, built, references, prompt, backend, setProgress, tierIndex, remember]);
+  }, [
+    resolution,
+    getDoc,
+    setDoc,
+    built,
+    references,
+    prompt,
+    backend,
+    setProgress,
+    tierIndex,
+    say,
+    selectedTier,
+    week,
+  ]);
 
   const downloadLog = useCallback(() => {
     if (!lastResult) return;
@@ -287,16 +392,6 @@ export function useDesk({ getDoc, setDoc, built, weeks, meta, tierIndex, setProg
     URL.revokeObjectURL(url);
   }, [lastResult, tierIndex]);
 
-  // History is the document itself: what the desk made is on the canvas, and
-  // this strip is the newest five of it, in the order they were asked for.
-  const recent = useMemo(() => {
-    const doc = getDoc();
-    return recentIds.flatMap((id) => {
-      const node = doc.nodes.find((candidate) => candidate.id === id);
-      return node && node.type === "take" ? [node] : [];
-    });
-  }, [getDoc, recentIds]);
-
   return {
     weeks,
     week,
@@ -307,7 +402,8 @@ export function useDesk({ getDoc, setDoc, built, weeks, meta, tierIndex, setProg
     running,
     lastResult,
     lastPlan,
-    recent,
+    thread,
+    resetThread,
     selectWeek,
     selectTier,
     addReference,
@@ -361,6 +457,8 @@ function describe(node: Node | undefined, meta: NodeMeta): string {
 
 export interface DeskProps {
   desk: DeskState;
+  /** The canvas as it stands, so a rig turn can resolve its own node. */
+  doc: CanvasDoc;
   readOnly: boolean;
   onFocusNode(nodeId: ID): void;
   /** Between 641 and 899 the desk sits under the canvas rather than beside
@@ -368,13 +466,34 @@ export interface DeskProps {
   startOpen: boolean;
 }
 
-export function Desk({ desk, readOnly, onFocusNode, startOpen }: DeskProps) {
+export function Desk({ desk, doc, readOnly, onFocusNode, startOpen }: DeskProps) {
   const [open, setOpen] = useState(startOpen);
+  const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
   const list = useRef<HTMLUListElement>(null);
+  const log = useRef<HTMLElement>(null);
 
   const week = desk.weeks.find((candidate) => candidate.week === desk.week);
   const tier = week?.tiers.find((candidate) => candidate.id === desk.tierId);
   const thumbnail = tier ? inputThumbnail(tier) : undefined;
+
+  const toggleExpanded = useCallback((id: string) => {
+    setExpanded((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  // The newest turn is the one worth seeing. Scrolling the log is not scrolling
+  // the page, so nothing the reader is looking at moves, and focus stays where
+  // it was — on Generate.
+  const turnCount = desk.thread.messages.length;
+  useEffect(() => {
+    const element = log.current;
+    if (!element) return;
+    element.scrollTop = element.scrollHeight;
+  }, [turnCount]);
 
   // A slot reordered from the keyboard has to keep the keyboard: the list
   // re-renders around the handle that was just used, so focus goes back on
@@ -388,8 +507,6 @@ export function Desk({ desk, readOnly, onFocusNode, startOpen }: DeskProps) {
     },
     [desk],
   );
-
-  const answer = desk.answer;
 
   return (
     <aside className="studio-desk" aria-label="Desk" data-open={open ? "true" : "false"}>
@@ -512,26 +629,6 @@ export function Desk({ desk, readOnly, onFocusNode, startOpen }: DeskProps) {
               ) : null}
             </div>
 
-            <p className="studio-desk__answer" role="status">
-              {answer && answer.kind !== "resolved" ? (
-                <>
-                  {DESK_MESSAGES[answer.kind]}
-                  {answer.kind === "prompt-differs" ? (
-                    <>
-                      {" "}
-                      <span className="studio-desk__recorded">{answer.recordedInput}</span>{" "}
-                      <button type="button" className="at-button at-button--outline" onClick={desk.useRecordedInput}>
-                        Use the recorded input
-                      </button>
-                    </>
-                  ) : null}
-                </>
-              ) : desk.lastPlan ? (
-                desk.lastPlan
-              ) : (
-                ""
-              )}
-            </p>
           </section>
 
           <section className="studio-desk__section" aria-labelledby="desk-slots">
@@ -619,28 +716,145 @@ export function Desk({ desk, readOnly, onFocusNode, startOpen }: DeskProps) {
             )}
           </section>
 
-          {desk.recent.length ? (
-            <section className="studio-desk__section" aria-labelledby="desk-recent">
-              <h4 id="desk-recent" className="studio-desk__label">
-                Recent
-              </h4>
-              <ul className="studio-desk__recent">
-                {desk.recent.map((node) => (
-                  <li key={node.id}>
-                    <button
-                      type="button"
-                      className="at-button at-button--outline"
-                      onClick={() => onFocusNode(node.id)}
-                    >
-                      {node.takeId}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          ) : null}
+          {/* Visually this sits above the composer, and `order` is how, not a
+              reordering of the markup: the tab order has to reach the three
+              steps before it reaches a log of what has already happened. */}
+          <section
+            className="studio-desk__thread"
+            role="log"
+            aria-live="polite"
+            aria-label="What you asked and what the rig replayed"
+            ref={log}
+          >
+            {desk.thread.messages.length === 0 ? (
+              <p className="studio-desk__empty">Nothing asked yet.</p>
+            ) : (
+              <ol className="studio-desk__turns">
+                {desk.thread.messages.map((message) =>
+                  message.role === "user" ? (
+                    <UserMessage
+                      key={message.id}
+                      turn={message}
+                      expanded={expanded.has(message.id)}
+                      onToggle={() => toggleExpanded(message.id)}
+                    />
+                  ) : isRefusal(message) ? (
+                    <RefusalMessage key={message.id} turn={message} onUseRecorded={desk.useRecordedInput} />
+                  ) : (
+                    <RigMessage
+                      key={message.id}
+                      turn={message}
+                      doc={doc}
+                      readOnly={readOnly}
+                      onFocusNode={onFocusNode}
+                    />
+                  ),
+                )}
+              </ol>
+            )}
+          </section>
         </div>
       ) : null}
     </aside>
+  );
+}
+
+/** Chips, then the prompt as it stood. Two lines of it: a week-9 script runs
+ *  to forty, and the thread is a record, not a reading view. */
+function UserMessage({ turn, expanded, onToggle }: { turn: UserTurn; expanded: boolean; onToggle(): void }) {
+  return (
+    <li className="studio-turn studio-turn--user">
+      <p className="studio-turn__chips">
+        <span className="studio-turn__chip">Week {turn.week}</span>
+        {turn.label ? <span className="studio-turn__chip">{turn.label}</span> : null}
+        {turn.thumbnail ? (
+          <img className="studio-turn__chip-thumb" src={turn.thumbnail} alt="" loading="lazy" />
+        ) : turn.kind ? (
+          <span className="studio-turn__chip">{kindLabel(turn.kind)}</span>
+        ) : null}
+        {turn.references > 0 ? (
+          <span className="studio-turn__chip">
+            {turn.references} reference{turn.references === 1 ? "" : "s"}
+          </span>
+        ) : null}
+      </p>
+      {turn.prompt.trim() ? (
+        <>
+          <p className="studio-turn__prompt" data-expanded={expanded ? "true" : "false"}>
+            {turn.prompt}
+          </p>
+          {/* Only where there is more to show. A prompt that already fits is
+              not worth a control saying it might not. */}
+          {turn.prompt.length > CLAMPED_PROMPT || turn.prompt.includes("\n") ? (
+            <button type="button" className="studio-turn__more" onClick={onToggle} aria-expanded={expanded}>
+              {expanded ? "Show two lines" : "Show the whole prompt"}
+            </button>
+          ) : null}
+        </>
+      ) : null}
+    </li>
+  );
+}
+
+/** One of the five answers, in the same column and the same register as a
+ *  result. The rig turning something down is not an error state. */
+function RefusalMessage({ turn, onUseRecorded }: { turn: RefusalTurn; onUseRecorded(): void }) {
+  const text = DESK_MESSAGES[turn.answer as keyof typeof DESK_MESSAGES];
+  return (
+    <li className="studio-turn studio-turn--rig">
+      <p className="studio-turn__line">{text ?? turn.answer}</p>
+      {turn.recordedInput ? (
+        <>
+          <p className="studio-turn__recorded">{turn.recordedInput}</p>
+          <button type="button" className="at-button at-button--outline" onClick={onUseRecorded}>
+            Use the recorded input
+          </button>
+        </>
+      ) : null}
+    </li>
+  );
+}
+
+/** The plan line, the take, and where it landed. The picture is the node on
+ *  the canvas rather than a copy of it, which is why it can be dragged out of
+ *  here onto a board. */
+function RigMessage({
+  turn,
+  doc,
+  readOnly,
+  onFocusNode,
+}: {
+  turn: RigTurn;
+  doc: CanvasDoc;
+  readOnly: boolean;
+  onFocusNode(nodeId: ID): void;
+}) {
+  const target = resolveTurn(turn, doc);
+
+  return (
+    <li className="studio-turn studio-turn--rig">
+      <p className="studio-turn__line">{turn.planLine}</p>
+      {target.kind === "removed" ? (
+        <p className="studio-turn__removed">Removed from the canvas.</p>
+      ) : (
+        <div className="studio-turn__result">
+          <img
+            className="studio-turn__thumb"
+            src={thumbnailFor(target.node) ?? ""}
+            alt=""
+            loading="lazy"
+            draggable={!readOnly}
+            onDragStart={(event) => {
+              event.dataTransfer.setData(NODE_DRAG_TYPE, turn.nodeId);
+              event.dataTransfer.setData("text/plain", turn.nodeId);
+              event.dataTransfer.effectAllowed = "move";
+            }}
+          />
+          <button type="button" className="at-button at-button--outline" onClick={() => onFocusNode(turn.nodeId)}>
+            On board {target.boardWeek ? `Week ${target.boardWeek}` : target.boardTitle}
+          </button>
+        </div>
+      )}
+    </li>
   );
 }

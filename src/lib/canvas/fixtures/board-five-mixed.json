@@ -1,0 +1,23 @@
+{
+  "name": "five mixed cards wrap at three columns, each row as tall as its tallest card",
+  "call": "layoutBoard",
+  "note": "A board holding both takes and their inputs mixes 9:16 clips, 768x1344 stills and 320x180 text cards. The second row starts under the tallest card of the first, not under the one above it.",
+  "items": [
+    { "id": "clip-a", "naturalW": 576, "naturalH": 1024 },
+    { "id": "prompt-a" },
+    { "id": "still-a", "naturalW": 768, "naturalH": 1344 },
+    { "id": "clip-b", "naturalW": 576, "naturalH": 1024 },
+    { "id": "prompt-b" }
+  ],
+  "expected": {
+    "w": 1072,
+    "h": 1262,
+    "positions": [
+      { "id": "clip-a", "x": 32, "y": 68, "w": 320, "h": 569 },
+      { "id": "prompt-a", "x": 376, "y": 68, "w": 320, "h": 180 },
+      { "id": "still-a", "x": 720, "y": 68, "w": 320, "h": 560 },
+      { "id": "clip-b", "x": 32, "y": 661, "w": 320, "h": 569 },
+      { "id": "prompt-b", "x": 376, "y": 661, "w": 320, "h": 180 }
+    ]
+  }
+}

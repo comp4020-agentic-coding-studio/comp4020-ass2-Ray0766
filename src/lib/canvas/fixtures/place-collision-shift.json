@@ -1,0 +1,12 @@
+{
+  "name": "a candidate board that lands on another one walks right in steps of 120",
+  "call": "placeBoard",
+  "note": "The second desk generation under Week 7 finds the first one already there. Five steps of 120 clear its right edge at 500; the sixth position, 600, is the first that does not overlap.",
+  "boards": [
+    { "id": "week-07", "title": "Week 7", "x": 0, "y": 0, "w": 1416, "h": 669, "kind": "recorded", "order": 0 },
+    { "id": "desk-1", "title": "rain on the coat · 14:05", "x": 0, "y": 789, "w": 500, "h": 300, "kind": "user", "order": 1 }
+  ],
+  "board": { "w": 416, "h": 701 },
+  "anchor": { "kind": "below", "boardId": "week-07" },
+  "expected": { "x": 600, "y": 789 }
+}

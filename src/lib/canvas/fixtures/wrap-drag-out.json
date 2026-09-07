@@ -1,0 +1,19 @@
+{
+  "name": "two nodes dropped outside every board share one padded board",
+  "call": "wrapNodes",
+  "note": "A multi-selection dragged into empty canvas becomes one board, not two. The wrap uses the same 32 padding and 36 title bar layoutBoard does, so the first card still sits at (32, 68) — nothing moves at the moment the board appears.",
+  "items": [
+    { "id": "week02-t1-take", "x": 2000, "y": 400, "w": 320, "h": 569 },
+    { "id": "week02-t1-input", "x": 2344, "y": 400, "w": 320, "h": 180 }
+  ],
+  "expected": {
+    "x": 1968,
+    "y": 332,
+    "w": 728,
+    "h": 669,
+    "positions": [
+      { "id": "week02-t1-take", "x": 32, "y": 68, "w": 320, "h": 569 },
+      { "id": "week02-t1-input", "x": 376, "y": 68, "w": 320, "h": 180 }
+    ]
+  }
+}

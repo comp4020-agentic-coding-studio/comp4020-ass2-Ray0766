@@ -1,0 +1,12 @@
+{
+  "name": "a desk generation lands 120 below the board holding its references",
+  "call": "placeBoard",
+  "note": "Every reference came off Week 7's board, so the result belongs under it, left edges aligned — reading down the column is reading the lineage.",
+  "boards": [
+    { "id": "week-07", "title": "Week 7", "x": 0, "y": 0, "w": 1416, "h": 669, "kind": "recorded", "order": 0 },
+    { "id": "week-08", "title": "Week 8", "x": 1536, "y": 0, "w": 1072, "h": 1262, "kind": "recorded", "order": 1 }
+  ],
+  "board": { "w": 416, "h": 701 },
+  "anchor": { "kind": "below", "boardId": "week-07" },
+  "expected": { "x": 0, "y": 789 }
+}

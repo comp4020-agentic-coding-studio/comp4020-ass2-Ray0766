@@ -1,0 +1,21 @@
+{
+  "name": "four takes sit in four columns on one row",
+  "call": "layoutBoard",
+  "note": "Week 7's ladder: four 576x1024 clips. n <= 4 means one column each, so the whole ladder is comparable without scrolling the board.",
+  "items": [
+    { "id": "week07-t1-take", "naturalW": 576, "naturalH": 1024 },
+    { "id": "week07-t2-take", "naturalW": 576, "naturalH": 1024 },
+    { "id": "week07-t3-take", "naturalW": 576, "naturalH": 1024 },
+    { "id": "week07-t4-take", "naturalW": 576, "naturalH": 1024 }
+  ],
+  "expected": {
+    "w": 1416,
+    "h": 669,
+    "positions": [
+      { "id": "week07-t1-take", "x": 32, "y": 68, "w": 320, "h": 569 },
+      { "id": "week07-t2-take", "x": 376, "y": 68, "w": 320, "h": 569 },
+      { "id": "week07-t3-take", "x": 720, "y": 68, "w": 320, "h": 569 },
+      { "id": "week07-t4-take", "x": 1064, "y": 68, "w": 320, "h": 569 }
+    ]
+  }
+}

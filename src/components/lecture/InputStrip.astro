@@ -1,0 +1,34 @@
+---
+// Week 9's board: the four levels of input the week's ladder is built from,
+// as a numbered strip. The ladder below shows what each one produced; this
+// says what each one *is*, which is the only thing a student actually writes
+// that week — the sequence is the lesson, so it reads as a sequence.
+//
+// Labels come from the manifest; the numbering is the tier order, not a score.
+import { studioWeeks } from "../../lib/studio";
+
+interface Props {
+  week: number;
+}
+
+const { week: weekNumber } = Astro.props;
+const week = studioWeeks.find((entry) => entry.week === weekNumber);
+if (!week) throw new Error(`InputStrip: no studio manifest for week ${weekNumber}`);
+
+const steps = week.tiers.map((tier, index) => ({
+  step: index + 1,
+  tier: tier.tier,
+  label: tier.label,
+}));
+---
+
+<ol class="input-strip" aria-label="This week's levels of input, in order">
+  {
+    steps.map((step) => (
+      <li class="input-strip__step" data-tier={step.tier}>
+        <span class="input-strip__number">{step.step}</span>
+        <span class="input-strip__label">{step.label}</span>
+      </li>
+    ))
+  }
+</ol>

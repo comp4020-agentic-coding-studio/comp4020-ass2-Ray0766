@@ -318,7 +318,11 @@
    heading pinned with a square in the phase colour. Only text is narrowed;
    the pinned grids below keep the full column. */
 
-.at-main[data-phase="holding"] > :is(p, ul, ol, dl, blockquote, h2, h3, h4) {
+/* The narrower measure is for prose only. `.input-strip` is an <ol> and is a
+   board, not a paragraph, so it keeps the full column; every other list here
+   is a reading list or an exercise, which wants the same measure as the text
+   around it. */
+.at-main[data-phase="holding"] > :is(p, ul, ol, dl, blockquote, h2, h3, h4):not(.input-strip) {
   max-width: 60ch;
 }
 
@@ -337,6 +341,149 @@
   width: 0.45em;
   height: 0.45em;
   background: var(--phase-color);
+}
+
+/* The contact sheet: one row per tier, the reference set that went in beside
+   the take that came out. The stills keep their own aspect ratios, so the row
+   reads as material pinned to a board rather than as a grid of equal cells. */
+
+.contact-sheet {
+  margin: var(--at-spacing-lg) 0;
+  padding: 0;
+}
+
+.contact-sheet__rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.contact-sheet__row {
+  display: grid;
+  gap: var(--at-spacing-sm);
+  padding-block: var(--at-spacing-lg);
+  border-block-start: 1px solid var(--at-divider);
+}
+
+.contact-sheet__label {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6em;
+  margin: 0;
+  font-weight: 600;
+}
+
+.contact-sheet__tier {
+  font-family: var(--at-font-mono);
+  font-weight: 600;
+  font-size: var(--at-font-size-sm);
+}
+
+.contact-sheet__refs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--at-spacing-sm);
+  margin: 0;
+}
+
+.contact-sheet__ref {
+  height: 5rem;
+  width: auto;
+  border-radius: var(--at-border-radius);
+}
+
+.contact-sheet__media {
+  display: block;
+  width: 100%;
+  border-radius: var(--at-border-radius);
+}
+
+.contact-sheet__take {
+  max-width: 11rem;
+}
+
+.contact-sheet__note {
+  margin: 0;
+  color: var(--at-text-secondary);
+  max-width: 60ch;
+}
+
+.contact-sheet__credit {
+  margin-block-start: var(--at-spacing-md);
+  padding-block-start: var(--at-spacing-md);
+  border-block-start: 1px solid var(--at-divider);
+  font-size: var(--at-font-size-sm);
+  color: var(--at-text-secondary);
+}
+
+@media (min-width: 46rem) {
+  .contact-sheet__row {
+    grid-template-columns: 1fr 11rem;
+    /* The take is a 9:16 frame and is taller than the three text rows beside
+       it. `1fr` on the last row sends that spare height to the note's row
+       instead of letting the grid share it out between all three, which
+       otherwise pushes the label, the references and the note apart. */
+    grid-template-rows: auto auto 1fr;
+    grid-template-areas:
+      "label take"
+      "refs  take"
+      "note  take";
+    align-items: start;
+    column-gap: var(--at-spacing-lg);
+  }
+
+  .contact-sheet__label {
+    grid-area: label;
+  }
+
+  .contact-sheet__refs {
+    grid-area: refs;
+  }
+
+  .contact-sheet__take {
+    grid-area: take;
+  }
+
+  .contact-sheet__note {
+    grid-area: note;
+  }
+
+  .contact-sheet__ref {
+    height: 6rem;
+  }
+}
+
+/* The input strip: what a student writes at each level of week 9's ladder,
+   in order, as a strip rather than as four more paragraphs. The numbers are
+   the order of the sequence, and nothing else --- no score, no count. */
+
+.input-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: var(--at-spacing-sm);
+  margin-block: var(--at-spacing-lg);
+  padding: 0;
+  list-style: none;
+}
+
+.input-strip__step {
+  display: flex;
+  flex-direction: column;
+  gap: var(--at-spacing-xs);
+  padding: var(--at-spacing-sm) var(--at-spacing-md) var(--at-spacing-md);
+  border-block-start: 3px solid var(--phase-color);
+  background: var(--at-bg-alt);
+}
+
+.input-strip__number {
+  font-family: var(--at-font-mono);
+  font-size: var(--at-font-size-h3);
+  line-height: 1;
+  color: var(--at-text);
+}
+
+.input-strip__label {
+  font-size: var(--at-font-size-sm);
 }
 
 /* ----------------------------------------------------------------------

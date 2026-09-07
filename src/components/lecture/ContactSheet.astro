@@ -1,0 +1,90 @@
+---
+// Week 8's board: the reference set behind each take, pinned next to the take
+// it produced. The lecture's claim is that consistency comes entirely from
+// what gets fed back into the generator, so the page has to show the feeding
+// back — a ladder of finished clips alone shows the result and hides the
+// input, which is the half the week is actually about.
+//
+// Everything comes from the week's manifest: the reference set is the tier's
+// own input files, the take is its output, and the caption is its note. The
+// stills keep their own shapes (a face crop is square, a costume reference is
+// 2:3, a scene plate is 9:16), which is what a real reference sheet looks like
+// and is a fact about the material rather than a layout decision.
+import { withBase } from "astro-theme-university/url";
+import { RECORDED_CREDIT, studioWeeks } from "../../lib/studio";
+import { toClientWeek } from "../../lib/studio-client";
+
+interface Props {
+  week: number;
+}
+
+const { week: weekNumber } = Astro.props;
+const record = studioWeeks.find((entry) => entry.week === weekNumber);
+if (!record) throw new Error(`ContactSheet: no studio manifest for week ${weekNumber}`);
+const week = toClientWeek(record);
+
+const rows = week.tiers.map((tier) => ({
+  tier: tier.tier,
+  label: tier.label,
+  note: tier.note,
+  references: tier.input.files ?? [],
+  output: tier.output,
+}));
+
+const missing = rows.find((row) => row.references.length === 0);
+if (missing) {
+  throw new Error(`ContactSheet: week ${weekNumber} tier ${missing.tier} has no reference set to show`);
+}
+
+const weekTag = String(week.week).padStart(2, "0");
+const firstTier = week.tiers[0];
+---
+
+<figure class="contact-sheet" aria-label={`Reference sets and takes, week ${week.week}`}>
+  <ol class="contact-sheet__rows">
+    {
+      rows.map((row) => (
+        <li class="contact-sheet__row" data-tier={row.tier}>
+          <p class="contact-sheet__label">
+            <span class="contact-sheet__tier">{row.tier}</span>
+            {row.label}
+          </p>
+          <div class="contact-sheet__refs">
+            {row.references.map((file, index) => (
+              <img
+                class="contact-sheet__ref"
+                src={file}
+                alt={`Reference ${index + 1} in the ${row.label} set`}
+                loading="lazy"
+              />
+            ))}
+          </div>
+          <div class="contact-sheet__take">
+            {row.output.kind === "video" ? (
+              <video
+                class="contact-sheet__media"
+                src={row.output.file}
+                poster={row.output.poster}
+                controls
+                preload="none"
+              />
+            ) : (
+              <img
+                class="contact-sheet__media"
+                src={row.output.file}
+                alt={`The take shot against the ${row.label} set`}
+                loading="lazy"
+              />
+            )}
+          </div>
+          <p class="contact-sheet__note">{row.note}</p>
+        </li>
+      ))
+    }
+  </ol>
+
+  <figcaption class="contact-sheet__credit">
+    {RECORDED_CREDIT}{" "}
+    {firstTier && <a href={withBase(`/studio/#week-${weekTag}:${firstTier.tier}`)}>Run it in the Studio</a>}.
+  </figcaption>
+</figure>

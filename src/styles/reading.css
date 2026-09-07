@@ -21,7 +21,7 @@
   /* The accent reads as a rule down the edge, never as ink: a phase colour
      composited over either surface lands between 2.7:1 and 3.5:1, which is a
      bar and not text. See CLAUDE.md 7. */
-  border-inline-start: 3px solid var(--at-accent);
+  border-inline-start: 3px solid var(--at-brand-ink);
   padding: var(--at-spacing-md);
   background: var(--at-bg-alt);
 }

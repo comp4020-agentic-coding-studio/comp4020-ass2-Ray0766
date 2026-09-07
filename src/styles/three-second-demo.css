@@ -29,7 +29,7 @@
 
 .three-second-demo__ring rect {
   fill: none;
-  stroke: var(--at-accent);
+  stroke: var(--at-brand-ink);
   stroke-width: 3;
   stroke-dasharray: 100;
   stroke-dashoffset: 100;

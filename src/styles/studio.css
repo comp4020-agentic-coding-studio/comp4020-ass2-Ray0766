@@ -110,6 +110,6 @@
    appeared. Checked with getComputedStyle on document.activeElement. */
 .studio-gallery__media:focus,
 .studio-form__media:focus {
-  outline: 2px solid var(--at-accent);
+  outline: 2px solid var(--at-brand-ink);
   outline-offset: 2px;
 }

@@ -112,7 +112,7 @@
 }
 
 .cut-editor__subtitle-radio:focus-visible + .cut-editor__subtitle-tab {
-  outline: 2px solid var(--at-accent);
+  outline: 2px solid var(--at-brand-ink);
   outline-offset: 2px;
 }
 

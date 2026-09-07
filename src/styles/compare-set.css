@@ -39,7 +39,7 @@
 }
 
 .compare-set__radio:focus-visible + .compare-set__tab {
-  outline: 2px solid var(--at-accent);
+  outline: 2px solid var(--at-brand-ink);
   outline-offset: 2px;
 }
 

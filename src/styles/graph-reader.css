@@ -38,7 +38,7 @@
 }
 
 .graph-reader__radio:focus-visible + .graph-reader__tab {
-  outline: 2px solid var(--at-accent);
+  outline: 2px solid var(--at-brand-ink);
   outline-offset: 2px;
 }
 
@@ -151,7 +151,7 @@
 
 /* A class of node the bare graph never had. */
 .graph-reader__node[data-new] .graph-reader__box {
-  stroke: var(--at-accent);
+  stroke: var(--at-brand-ink);
   stroke-width: 3;
   stroke-dasharray: 5 3;
 }
@@ -172,7 +172,7 @@
 }
 
 .graph-reader__node:focus-visible {
-  outline: 2px solid var(--at-accent);
+  outline: 2px solid var(--at-brand-ink);
   outline-offset: 2px;
 }
 
@@ -194,7 +194,7 @@
 
 .graph-reader__panel {
   margin-block-start: var(--at-spacing-md);
-  border-inline-start: 3px solid var(--at-accent);
+  border-inline-start: 3px solid var(--at-brand-ink);
   padding-inline-start: var(--at-spacing-md);
 }
 

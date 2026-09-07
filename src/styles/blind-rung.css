@@ -62,7 +62,7 @@
   max-height: 10rem;
   overflow: auto;
   padding: var(--at-spacing-sm);
-  border-inline-start: 3px solid var(--at-accent);
+  border-inline-start: 3px solid var(--at-brand-ink);
   background: var(--at-bg);
   font-size: var(--at-font-size-xs);
   white-space: pre-wrap;

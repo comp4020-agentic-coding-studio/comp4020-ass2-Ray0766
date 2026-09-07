@@ -10,6 +10,59 @@
    plain selectors here override the theme without a specificity fight. */
 
 /* ----------------------------------------------------------------------
+   Brand ink
+   ----------------------------------------------------------------------
+   The Slop gold is a fill, not ink. Computed from the token values
+   (spec/palette.test.ts), #b97d1c lands at 3.43:1 on the light theme's
+   background and 3.15:1 on its alt surface — under the 4.5:1 a sentence
+   needs, and barely over the 3:1 a border needs. On the dark theme the
+   same gold is 5.81:1 and is exactly right.
+
+   So the ink follows the theme rather than the brand mark: gold in the
+   dark, the brand's own copper `--at-secondary` in the light, where it
+   measures 5.70:1. Both come out of the Slop palette; nothing new is
+   invented, and the fills — buttons, badges, the minimap, a phase colour on
+   a board's title bar — stay gold in both themes.
+
+   `light-dark()` keys off `color-scheme`, which tokens.css sets from
+   `[data-theme]`, so this switches with the footer's toggle and with the
+   Studio status bar's.
+   ---------------------------------------------------------------------- */
+
+:root {
+  --at-brand-ink: light-dark(var(--at-secondary), var(--at-primary));
+  /* Hover goes further from the background rather than towards the brand
+     mark: the theme's own `--at-primary-hover` lightens, which is right on a
+     dark ground and wrong on a light one. 7.37:1. */
+  --at-brand-ink-hover: light-dark(
+    oklch(from var(--at-secondary) calc(l - 0.06) c h),
+    var(--at-primary-hover)
+  );
+
+  /* Every heading on the site, which the theme points at --at-primary. An
+     h1 is large enough for the 3:1 rule either way; an h4 at 17px is not. */
+  --at-heading: var(--at-brand-ink);
+}
+
+/* The theme's own outline and ghost buttons, restyled through their own
+   classes (CLAUDE.md §4) rather than by winning a bare-element cascade
+   fight. The filled `.at-button` is untouched: it is a gold fill with
+   `--at-on-accent` picked for it. */
+.at-button--outline,
+.at-button--ghost {
+  color: var(--at-brand-ink);
+}
+
+.at-button--outline {
+  border-color: var(--at-brand-ink);
+}
+
+.at-button--outline:hover,
+.at-button--ghost:hover {
+  color: var(--at-brand-ink-hover);
+}
+
+/* ----------------------------------------------------------------------
    Typography — Apple-style tightening: larger display scale, tighter
    tracking, more room around headings. The hero below is the only place
    that animates; everywhere else this is a static type pass.
@@ -137,7 +190,7 @@ p {
    ---------------------------------------------------------------------- */
 
 .at-footer-theme-toggle:focus-visible {
-  outline: 2px solid var(--at-accent);
+  outline: 2px solid var(--at-brand-ink);
   outline-offset: 2px;
   box-shadow: 0 0 0 4px var(--at-bg);
 }

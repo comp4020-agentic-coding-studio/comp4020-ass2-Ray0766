@@ -225,6 +225,16 @@ find the real one or state the technique generically.
   new colour gets measured in a real browser, on the composite: read the
   rendered pixel, not the declared one. "58 pages, no accessibility
   violations" is silent about every one of them.
+- A brand colour is a fill, not ink — and that one rule covers both the gold
+  and the four phase colours. The Slop gold is 3.43:1 on the light theme's
+  background and 5.81:1 on the dark one; `--phase-episode` is 8.60:1 on light
+  and 2.32:1 on dark. Neither is readable on both, so neither is ever text or
+  a line: gold fills buttons, badges and the minimap, a phase colour fills a
+  board's title bar, and anything that is ink or a stroke takes
+  `--at-brand-ink` (gold in the dark theme, the brand's own copper
+  `--at-secondary` in the light, 5.70:1). `spec/palette.test.ts` computes
+  every one of those numbers from the token values and fails the build if a
+  stylesheet paints `--at-accent` as `color`, `stroke`, `border` or `outline`.
 - Walk the page from the address bar with the keyboard alone before calling
   an interactive change done: every control reachable, in document order,
   with a ring you can see. `all: unset` is an opt-out of the focus indicator,

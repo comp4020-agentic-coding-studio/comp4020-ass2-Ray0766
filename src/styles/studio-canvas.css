@@ -31,7 +31,7 @@
 
 /* One tab stop for the whole canvas, so it needs a ring of its own. */
 .studio-canvas__stage:focus-visible {
-  outline: 2px solid var(--at-accent);
+  outline: 2px solid var(--at-brand-ink);
   outline-offset: -2px;
 }
 
@@ -81,11 +81,11 @@
 
 .studio-board--user .studio-board__frame {
   border-style: dashed;
-  border-color: var(--at-accent);
+  border-color: var(--at-brand-ink);
 }
 
 .studio-board__frame[data-selected="true"] {
-  outline: 2px solid var(--at-accent);
+  outline: 2px solid var(--at-brand-ink);
   outline-offset: 2px;
 }
 
@@ -112,7 +112,7 @@
 }
 
 .studio-board__rename {
-  border-block-end: 1px solid var(--at-accent);
+  border-block-end: 1px solid var(--at-brand-ink);
   inline-size: 100%;
 }
 
@@ -146,7 +146,7 @@
 
 .react-flow__node.selected > .studio-card,
 .react-flow__node:focus-visible > .studio-card {
-  outline: 2px solid var(--at-accent);
+  outline: 2px solid var(--at-brand-ink);
   outline-offset: 2px;
 }
 
@@ -239,7 +239,7 @@
 }
 
 .studio-card__link {
-  color: var(--at-accent);
+  color: var(--at-brand-ink);
   font-size: var(--at-font-size-xs);
 }
 
@@ -300,11 +300,11 @@
 
 .studio-edge--same-file .react-flow__edge-path {
   stroke-dasharray: 6 4;
-  stroke: var(--at-accent);
+  stroke: var(--at-brand-ink);
 }
 
 .studio-edge--desk .react-flow__edge-path {
-  stroke: var(--at-accent);
+  stroke: var(--at-brand-ink);
 }
 
 .react-flow__edge-text {
@@ -523,7 +523,7 @@
 }
 
 .studio-desk__segment input:focus-visible + span {
-  outline: 2px solid var(--at-accent);
+  outline: 2px solid var(--at-brand-ink);
   outline-offset: 2px;
 }
 
@@ -559,12 +559,12 @@
 }
 
 .studio-desk__tier:has(input:checked) {
-  border-color: var(--at-accent);
+  border-color: var(--at-brand-ink);
   background: var(--at-bg-alt);
 }
 
 .studio-desk__tier:has(input:focus-visible) {
-  outline: 2px solid var(--at-accent);
+  outline: 2px solid var(--at-brand-ink);
   outline-offset: 2px;
 }
 
@@ -706,7 +706,7 @@
   display: block;
   margin-block: var(--at-spacing-xs);
   padding: var(--at-spacing-xs);
-  border-inline-start: 2px solid var(--at-accent);
+  border-inline-start: 2px solid var(--at-brand-ink);
   color: var(--at-text);
   white-space: pre-wrap;
 }
@@ -800,7 +800,7 @@
 .studio-form__recorded {
   margin-block: var(--at-spacing-xs);
   padding: var(--at-spacing-xs);
-  border-inline-start: 2px solid var(--at-accent);
+  border-inline-start: 2px solid var(--at-brand-ink);
   font-size: var(--at-font-size-xs);
   white-space: pre-wrap;
   overflow-wrap: anywhere;

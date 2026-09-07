@@ -40,7 +40,7 @@
 
 .retention-curve__line {
   fill: none;
-  stroke: var(--at-accent);
+  stroke: var(--at-brand-ink);
   stroke-width: 2;
   stroke-linejoin: round;
   stroke-linecap: round;
@@ -89,7 +89,7 @@
 }
 
 .retention-curve__scrubber:focus-visible {
-  outline: 2px solid var(--at-accent);
+  outline: 2px solid var(--at-brand-ink);
   outline-offset: 2px;
 }
 

@@ -19,5 +19,26 @@ control in the output, or did the prompt and strength swamp it anyway.
 An output that ignores its own input entirely is a strength-dial
 failure, not a style choice.
 
-The room places each piece on this ladder: [replay the full recorded
-run](/studio/#week-04:t1) before the session, tier by tier, log included.
+## What gets screened
+
+Five outputs of one prompt at one strength, in order of how finished
+their input was. The log is read before a single frame is looked at,
+because the claim being tested is that only the input changed.
+
+The rungs, in the order they screen:
+
+- **rough sketch** — the least a pass can be guided by
+- **clean lineart** — cleaner lines, steadier proportions
+- **flat-coloured lineart** — palette and silhouette pinned before a gradient exists
+- **finished keyframe, refined** — an already-finished frame refined rather than rebuilt
+- **finished keyframe + ControlNet pose lock** — a bare skeleton, no colour or line, still holding the pose
+
+The failure shape is an output that owes nothing to the input beside it.
+That is a number on the strength dial, and it is read off the log rather
+than argued about in front of the picture.
+
+You leave able to say where more finish stopped buying more control.
+
+The rungs above are not a description. The rig recorded them once, and
+that recording is the scale: [replay the five passes this Dailies is
+measured against](/studio/#week-04:t1).

@@ -19,5 +19,27 @@ counter-example gets the same four-term treatment as the rest of the
 ladder; the room names which of the four sentences it was actually
 fighting itself on, not just that it looked strange.
 
-The room places each piece on this ladder: [replay the full recorded
-run](/studio/#week-05:t1) before the session, tier by tier, log included.
+## What gets screened
+
+Five clips in rung order, each read against the one below it rather than
+against a favourite. The counter-example screens in its own place, not
+last and not quietly.
+
+The rungs, in the order they screen:
+
+- **one line** — the camera wanders because nothing told it not to
+- **subject + action** — the pose locks; light and camera are still free
+- **four sentences** — style, motion, camera and continuity pinned at once
+- **four sentences + beats + negatives** — timecoded beats put the blink and the gust where you asked
+- **contradictory prompt (counter-example)** — every demand fighting the last, so the model chooses for you
+
+The counter-example is generated on purpose, and it is the only rung
+whose job is to cost something. What the room is pricing is
+over-specification.
+
+You leave with the cheapest sentence that would have fixed your worst
+clip.
+
+The rungs above are not a description. The rig recorded them once, and
+that recording is the scale: [replay the five clips this Dailies is
+measured against](/studio/#week-05:t1).

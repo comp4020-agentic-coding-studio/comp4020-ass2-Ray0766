@@ -18,3 +18,22 @@ ran the continuity audit reports first, then edit and sound, then
 whoever ran the gate itself. A shot that already failed the gate doesn't
 get re-argued in the room. It goes back to the queue, patched or
 reshot.
+
+## What gets screened
+
+Three finished shots at the speed of the queue, and the gate they were
+run through. The scale is the gate, which is three checks rather than an
+impression.
+
+The rungs, in the order they screen:
+
+- **continuity** — against the model sheet and the master plate
+- **loudness** — a level that neither clips nor disappears beside the rest
+- **captions** — present, accurate, and in sync
+
+The failure shape is a note filed against no gate. "Something is off
+about the second shot" cannot be actioned and cannot be closed, so it
+sits in the room forever instead of going back to the queue.
+
+You leave with the gate a shot failed on, and whether that is a patch or
+a reshoot.

@@ -19,5 +19,25 @@ motion prompt or a last frame and drifts worse than the tier before it is
 a real finding — name which one, sketch, flat colour, or the added
 control, actually caused it.
 
-The room places each piece on this ladder: [replay the full recorded
-run](/studio/#week-06:t1) before the session, tier by tier, log included.
+## What gets screened
+
+Five clips, each beside the frame it started from. The scale is how much
+of the look the first frame is carrying and how much is being asked of
+the words.
+
+The rungs, in the order they screen:
+
+- **sketch as first frame** — the model paints the whole look out of almost nothing
+- **flat colour as first frame** — palette and silhouette fixed, the face still up for grabs
+- **finished key frame** — the frame that holds the identity
+- **finished key frame + four sentences** — the picture holds the look, the words hold the motion
+- **first frame + last frame (FL2VA)** — two anchors, and a turn that has to land on the tail frame
+
+The failure shape is a clip that moves convincingly and comes back with
+a different person in it.
+
+You leave knowing which anchor your own shot actually needed.
+
+The rungs above are not a description. The rig recorded them once, and
+that recording is the scale: [replay the five clips this Dailies is
+measured against](/studio/#week-06:t1).

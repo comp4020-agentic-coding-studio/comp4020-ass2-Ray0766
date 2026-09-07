@@ -18,5 +18,26 @@ top tier's shot size and colour script pay off versus the one before it.
 A tier that looks identical to the one before it is a real finding, not
 a shrug — say which grammar element failed to do anything and why.
 
-The room places each piece on this ladder: [replay the full recorded
-run](/studio/#week-03:t1) before the session, tier by tier, log included.
+## What gets screened
+
+Five keyframes, pinned up together rather than played one after another,
+and read left to right. The scale is the grammar: each rung adds exactly
+one kind of instruction, and the only question asked of it is what that
+addition bought.
+
+The rungs, in the order they screen:
+
+- **one line** — the model picks its own framing when the words name only a subject
+- **setting and mood** — the street fills in, including things nobody asked for
+- **four-part grammar** — subject, framing, light and style anchor put the shot where it was wanted
+- **+ tag vocabulary + negative prompt** — the first outright ban, and how far it reaches
+- **+ shot size, camera angle, colour script** — the keyframe the rest of the course reuses
+
+The failure shape is a rung that bought nothing at all, and a line-up
+where nobody can say which element was responsible.
+
+You leave with one instruction you can stop writing, and one you cannot.
+
+The rungs above are not a description. The rig recorded them once, and
+that recording is the scale: [replay the five keyframes this Dailies is
+measured against](/studio/#week-03:t1).

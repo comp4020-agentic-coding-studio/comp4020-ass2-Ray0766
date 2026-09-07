@@ -20,5 +20,26 @@ which item, which shot, what changed. The top tier's master plate is
 meant to hold from here on; anyone proposing to swap it mid-season makes
 that case out loud, in the room.
 
-The room places each piece on this ladder: [replay the full recorded
-run](/studio/#week-08:t1) before the session, tier by tier, log included.
+## What gets screened
+
+Four reference sets and the two-shot cut generated against each. The
+scale is how many references it takes before the cut stops changing
+things nobody asked it to change.
+
+The rungs, in the order they screen:
+
+- **1 reference: face** — the coat and the street move across the cut
+- **2 references: face + full body** — coat length and boots hold across it
+- **4 references: + dry state** — the hair reads dry before she steps out
+- **5 references: + scene** — the same place at the same hour in both shots
+
+The failure shape is a set that pins the face and lets the world drift,
+which reads as a continuity error long before anyone can say which item
+caused it.
+
+You leave with the smallest set that held, and the item that broke
+first.
+
+The rungs above are not a description. The rig recorded them once, and
+that recording is the scale: [replay the four sets this Dailies is
+measured against](/studio/#week-08:t1).

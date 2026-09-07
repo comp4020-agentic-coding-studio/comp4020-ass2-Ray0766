@@ -107,3 +107,45 @@ describe("week 8's DriftAudit: a take against the reference that was meant to ho
     expect(widget()).not.toMatch(/\sstyle="/);
   });
 });
+
+// Seen red before the widget existed, all four assertions failing against the
+// built week 3 page:
+//   expected '<!DOCTYPE html><html lang="en"><head>…' to contain
+//   'data-blind-rung'
+//   no element carries data-blind-rung: expected -1 to be greater than -1  (x3)
+describe("week 3's BlindRung: a screening, and the labelled ladder underneath it", () => {
+  const html = page("week-03");
+  const widget = () => widgetMarkup(html, "data-blind-rung");
+
+  it("is on the week 3 lecture page", () => {
+    expect(html).toContain("data-blind-rung");
+  });
+
+  it("is the whole labelled ladder with JS off: five stills, five labels", () => {
+    const markup = widget();
+    for (const tier of ["t1", "t2", "t3", "t4", "t5"]) {
+      expect(markup, `week03-${tier}.avif should be an <img> in the markup`).toMatch(
+        new RegExp(`<img[^>]+src="[^"]*week03-${tier}\\.avif"`),
+      );
+    }
+    for (const label of [
+      "one line",
+      "setting and mood",
+      "four-part grammar",
+      "tag vocabulary",
+      "colour script",
+    ]) {
+      expect(markup, `the ladder's own label should be readable with JS off: ${label}`).toContain(label);
+    }
+  });
+
+  it("shows each rung's real input, not a description of it", () => {
+    const markup = widget();
+    expect(markup).toContain("a young woman standing in the rain at night");
+    expect(markup).toContain("rule of thirds");
+  });
+
+  it("carries no inline style attribute", () => {
+    expect(widget()).not.toMatch(/\sstyle="/);
+  });
+});

@@ -1,0 +1,158 @@
+/* Week 3's BlindRung. Two states: the labelled ladder the page ships, and the
+   screening the script turns it into. */
+
+.blind-rung {
+  margin-block: var(--at-spacing-lg);
+  margin-inline: 0;
+}
+
+.blind-rung__title {
+  margin: 0 0 var(--at-spacing-sm);
+  font-family: var(--at-font-mono);
+  font-size: var(--at-font-size-sm);
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--at-text-secondary);
+}
+
+.blind-rung__stills {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: var(--at-spacing-lg);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.blind-rung__still {
+  display: flex;
+  flex-direction: column;
+  gap: var(--at-spacing-sm);
+  border: 1px solid var(--at-border);
+  border-radius: var(--at-border-radius);
+  padding: var(--at-spacing-md);
+  background: var(--at-bg-alt);
+}
+
+.blind-rung__image {
+  display: block;
+  width: 100%;
+  max-height: 22rem;
+  object-fit: contain;
+  border-radius: var(--at-border-radius);
+}
+
+.blind-rung__label {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.6em;
+  margin: 0;
+  font-weight: 600;
+}
+
+.blind-rung__rung {
+  font-family: var(--at-font-mono);
+  font-size: var(--at-font-size-sm);
+}
+
+.blind-rung__prompt {
+  margin: var(--at-spacing-sm) 0;
+  max-height: 10rem;
+  overflow: auto;
+  padding: var(--at-spacing-sm);
+  border-inline-start: 3px solid var(--at-accent);
+  background: var(--at-bg);
+  font-size: var(--at-font-size-xs);
+  white-space: pre-wrap;
+}
+
+.blind-rung__note {
+  margin: 0;
+  color: var(--at-text-secondary);
+}
+
+/* ---- the screening: one still, its rung taken off until it is revealed ---- */
+
+.blind-rung.is-screening .blind-rung__stills {
+  grid-template-columns: minmax(0, 22rem);
+}
+
+.blind-rung.is-screening .blind-rung__still {
+  display: none;
+}
+
+.blind-rung.is-screening .blind-rung__still.is-current {
+  display: flex;
+}
+
+.blind-rung.is-screening .blind-rung__still .blind-rung__verdict {
+  display: none;
+}
+
+.blind-rung.is-screening .blind-rung__still.is-revealed .blind-rung__verdict {
+  display: block;
+}
+
+/* With the ladder shown, only the way back is left: a call on a still that is
+   already labelled is not a call. */
+.blind-rung:not(.is-screening) :is(.blind-rung__calls, [data-reveal], [data-next], .blind-rung__call-back) {
+  display: none;
+}
+
+.blind-rung__controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--at-spacing-md);
+  margin-block-start: var(--at-spacing-md);
+}
+
+.blind-rung__controls[hidden] {
+  display: none;
+}
+
+.blind-rung__calls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--at-spacing-sm);
+  margin: 0;
+  border: none;
+  padding: 0;
+}
+
+.blind-rung__legend {
+  padding: 0;
+  font-size: var(--at-font-size-sm);
+  color: var(--at-text-secondary);
+}
+
+.blind-rung__call {
+  display: flex;
+  align-items: center;
+  gap: 0.3em;
+}
+
+.blind-rung__call-label {
+  font-family: var(--at-font-mono);
+}
+
+.blind-rung__buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--at-spacing-sm);
+}
+
+.blind-rung__call-back {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--at-text-secondary);
+}
+
+.blind-rung__credit {
+  margin-block-start: var(--at-spacing-md);
+  font-size: var(--at-font-size-sm);
+  color: var(--at-text-secondary);
+}

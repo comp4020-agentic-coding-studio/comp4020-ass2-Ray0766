@@ -1,0 +1,111 @@
+---
+// Week 3's screening. Dailies is where a roll gets looked at before anyone
+// says what went into it, and this is that room in miniature: a still with its
+// label taken off, a call, and then the label, the prompt that produced it,
+// and the note. Nothing is scored and nothing is counted (§9) — at Dailies the
+// point of calling it out loud is that you had to look first.
+//
+// With the script missing this is the labelled ladder itself: five stills in
+// screening order, each with its rung, its real prompt and its note. That is
+// why it replaces the week's CompareSet rather than sitting next to it — two
+// blocks of the same five stills is the sameness this site is trying to lose.
+//
+// The screening order is fixed, not shuffled: every reader sees the same
+// screening, the page is the same on every build, and the order is a teaching
+// choice — start in the middle, then the two ends, so the first call is made
+// with nothing to anchor it against.
+import { withBase } from "astro-theme-university/url";
+import { RECORDED_CREDIT, studioWeeks } from "../../lib/studio";
+import "../../styles/blind-rung.css";
+
+interface Props {
+  week: number;
+}
+
+const { week: weekNumber } = Astro.props;
+const week = studioWeeks.find((entry) => entry.week === weekNumber);
+if (!week) throw new Error(`BlindRung: no studio manifest for week ${weekNumber}`);
+
+const SCREENING_ORDER = ["t3", "t1", "t5", "t2", "t4"] as const;
+
+// The stills are written to the page in ladder order, because that is what
+// they are when the script is missing and what they go back to when the reader
+// asks for the whole ladder: a ladder that starts on rung 3 is not a ladder.
+// The screening order rides along as an index for the script to walk.
+const stills = week.tiers.map((tier, index) => {
+  const screening = SCREENING_ORDER.indexOf(tier.tier as (typeof SCREENING_ORDER)[number]);
+  if (screening < 0) throw new Error(`BlindRung: the screening order has no place for "${tier.tier}"`);
+  const still = tier.output.file;
+  if (!/\.(avif|png|jpe?g|webp)$/.test(still)) {
+    throw new Error(`BlindRung: week ${weekNumber} tier "${tier.tier}" is not a still (${still})`);
+  }
+  return { rung: index + 1, screening, tier: tier.tier, label: tier.label, note: tier.note, promptText: tier.promptText, still };
+});
+
+if (SCREENING_ORDER.length !== week.tiers.length) {
+  throw new Error(`BlindRung: the screening order covers ${SCREENING_ORDER.length} of week ${weekNumber}'s ${week.tiers.length} rungs`);
+}
+
+const weekTag = String(week.week).padStart(2, "0");
+const firstTier = week.tiers[0];
+---
+
+<figure class="blind-rung" data-blind-rung>
+  <p class="blind-rung__title">Screening</p>
+
+  <ol class="blind-rung__stills">
+    {
+      stills.map((still) => (
+        <li class="blind-rung__still" data-still data-rung={still.rung} data-screening={still.screening}>
+          <img
+            class="blind-rung__image"
+            src={withBase(`/studio/${still.still}`)}
+            alt={`Recorded keyframe from week ${week.week}'s ladder`}
+            loading="lazy"
+          />
+          <div class="blind-rung__verdict" data-verdict>
+            <p class="blind-rung__label">
+              <span class="blind-rung__rung">Rung {still.rung}</span>
+              {still.label}
+            </p>
+            {still.promptText && <pre class="blind-rung__prompt">{still.promptText}</pre>}
+            <p class="blind-rung__note">{still.note}</p>
+          </div>
+        </li>
+      ))
+    }
+  </ol>
+
+  <div class="blind-rung__controls" data-controls hidden>
+    <fieldset class="blind-rung__calls">
+      <legend class="blind-rung__legend">Which rung is this still from?</legend>
+      {
+        stills.map((still) => (
+          <span class="blind-rung__call">
+            <input class="blind-rung__radio" type="radio" name="blind-rung-call" id={`blind-rung-${still.rung}`} value={still.rung} />
+            <label class="blind-rung__call-label" for={`blind-rung-${still.rung}`}>
+              {still.rung}
+            </label>
+          </span>
+        ))
+      }
+    </fieldset>
+
+    <div class="blind-rung__buttons">
+      <button type="button" class="at-button" data-reveal>Reveal</button>
+      <button type="button" class="at-button at-button--outline" data-next>Next still</button>
+      <button type="button" class="at-button at-button--outline" data-show-ladder aria-pressed="false">
+        Show the whole ladder
+      </button>
+    </div>
+
+    <p class="blind-rung__call-back" data-call-back aria-live="polite"></p>
+  </div>
+
+  <figcaption class="blind-rung__credit">
+    {RECORDED_CREDIT}{" "}
+    {firstTier && <a href={withBase(`/studio/#week-${weekTag}:${firstTier.tier}`)}>Run it in the Studio</a>}.
+  </figcaption>
+</figure>
+
+<script src="../../scripts/blind-rung.ts"></script>

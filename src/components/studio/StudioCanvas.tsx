@@ -1,7 +1,12 @@
-// The Studio's canvas island. Everything it draws comes from the document
-// the build handed it; everything it changes goes back through the pure
-// engine functions, so what the browser does and what the tests assert are
+// The Studio's canvas island. Everything it draws comes from the document the
+// build handed it; everything it changes goes back through the pure engine and
+// session functions, so what the browser does and what the tests assert are
 // the same code.
+//
+// v2: the canvas opens empty. The built document is still the whole rig, but
+// it is a template now — the visitor asks the desk for a run and the board it
+// belongs to arrives with it. "Load the whole rig" is the moment the template
+// lands whole; "Clear canvas" is the way back to nothing.
 
 import {
   Controls,
@@ -30,7 +35,16 @@ import {
   worldRect,
 } from "../../lib/canvas/engine";
 import { RF_TYPE, toRfEdges, toRfNodes, type StudioRfNode } from "../../lib/canvas/rf";
-import { clearDoc, mergeStoredDoc, readStoredDoc, writeDoc } from "../../lib/canvas/storage";
+import {
+  addRigBoard,
+  derivedEdges,
+  emptyCanvasDoc,
+  EMPTY_HINT,
+  hashTarget,
+  loadWholeRig,
+  restoreSession,
+} from "../../lib/canvas/session";
+import { clearDoc, readStoredDoc, writeDoc } from "../../lib/canvas/storage";
 import { planLine, productionLine } from "../../lib/canvas/lines";
 import type { CanvasBundle, CanvasDoc, NodeMeta } from "../../lib/canvas/types";
 import type { ClientWeek } from "../../lib/studio-client";
@@ -52,16 +66,6 @@ const NODE_TYPES: NodeTypes = {
   [RF_TYPE.input]: InputCard,
   [RF_TYPE.placeholder]: PlaceholderCard,
 };
-
-const HASH_PATTERN = /^#week-(\d{2}):(.+)$/;
-
-/** `#week-05:t3` — the anchor the Dailies already link to. */
-function nodeIdForHash(hash: string): string | undefined {
-  const match = HASH_PATTERN.exec(hash);
-  if (!match) return undefined;
-  const tier = match[2];
-  return tier.startsWith("week") ? `${tier}-take` : `week${match[1]}-${tier}-take`;
-}
 
 /** What the build hands the island. It travels as a plain JSON script tag
  *  rather than as island props: Astro HTML-escapes props, and every `"` in
@@ -89,14 +93,15 @@ function StudioCanvasInner({ bundle, weeks, assetPrefix }: CanvasPayload) {
   const reducedMotion = useReducedMotion();
   const stage = useRef<HTMLDivElement>(null);
 
-  const [doc, setDocState] = useState<CanvasDoc>(bundle.doc);
+  const [doc, setDocState] = useState<CanvasDoc>(emptyCanvasDoc);
   const [showSources, setShowSources] = useState(true);
-  const [confirmingReset, setConfirmingReset] = useState(false);
+  const [confirmingClear, setConfirmingClear] = useState(false);
   const [playingId, setPlayingId] = useState<string | undefined>(undefined);
   const [selection, setSelection] = useState<{ nodes: string[]; boards: string[] }>({ nodes: [], boards: [] });
   const [readOnly, setReadOnly] = useState(false);
   const [progressMeta, setProgressMeta] = useState<Record<string, NodeMeta>>({});
-  const resetButton = useRef<HTMLButtonElement>(null);
+  const [fitPending, setFitPending] = useState(false);
+  const clearButton = useRef<HTMLButtonElement>(null);
   const confirmButton = useRef<HTMLButtonElement>(null);
   const desk = useRef<HTMLDivElement>(null);
 
@@ -119,19 +124,21 @@ function StudioCanvasInner({ bundle, weeks, assetPrefix }: CanvasPayload) {
     return () => query.removeEventListener("change", update);
   }, []);
 
-  // What the visitor did last time, merged over what the build knows now.
+  // What the visitor had last time. Nothing stored is an empty canvas, which
+  // is also what a first visit gets.
   useEffect(() => {
-    const merged = mergeStoredDoc(bundle.doc, readStoredDoc(), { assetPrefix });
-    docRef.current = merged;
-    setDocState(merged);
+    const restored = restoreSession(bundle.doc, readStoredDoc(), { assetPrefix });
+    docRef.current = restored;
+    setDocState(restored);
   }, [bundle.doc, assetPrefix]);
 
   const tierIndex = useMemo(() => buildTierIndex(weeks), [weeks]);
 
-  // A desk generation's card needs the same furniture a recorded one has —
-  // the address, the production line, the plan line, where it is taught. All
-  // of it is derivable from the tier it replayed, so it is derived here
-  // rather than written into localStorage: a reloaded canvas rebuilds it.
+  // A generation made from references gets a card of its own, and that card
+  // needs the same furniture a recorded one has — the address, the production
+  // line, the plan line, where it is taught. All of it is derivable from the
+  // tier it replayed, so it is derived here rather than written into
+  // localStorage: a reloaded canvas rebuilds it.
   const effectiveMeta = useMemo(() => {
     const derived: Record<string, NodeMeta> = {};
     for (const node of doc.nodes) {
@@ -181,22 +188,22 @@ function StudioCanvasInner({ bundle, weeks, assetPrefix }: CanvasPayload) {
   const onNodesChange = useCallback(
     (changes: NodeChange<StudioRfNode>[]) => {
       // Delete goes through the engine, which knows recorded material is not
-      // deletable and sends it home instead.
+      // deletable and sends it home instead. An edge whose far end went with
+      // it stops being drawn, which is the same rule the canvas grows by.
       const removals = changes.filter((change) => change.type === "remove");
       if (removals.length) {
         const ids = new Set(removals.map((change) => change.id));
-        setDoc(
-          deleteObjects(
-            docRef.current,
-            docRef.current.nodes.filter((node) => ids.has(node.id)).map((node) => node.id),
-            docRef.current.boards.filter((board) => ids.has(board.id)).map((board) => board.id),
-          ),
+        const next = deleteObjects(
+          docRef.current,
+          docRef.current.nodes.filter((node) => ids.has(node.id)).map((node) => node.id),
+          docRef.current.boards.filter((board) => ids.has(board.id)).map((board) => board.id),
         );
+        setDoc({ ...next, edges: derivedEdges(bundle.doc, next) });
         return;
       }
       onNodesChangeInternal(changes);
     },
-    [onNodesChangeInternal, setDoc],
+    [onNodesChangeInternal, setDoc, bundle.doc],
   );
 
   const onSelectionChange = useCallback(
@@ -228,6 +235,8 @@ function StudioCanvasInner({ bundle, weeks, assetPrefix }: CanvasPayload) {
   const deskState = useDesk({
     getDoc: () => docRef.current,
     setDoc,
+    built: bundle.doc,
+    weeks,
     meta: effectiveMeta,
     tierIndex,
     setProgress,
@@ -330,6 +339,18 @@ function StudioCanvasInner({ bundle, weeks, assetPrefix }: CanvasPayload) {
     void flow.zoomTo(1, { duration: reducedMotion ? 0 : 300 });
   }, [flow, reducedMotion]);
 
+  // React Flow fits what it has already been given, and a document set this
+  // tick reaches it on the next one. Fitting is therefore asked for, not
+  // called, and happens once the new nodes are on screen.
+  useEffect(() => {
+    if (!fitPending) return;
+    const frame = window.requestAnimationFrame(() => {
+      setFitPending(false);
+      fitAll();
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [fitPending, nodes, fitAll]);
+
   const focusNode = useCallback(
     (nodeId: string) => {
       const node = docRef.current.nodes.find((candidate) => candidate.id === nodeId);
@@ -344,33 +365,39 @@ function StudioCanvasInner({ bundle, weeks, assetPrefix }: CanvasPayload) {
     [flow, reducedMotion, setNodes],
   );
 
-  // The recorded strip folds into two rows of five so that "Fit all" is worth
-  // pressing at all (see RECORDED_ROW_LENGTH), but even folded it is the
-  // whole rig at 63px a card: the right overview and the wrong first
-  // impression. The canvas opens on the first board --- Week 2 --- at a size
-  // you can read, and Fit all stays a control you reach for rather than the
-  // landing state.
-  const showFirstBoard = useCallback(() => {
-    const board = [...docRef.current.boards].sort((a, b) => a.order - b.order)[0];
-    if (!board) return;
-    void flow.fitBounds(
-      { x: board.x, y: board.y, width: board.w, height: board.h },
-      { duration: reducedMotion ? 0 : 400, padding: 0.05 },
-    );
-  }, [flow, reducedMotion]);
+  const loadRig = useCallback(() => {
+    setDoc(loadWholeRig(docRef.current, bundle.doc));
+    setFitPending(true);
+  }, [setDoc, bundle.doc]);
 
-  // The Dailies link a tier straight into the Studio; the canvas answers the
-  // same anchor the JS-off gallery does.
+  const clearCanvas = useCallback(() => {
+    const empty = emptyCanvasDoc();
+    docRef.current = empty;
+    setDocState(empty);
+    clearDoc();
+    setConfirmingClear(false);
+    // The button that was pressed is replaced by the pair of confirm buttons
+    // and back again; put focus where the reader left it.
+    window.requestAnimationFrame(() => clearButton.current?.focus());
+  }, []);
+
+  // A week page's "Run it in the Studio" link is `/studio/#week-05:t3`. It
+  // opens that week's board — one board, not the whole rig — selects the tier
+  // it names and preselects the desk on it, and adds to whatever the visitor
+  // already had rather than replacing it.
   useEffect(() => {
     const apply = () => {
-      const nodeId = nodeIdForHash(window.location.hash);
-      if (nodeId) focusNode(nodeId);
-      else showFirstBoard();
+      const target = hashTarget(window.location.hash, bundle.doc);
+      if (!target) return;
+      setDoc(addRigBoard(docRef.current, bundle.doc, target.boardId));
+      deskRef.current?.selectWeek(target.week);
+      deskRef.current?.selectTier(target.tierId);
+      window.requestAnimationFrame(() => focusNode(target.nodeId));
     };
     apply();
     window.addEventListener("hashchange", apply);
     return () => window.removeEventListener("hashchange", apply);
-  }, [focusNode, showFirstBoard]);
+  }, [focusNode, setDoc, bundle.doc]);
 
   useEffect(() => {
     const element = stage.current;
@@ -424,16 +451,6 @@ function StudioCanvasInner({ bundle, weeks, assetPrefix }: CanvasPayload) {
     focusNode(nodeId);
   };
 
-  const resetCanvas = useCallback(() => {
-    clearDoc();
-    docRef.current = bundle.doc;
-    setDocState(bundle.doc);
-    setConfirmingReset(false);
-    // The button that was pressed is replaced by the pair of confirm buttons
-    // and back again; put focus where the reader left it.
-    window.requestAnimationFrame(() => resetButton.current?.focus());
-  }, [bundle.doc]);
-
   const rename = useCallback((boardId: string, title: string) => setDoc(renameBoard(docRef.current, boardId, title)), [setDoc]);
 
   const fitSelectedBoard = useCallback(() => {
@@ -441,6 +458,8 @@ function StudioCanvasInner({ bundle, weeks, assetPrefix }: CanvasPayload) {
     if (!boardId) return;
     setDoc(relayoutBoard(docRef.current, boardId));
   }, [selection.boards, setDoc]);
+
+  const empty = doc.boards.length === 0;
 
   return (
     <CanvasActionsProvider value={{ addToDesk: deskState.addReference }}>
@@ -460,6 +479,7 @@ function StudioCanvasInner({ bundle, weeks, assetPrefix }: CanvasPayload) {
                 Arrow keys move between cards, Enter adds the current card to the desk, Escape clears the
                 selection. Shift+1 fits every board, Shift+0 returns to 100%.
               </p>
+              {empty ? <p className="studio-canvas__empty">{EMPTY_HINT}</p> : null}
               <ReactFlow<StudioRfNode>
                 nodes={nodes}
                 edges={rfEdges}
@@ -513,17 +533,20 @@ function StudioCanvasInner({ bundle, weeks, assetPrefix }: CanvasPayload) {
                     >
                       Fit board
                     </button>
-                    {confirmingReset ? (
+                    <button type="button" className="at-button at-button--outline" onClick={loadRig}>
+                      Load the whole rig
+                    </button>
+                    {confirmingClear ? (
                       <>
-                        <button ref={confirmButton} type="button" className="at-button" onClick={resetCanvas}>
-                          Reset, discarding my boards
+                        <button ref={confirmButton} type="button" className="at-button" onClick={clearCanvas}>
+                          Clear, discarding every board
                         </button>
                         <button
                           type="button"
                           className="at-button at-button--outline"
                           onClick={() => {
-                            setConfirmingReset(false);
-                            window.requestAnimationFrame(() => resetButton.current?.focus());
+                            setConfirmingClear(false);
+                            window.requestAnimationFrame(() => clearButton.current?.focus());
                           }}
                         >
                           Keep them
@@ -531,18 +554,18 @@ function StudioCanvasInner({ bundle, weeks, assetPrefix }: CanvasPayload) {
                       </>
                     ) : (
                       <button
-                        ref={resetButton}
+                        ref={clearButton}
                         type="button"
                         className="at-button at-button--outline"
                         onClick={() => {
-                          setConfirmingReset(true);
+                          setConfirmingClear(true);
                           // The two confirm buttons replace this one, so focus
                           // would otherwise fall to <body> the moment it is
                           // pressed. Put it on the choice that now matters.
                           window.requestAnimationFrame(() => confirmButton.current?.focus());
                         }}
                       >
-                        Reset canvas
+                        Clear canvas
                       </button>
                     )}
                   </div>
@@ -571,10 +594,13 @@ export default function StudioCanvas() {
     const parsed = readPayload();
     if (!parsed) return;
     setPayload(parsed);
-    // The section ships hidden with its space held open (site.css keys the
-    // reservation on [hidden]); revealing it here releases the reservation,
-    // so the page never jumps when the island lands.
+    // The stage ships hidden with its space held open (studio-canvas.css keys
+    // the reservation on [hidden]); revealing it here releases the
+    // reservation, so the page never jumps when the island lands. The static
+    // gallery is the no-JS body and goes the other way: the status bar's
+    // "Show as a list" is what brings it back.
     document.querySelector("[data-studio-canvas]")?.removeAttribute("hidden");
+    document.querySelector("[data-studio-fallback]")?.setAttribute("hidden", "");
   }, []);
 
   if (!payload) {

@@ -15,6 +15,7 @@ draft: false
 ---
 
 import CompareSet from "../../components/widgets/CompareSet.astro";
+import Rung from "../../components/lecture/Rung.astro";
 
 Text to image starts from nothing; image to image starts from something,
 and this week is about how much of that something survives. Denoising
@@ -24,6 +25,8 @@ almost nothing and lets the prompt take over. Everything else this week
 is about giving the generator a better "something" to start from.
 
 ## Reading the strength dial
+
+<Rung week={4} tier="t1" />
 
 Denoising strength runs from barely touching the input to nearly
 regenerating from scratch, and the useful range for turning a rough input
@@ -35,6 +38,8 @@ worth keeping.
 
 ## Controlling structure without controlling colour
 
+<Rung week={4} tier="t5" />
+
 ControlNet reads a separate signal from the input — a pose skeleton or a
 depth map — and holds that signal fixed while everything else in the
 image regenerates, which is the difference between "keep this
@@ -45,6 +50,8 @@ a pose comes from one input and a face or style anchor comes from
 another, and the generator reconciles both.
 
 ## The turnaround
+
+<Rung week={4} tier="t2" />
 
 A production turnaround is the distance between a rough input and a
 keyframe good enough to hand to the next stage, and this course measures

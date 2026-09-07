@@ -14,6 +14,7 @@ draft: false
 ---
 
 import CompareSet from "../../components/widgets/CompareSet.astro";
+import Rung from "../../components/lecture/Rung.astro";
 
 Image to video reverses the order of the last two weeks: rather than
 describing a subject in words and hoping the camera cooperates, a
@@ -24,6 +25,8 @@ offers over a single shot — which is exactly why Phase 2 ends here.
 
 ## Keyframe-first control
 
+<Rung week={6} tier="t3" />
+
 Starting from a keyframe fixes everything text to video leaves loose:
 who's in frame, how they're dressed, where the light falls, what the
 background looks like. The motion prompt that follows only has to
@@ -31,6 +34,8 @@ describe change — what moves, and how — because everything that isn't
 supposed to change is already locked in the frame the model was given.
 
 ## First and last frame
+
+<Rung week={6} tier="t5" />
 
 Some workflows accept two keyframes instead of one: a starting frame and
 an ending frame, with the model generating everything in between. That
@@ -40,6 +45,8 @@ exist before the shot can be generated — a trade worth making when the
 ending pose matters as much as the starting one.
 
 ## Motion versus identity
+
+<Rung week={6} tier="t4" />
 
 The risk specific to this generator is a shot that drifts identity while
 chasing motion: a face or costume detail changing partway through the

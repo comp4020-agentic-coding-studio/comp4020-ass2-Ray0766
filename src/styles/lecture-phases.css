@@ -156,6 +156,152 @@
   text-wrap: balance;
 }
 
+/* The rung tag under a section heading: which rung of this week's ladder the
+   section is arguing about. Below the bench breakpoint, and with the script
+   off, it is simply a caption --- which is the whole content it ever carries;
+   the highlight is the only thing JavaScript adds. */
+
+.rung {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5em;
+  margin-block: -0.4em 1.1em;
+  font-size: var(--at-font-size-sm);
+  color: var(--at-text-secondary);
+}
+
+.rung__tier {
+  font-family: var(--at-font-mono);
+  font-weight: 600;
+  color: var(--phase-color);
+}
+
+/* ----------------------------------------------------------------------
+   The bench: this week's ladder standing beside the prose, from 1440px up.
+   ----------------------------------------------------------------------
+   Below that width the rail is not rendered at all and the ladder in the
+   prose is the whole of it --- which is also what a phone gets, and what a
+   reader with the script blocked gets at every width except that the rail
+   simply marks no rung.
+
+   1440px, not the 1200 I first wrote, because the rail lives in the theme's
+   own gutter track and that track is what the arithmetic gives it: the root
+   font is 18px (--at-font-size-base on html), so the content column is 864px
+   and the inset 36px, leaving (W - 900) / 2 per gutter. At 1200 that is a
+   150px gutter and a 123px rail --- narrower than the still it has to show,
+   and hanging off the edge of the viewport once its own margin is counted.
+   1440 is the first width that leaves the rail room for a legible 9:16 frame
+   and its label side by side. */
+
+.ladder-rail {
+  display: none;
+}
+
+@media (min-width: 1440px) {
+  /* `.at-main` normally stops at the content column. Widening it to the
+     viewport edge hands it the right-hand gutter track as a real column,
+     with the parent grid's own line names carried through by `subgrid`, so
+     the rail sits in the gutter without restating the theme's track sizes.
+     Everything else stays in `content`, placed by the theme's own
+     `.at-main > *` rule. */
+  .at-main[data-phase="generators"] {
+    grid-column: inset-start / full-end;
+  }
+
+  .at-main[data-phase="generators"] > .ladder-rail {
+    display: block;
+    grid-column: content-end / full-end;
+    /* `1 / -1` resolves against the *explicit* grid, and .at-main declares no
+       rows at all --- every row here is implicit, created by a child. A large
+       span reaches the end of the page instead. The extra implicit rows it
+       creates are empty, and .at-main sets no row-gap, so they cost nothing. */
+    grid-row: 1 / span 200;
+    align-self: start;
+    position: sticky;
+    top: calc(var(--at-nav-height) + var(--at-spacing-md));
+    /* No `width`: the rail is a grid item in the gutter track, so it takes
+       whatever the track leaves after its own margins. `width: 100%` instead
+       makes the box the full track *plus* the margins, which hangs it off the
+       right edge of the viewport at the narrow end of this range. */
+    max-width: 22rem;
+    max-height: calc(100dvh - var(--at-nav-height) - var(--at-spacing-xl));
+    overflow-y: auto;
+    margin-inline: var(--at-spacing-lg) var(--at-gutter);
+    padding-inline-start: var(--at-spacing-md);
+    border-inline-start: 1px solid var(--at-divider);
+  }
+}
+
+.ladder-rail__caption {
+  margin: 0 0 var(--at-spacing-sm);
+  font-family: var(--at-font-mono);
+  font-size: var(--at-font-size-xs);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--at-text-secondary);
+}
+
+.ladder-rail__rungs {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ladder-rail__rung {
+  display: grid;
+  grid-template-columns: 3.5rem 1fr;
+  grid-template-rows: auto 1fr;
+  column-gap: var(--at-spacing-sm);
+  align-items: start;
+  padding: var(--at-spacing-sm) 0 var(--at-spacing-sm) var(--at-spacing-sm);
+  border-block-end: 1px solid var(--at-divider);
+  /* The mark for the current rung, transparent until it is the current one:
+     declaring it here rather than only on .is-current keeps the row from
+     shifting sideways by 3px as the reader scrolls past a heading. */
+  box-shadow: inset 3px 0 0 transparent;
+}
+
+.ladder-rail__still {
+  grid-row: 1 / 3;
+  width: 100%;
+  align-self: start;
+  border-radius: var(--at-border-radius);
+  /* The stills are 9:16 and the rail is an index, not a viewer. */
+  aspect-ratio: 9 / 16;
+  object-fit: cover;
+  opacity: 0.55;
+}
+
+.ladder-rail__tier {
+  font-family: var(--at-font-mono);
+  font-weight: 600;
+  font-size: var(--at-font-size-sm);
+  color: var(--at-text-secondary);
+}
+
+.ladder-rail__label {
+  grid-column: 2;
+  font-size: var(--at-font-size-sm);
+  color: var(--at-text-secondary);
+}
+
+.ladder-rail__rung.is-current {
+  box-shadow: inset 3px 0 0 var(--phase-color);
+}
+
+.ladder-rail__rung.is-current .ladder-rail__still {
+  opacity: 1;
+}
+
+.ladder-rail__rung.is-current :is(.ladder-rail__tier, .ladder-rail__label) {
+  color: var(--at-text);
+}
+
+.ladder-rail__rung.is-current .ladder-rail__tier {
+  color: var(--phase-color);
+}
+
 /* ----------------------------------------------------------------------
    holding --- the board
    ----------------------------------------------------------------------

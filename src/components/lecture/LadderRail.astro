@@ -1,0 +1,51 @@
+---
+// The bench's rail: this week's ladder, all five rungs at once, standing
+// beside the prose while it argues about them one at a time. The rung the
+// reader is currently on is marked, which is what src/scripts/lecture-bench.ts
+// adds; everything else here is static.
+//
+// It is an index, not a copy of the ladder. The ladder itself stays where it
+// is in the prose, with every clip playable and every note attached — moving
+// it up here would mean either five portrait videos stacked taller than any
+// viewport, or four of the five hidden behind whichever rung the scroll
+// position had chosen, and a reader who wanted t4 would have had no way to
+// ask for it. So the rail carries the still and the label only.
+//
+// Hidden from assistive technology on purpose: every word in it is repeated
+// below (the ladder's own labels) or beside it (the rung tag under each
+// heading, which names the same rung in the same words). Reading five labels
+// out twice makes the page longer to listen to and tells nobody anything new.
+import { studioWeeks } from "../../lib/studio";
+import { toClientWeek } from "../../lib/studio-client";
+
+interface Props {
+  week: number;
+}
+
+const { week: weekNumber } = Astro.props;
+const record = studioWeeks.find((entry) => entry.week === weekNumber);
+if (!record) throw new Error(`LadderRail: no studio manifest for week ${weekNumber}`);
+const week = toClientWeek(record);
+
+// A video tier's still is its poster; an image tier's still is the image.
+const rungs = week.tiers.map((tier) => ({
+  tier: tier.tier,
+  label: tier.label,
+  still: tier.output.poster ?? tier.output.file,
+}));
+---
+
+<aside class="ladder-rail" data-ladder-rail aria-hidden="true">
+  <p class="ladder-rail__caption">This week's ladder</p>
+  <ol class="ladder-rail__rungs">
+    {
+      rungs.map((rung) => (
+        <li class="ladder-rail__rung" data-tier={rung.tier}>
+          <img class="ladder-rail__still" src={rung.still} alt="" loading="lazy" />
+          <span class="ladder-rail__tier">{rung.tier}</span>
+          <span class="ladder-rail__label">{rung.label}</span>
+        </li>
+      ))
+    }
+  </ol>
+</aside>

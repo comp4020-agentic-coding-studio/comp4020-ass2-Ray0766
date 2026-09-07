@@ -5,6 +5,7 @@ import RelatedContent from "astro-course-university/components/RelatedContent.as
 import ContentLayout from "astro-theme-university/layouts/ContentLayout.astro";
 import { withBase } from "astro-theme-university/url";
 import DefaultDarkTheme from "../../components/DefaultDarkTheme.astro";
+import LadderRail from "../../components/lecture/LadderRail.astro";
 import TeachingTeam from "../../components/TeachingTeam.astro";
 import WeekPager from "../../components/WeekPager.astro";
 import WeekStrip from "../../components/WeekStrip.astro";
@@ -40,8 +41,13 @@ const phase = phaseForWeek(lecture.data.week);
   <p><strong>{formatCourseDate(lecture.data.date)}</strong></p>
   <WeekStrip week={lecture.data.week} highlight="lectures" />
   {lecture.data.slides && <p><a href={withBase(lecture.data.slides)}>Open the slides</a></p>}
+  {/* The bench's rail, for the four generator weeks: styled out of the way
+      below 1440px, where the ladder in the prose is the whole of it. */}
+  {phase.key === "generators" && <LadderRail week={lecture.data.week} />}
   <Content />
   <TeachingTeam teachers={lecture.data.teachers} />
   <RelatedContent entry={lecture} collections={graphCollections} />
   <WeekPager collection="lectures" week={lecture.data.week} />
+
+  {phase.key === "generators" && <script src="../../scripts/lecture-bench.ts" />}
 </ContentLayout>

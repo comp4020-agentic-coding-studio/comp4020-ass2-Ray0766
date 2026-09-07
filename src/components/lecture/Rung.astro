@@ -1,0 +1,33 @@
+---
+// The tag that ties one section of a generator week's prose to one rung of
+// that week's ladder. It is the whole reason the bench layout can work: the
+// ladder is a fixed five-tier sequence, the prose sections each argue about
+// one of those tiers, and nothing on the page used to say which.
+//
+// The label comes from the week's manifest rather than being retyped here, so
+// a rung whose label changes in src/data/studio/ can't quietly disagree with
+// the ladder it points at, and a tier id that doesn't exist fails the build.
+//
+// `data-rung` is what src/scripts/lecture-bench.ts observes; with the script
+// off, or below the bench breakpoint, the tag is still a legible caption
+// naming the rung the section is about.
+import { studioWeeks } from "../../lib/studio";
+
+interface Props {
+  week: number;
+  tier: string;
+}
+
+const { week: weekNumber, tier: tierId } = Astro.props;
+const week = studioWeeks.find((entry) => entry.week === weekNumber);
+if (!week) throw new Error(`Rung: no studio manifest for week ${weekNumber}`);
+
+const tier = week.tiers.find((entry) => entry.tier === tierId);
+if (!tier) throw new Error(`Rung: week ${weekNumber} has no tier "${tierId}"`);
+---
+
+<p class="rung" data-rung={tier.tier}>
+  <span class="visually-hidden">Ladder rung </span>
+  <span class="rung__tier">{tier.tier}</span>
+  <span class="rung__label">{tier.label}</span>
+</p>

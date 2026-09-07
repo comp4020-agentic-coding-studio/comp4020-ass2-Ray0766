@@ -16,6 +16,7 @@ draft: false
 
 import PromptComposer from "../../components/widgets/PromptComposer.astro";
 import CompareSet from "../../components/widgets/CompareSet.astro";
+import Rung from "../../components/lecture/Rung.astro";
 
 Text to video generates motion from words alone, with nothing to anchor
 composition but the prompt itself. That's weaker control than starting
@@ -27,6 +28,8 @@ rather than fight.
 
 ## The four sentences
 
+<Rung week={5} tier="t3" />
+
 A usable video prompt collapses into four sentences, each doing one job:
 who or what the subject is and what it's doing, how close the shot is —
 the shot size, from wide to close-up — what the camera itself is doing
@@ -37,6 +40,8 @@ before style ever enters the conversation.
 <PromptComposer />
 
 ## Reading a bad take
+
+<Rung week={5} tier="t5" />
 
 A failed text-to-video take tends to fail in one of three specific ways:
 motion that reads as physically wrong rather than merely stylised, a cut

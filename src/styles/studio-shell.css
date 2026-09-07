@@ -1,0 +1,172 @@
+/* The full-screen shell around /studio/: the body grid the theme already
+   draws, with the prose column taken out of the way and a status bar closing
+   the viewport.
+
+   Unlayered, like everything else in this project's own CSS: the theme's rules
+   live in @layer at.base / at.components, so these beat them without a
+   specificity fight (site.css says the rest of why). */
+
+:root {
+  /* One number, used three times: the bar's own height, the stage's height,
+     and the space held open for the stage before the island lands. Measured
+     in Chrome at 1920x1080 and 390x844 against the bar's actual content. */
+  --studio-status-height: 3.5rem;
+}
+
+/* base.css draws a 1px accent rule down the page as `body::after`. Against
+   prose it is a margin rule; down a full-bleed canvas it is a stray line
+   through the artwork, and it paints over everything because it is the last
+   thing in the body. */
+.studio-body::after {
+  display: none;
+}
+
+/* The theme's <main> is a subgrid pinned to the content column with its own
+   vertical padding and a 100dvh floor. None of that is wanted here: the stage
+   is the page, and the body grid's own `1fr` row is what gives it its height. */
+.studio-shell {
+  grid-column: full;
+  display: block;
+  padding-block: 0;
+  min-height: 0;
+}
+
+/* --------------------------------------------------------------- status bar */
+
+.studio-status {
+  grid-column: full;
+  position: sticky;
+  inset-block-end: 0;
+  /* Above the canvas and its React Flow panels, below the theme's nav (100). */
+  z-index: 90;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--at-spacing-xs) var(--at-spacing-md);
+  min-block-size: var(--studio-status-height);
+  padding-inline: var(--at-spacing-md);
+  padding-block: var(--at-spacing-xs);
+  border-block-start: 1px solid var(--at-divider);
+  background: var(--at-bg);
+}
+
+.studio-status__credit {
+  margin: 0;
+  min-inline-size: 0;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  color: var(--at-text-muted);
+}
+
+.studio-status__controls {
+  margin-inline-start: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--at-spacing-sm);
+}
+
+.studio-status__list.at-button {
+  padding-block: 0.35rem;
+  padding-inline: var(--at-spacing-sm);
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+/* Deliberately not the theme's `.at-footer-theme-toggle`. That class carries
+   `all: unset`, which is an opt-out of the focus indicator (see site.css), and
+   the theme's own click handler binds to it — on a page reached by a
+   client-side navigation from one that has a footer, both handlers would fire
+   and the toggle would switch twice, which is not switching at all. Same
+   mechanism, own class, own ring. */
+.studio-status__theme {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.35rem;
+  border: 1px solid var(--at-border);
+  border-radius: var(--at-border-radius);
+  background: none;
+  color: var(--at-text-muted);
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.studio-status__theme:hover {
+  color: var(--at-accent);
+  border-color: var(--at-accent);
+}
+
+.studio-status__theme:focus-visible {
+  outline: 2px solid var(--at-accent);
+  outline-offset: 2px;
+}
+
+.studio-status__theme svg {
+  inline-size: 1em;
+  block-size: 1em;
+}
+
+/* The page's H1 is read everywhere and seen only where it has something to
+   title. Above 640 the stage fills the viewport and a heading over it would be
+   the prose column this layout removes; the clip is the theme's own
+   `.visually-hidden` recipe, restated because the element has to stop being
+   hidden below the breakpoint and a class cannot be undone. */
+@media (min-width: 641px) {
+  .studio-shell__title {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+
+@media (max-width: 640px) {
+  .studio-shell__title {
+    max-inline-size: var(--at-content-width);
+    margin-inline: auto;
+    padding-inline: var(--at-gutter);
+    padding-block-start: var(--at-spacing-xl);
+  }
+}
+
+/* ------------------------------------------------------------- the list body */
+
+/* The static gallery is the page with JS off and the page again once "Show as
+   a list" asks for it, so it gets the prose column back rather than running
+   the full width of a 1920 screen. */
+.studio-fallback {
+  max-inline-size: var(--at-content-width);
+  margin-inline: auto;
+  padding-inline: var(--at-gutter);
+  padding-block: var(--at-spacing-xl);
+  overflow-wrap: break-word;
+}
+
+@media (max-width: 640px) {
+  /* On a phone the list is the page and there is no canvas to come back from,
+     so the control would only ever hide the thing the reader came for. */
+  .studio-status__list {
+    display: none;
+  }
+
+  /* The credit line is five lines of a 844px viewport at this width, and it
+     is already the last sentence of the list's own opening paragraph — which
+     is the page here. So the bar carries the control and nothing else, and
+     stays where a reader can reach it: measured in Chrome, the static bar
+     under the whole list sat 49,606px down, which is a theme toggle that
+     exists and cannot be found. */
+  .studio-status__credit {
+    display: none;
+  }
+
+  .studio-status {
+    justify-content: flex-end;
+    min-block-size: 0;
+  }
+
+  .studio-status__controls {
+    margin-inline-start: 0;
+  }
+}

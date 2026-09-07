@@ -104,17 +104,13 @@ p {
   min-height: 50rem;
 }
 
-[data-reserve="studio-canvas"][hidden] {
-  min-height: 46rem;
-}
+/* The Studio's own reservation moved to src/styles/studio-canvas.css when the
+   stage became a fraction of the viewport rather than a measured 46rem: it is
+   the same `calc()` the stage is sized by, so the two cannot drift. */
 
 @media (max-width: 640px) {
   [data-reserve="cut-editor"][hidden] {
     min-height: 86rem;
-  }
-
-  [data-reserve="studio-canvas"][hidden] {
-    min-height: 0;
   }
 
   /* The phone's own desk, which is the section the canvas is replaced by

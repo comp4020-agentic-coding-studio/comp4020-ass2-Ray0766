@@ -3,48 +3,53 @@
    and the footer's theme toggle changes the canvas with the rest of the page.
    React Flow's own stylesheet is loaded first and only overridden here. */
 
+/* The stage is the page: everything between the nav and the status bar. It
+   used to be a section inside the prose column, bled back out to the viewport
+   edges with margin arithmetic; v2 gave the page its own layout
+   (src/layouts/StudioLayout.astro) and the arithmetic went with it. */
 .studio-canvas {
-  margin-block: var(--at-spacing-xl);
-
-  /* An infinite canvas inside the 864px prose column is a 400px canvas next
-     to a 400px desk: at 1920 the whole rig fit only at the 10% minimum zoom,
-     with half of it outside the pane. This section leaves the column.
-
-     `.at-main` is a subgrid spanning inset-start/content-end, so the theme's
-     own `grid-column: full` escape hatch isn't reachable from inside it —
-     only a direct child of <body> can use that. What is reachable is the
-     arithmetic: body's grid puts an extra --at-content-inset on the left of
-     the content column and nothing on the right, so a plain `50% - 50vw`
-     bleed lands 18px right of centre and overflows into a horizontal
-     scrollbar. Splitting that inset between the two margins cancels it
-     exactly, and it stays exact at the width where the content column stops
-     being --at-content-width and starts being what's left of the viewport. */
-  margin-inline-start: calc(50% - 50vw - var(--at-content-inset) / 2 + var(--at-spacing-md));
-  margin-inline-end: calc(50% - 50vw + var(--at-content-inset) / 2 + var(--at-spacing-md));
-
-  /* base.css draws a 1px accent rule down the page as `body::after`, absolutely
-     positioned with no z-index. Against prose it is a margin rule; across a
-     canvas it reads as a stray line through the artwork, and being a later
-     sibling it paints over everything here. One stacking context lifts the
-     whole section clear of it. */
-  position: relative;
-  z-index: 1;
+  display: block;
+  block-size: calc(100dvh - var(--at-nav-height) - var(--studio-status-height));
+  padding: var(--at-spacing-sm);
 }
 
-/* The reservation that holds this section's space open from first paint
-   lives with the other one in site.css, keyed on [hidden]. */
+/* Space held open from first paint, per CLAUDE.md §7: the section ships
+   `hidden` and the island reveals it, and site.css's `[data-reserve][hidden]`
+   keeps it in the flow while it is invisible. The height is not a measured
+   guess here — it is the same arithmetic the stage itself uses, so the
+   reservation and the thing it reserves for cannot drift apart. */
+[data-reserve="studio-canvas"][hidden] {
+  min-block-size: calc(100dvh - var(--at-nav-height) - var(--studio-status-height));
+}
 
 .studio-canvas__layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 25rem;
-  gap: var(--at-spacing-md);
-  block-size: 44rem;
+  gap: var(--at-spacing-sm);
+  block-size: 100%;
 }
 
 /* One tab stop for the whole canvas, so it needs a ring of its own. */
 .studio-canvas__stage:focus-visible {
   outline: 2px solid var(--at-accent);
   outline-offset: -2px;
+}
+
+/* The empty stage. One line, centred, and out of the pointer's way: the
+   canvas underneath is still pannable and the desk is still the thing to
+   read next. */
+.studio-canvas__empty {
+  position: absolute;
+  inset-block-start: 50%;
+  inset-inline: var(--at-spacing-xl);
+  z-index: 6;
+  margin: 0;
+  transform: translateY(-50%);
+  text-align: center;
+  text-wrap: balance;
+  font-size: clamp(1rem, 0.9rem + 0.5vw, 1.3rem);
+  color: var(--at-text-secondary);
+  pointer-events: none;
 }
 
 .studio-canvas__keys {
@@ -217,6 +222,13 @@
   gap: 0.25rem;
   flex: 1 1 auto;
   min-block-size: 0;
+  /* A 576x1024 still at 320 units wide wants 569 units of height, and the
+     grid row it sits in is sized by that intrinsic height rather than by the
+     space the flex box gave it. Without this the picture ran on past its own
+     half of the card and the tier's prompt was set on top of it in grey —
+     seen in Chrome on Week 6's source-still card, where the recorded prompt
+     was unreadable over the frame it was describing. */
+  overflow: hidden;
 }
 
 .studio-card__strip img {
@@ -298,6 +310,16 @@
 .react-flow__edge-text {
   fill: var(--at-text-secondary);
   font-size: 11px;
+  /* An edge label is drawn over whatever it crosses, and what it crosses here
+     is artwork: "same file" sat on a rain-lit still in 11px grey and could not
+     be read, which is the one label on this canvas that has to be. A stroke
+     painted under the glyphs is a halo in the page's own background colour,
+     and it works over any frame — cheaper and steadier than a background rect
+     sized to the text, and it needs no change to the React Flow adapter. */
+  paint-order: stroke fill;
+  stroke: var(--at-bg-alt);
+  stroke-width: 3px;
+  stroke-linejoin: round;
 }
 
 /* --------------------------------------------------------------- chrome */
@@ -376,6 +398,13 @@
 .studio-desk__column {
   display: flex;
   min-inline-size: 0;
+  /* A grid item's implied minimum is its content, so a desk taller than the
+     stage pushed the whole page down instead of scrolling inside itself: at
+     1920x1080 the empty canvas had 108px of scroll under it, and the browser
+     spent that scroll answering /studio/#week-05:t3 before the island had
+     hidden the list. `overflow-y: auto` on the desk below only takes effect
+     once this says the column may be shorter than what is in it. */
+  min-block-size: 0;
 }
 
 .studio-desk {
@@ -412,6 +441,185 @@
   display: block;
   margin: 0 0 var(--at-spacing-xs);
   font-weight: 600;
+}
+
+/* --------------------------------------------------------- the three steps */
+
+.studio-desk__step {
+  margin: 0;
+  padding: 0 0 var(--at-spacing-sm);
+  border: 0;
+  border-block-end: 1px solid var(--at-border);
+}
+
+.studio-desk__legend {
+  display: flex;
+  align-items: center;
+  gap: var(--at-spacing-xs);
+  margin: 0 0 var(--at-spacing-xs);
+  padding: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  /* The theme sets headings in the brand gold, which measures 3.44:1 on the
+     light theme's background — fine for the 25px "Desk" above it, short of
+     4.5:1 for an 18px step label. Measured in Chrome on the composite, not
+     read off the token. The gold is not lost: it becomes the fill of the step
+     number beside this, which is where CLAUDE.md §5 says gold belongs. */
+  color: var(--at-text);
+}
+
+.studio-desk__step-number {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 1.5em;
+  block-size: 1.5em;
+  border-radius: 50%;
+  background: var(--at-accent);
+  color: var(--at-on-accent);
+  font-size: 0.8em;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Native radios doing the work of a segmented control: the browser already
+   gives a radio group arrow keys, one tab stop and a roving focus, which is
+   exactly the behaviour a hand-rolled segmented control has to reimplement. */
+.studio-desk__segments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--at-border);
+  border-radius: var(--at-border-radius);
+  background: var(--at-bg-alt);
+}
+
+.studio-desk__segment {
+  flex: 1 1 auto;
+}
+
+.studio-desk__segment input {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+.studio-desk__segment span {
+  display: block;
+  padding-block: 0.3rem;
+  border-radius: calc(var(--at-border-radius) - 2px);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  color: var(--at-text-secondary);
+  cursor: pointer;
+}
+
+.studio-desk__segment input:checked + span {
+  background: var(--at-accent);
+  color: var(--at-on-accent);
+  font-weight: 600;
+}
+
+.studio-desk__segment input:focus-visible + span {
+  outline: 2px solid var(--at-accent);
+  outline-offset: 2px;
+}
+
+.studio-desk__tiers {
+  list-style: none;
+  margin: 0 0 var(--at-spacing-sm);
+  padding: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.studio-desk__tier {
+  display: grid;
+  grid-template-columns: 2.75rem minmax(0, 1fr);
+  align-items: center;
+  gap: var(--at-spacing-xs);
+  padding: var(--at-spacing-xs);
+  border: 1px solid transparent;
+  border-radius: var(--at-border-radius);
+  cursor: pointer;
+}
+
+.studio-desk__tier:hover {
+  background: var(--at-bg-alt);
+}
+
+.studio-desk__tier input {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+.studio-desk__tier:has(input:checked) {
+  border-color: var(--at-accent);
+  background: var(--at-bg-alt);
+}
+
+.studio-desk__tier:has(input:focus-visible) {
+  outline: 2px solid var(--at-accent);
+  outline-offset: 2px;
+}
+
+.studio-desk__tier-thumb {
+  inline-size: 2.75rem;
+  block-size: 2.75rem;
+  object-fit: cover;
+  border-radius: calc(var(--at-border-radius) / 2);
+  background: var(--at-bg-alt);
+}
+
+.studio-desk__tier-thumb--text {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--at-border);
+  font-size: 0.8rem;
+  color: var(--at-text-muted);
+}
+
+.studio-desk__tier-text {
+  display: grid;
+  min-inline-size: 0;
+}
+
+.studio-desk__tier-label {
+  font-size: 0.9rem;
+  line-height: 1.3;
+}
+
+.studio-desk__tier-kind {
+  font-size: 0.75rem;
+  color: var(--at-text-muted);
+}
+
+/* An input the rig was handed as a file rather than as text. */
+.studio-desk__input-card {
+  margin-block-end: var(--at-spacing-sm);
+  padding: var(--at-spacing-xs);
+  border: 1px solid var(--at-border);
+  border-radius: var(--at-border-radius);
+  background: var(--at-bg-alt);
+}
+
+.studio-desk__input-card img {
+  display: block;
+  inline-size: 100%;
+  max-block-size: 9rem;
+  object-fit: contain;
+}
+
+.studio-desk__input-card p {
+  margin: 0 0 var(--at-spacing-xs);
+  font-size: 0.8rem;
+  color: var(--at-text-muted);
 }
 
 .studio-desk__hint,
@@ -637,8 +845,19 @@
 }
 
 /* 641-899: one column, canvas above the desk, and the canvas is read-only
-   (pan, zoom and select), which the island enforces rather than the CSS. */
+   (pan, zoom and select), which the island enforces rather than the CSS. The
+   stage stops being viewport-height here, because a 32rem canvas with the desk
+   under it is the composition this width was given in v1 and v2 did not
+   change it. */
 @media (max-width: 899px) {
+  .studio-canvas {
+    block-size: auto;
+  }
+
+  [data-reserve="studio-canvas"][hidden] {
+    min-block-size: 46rem;
+  }
+
   .studio-canvas__layout {
     grid-template-columns: minmax(0, 1fr);
     block-size: auto;

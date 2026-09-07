@@ -1,0 +1,138 @@
+---
+// The one page on this site that is not a page: /studio/ is a stage.
+//
+// Every other route goes through the theme's BaseLayout, which is nav, a
+// prose column and a footer. A canvas inside a prose column was the wrong
+// shape twice over — it was 1,400px wide on a 1,920px screen, and the reader
+// had to scroll past a lead paragraph to reach the thing the page is for. So
+// this layout is BaseLayout's head and nav with the body replaced: the stage
+// fills what is left of the viewport, and a slim status bar closes it.
+//
+// The footer is deliberately not here. That costs the site's one theme toggle
+// on this page, so the status bar carries one — the same switch, not a second
+// one: same `localStorage` key, same `data-theme` attribute, same label (see
+// src/lib/theme.ts, and the check in spec/studio-shell.test.ts that reads the
+// theme package's own source to prove the two have not drifted).
+//
+// The head below is BaseLayout's, restated because there is no way to reuse
+// it without the footer. Anything the theme adds to its head has to be added
+// here too, which is the standing cost of this page having its own shape.
+
+import { Font } from "astro:assets";
+import { ClientRouter } from "astro:transitions";
+import { fontVariables, preloadFontVariables } from "virtual:astro-theme-university/fonts";
+import { llmsTxtHref } from "virtual:astro-theme-university/llms";
+import Nav from "astro-theme-university/components/Nav.astro";
+import OpenGraph from "astro-theme-university/components/OpenGraph.astro";
+import Icon from "astro-theme-university/components/Icon.astro";
+import { resolveSocialImage } from "astro-theme-university/images";
+import { siteConfig } from "../site-config";
+import "astro-theme-university/styles/base.css";
+import "astro-theme-university/styles/components.css";
+import "../styles/site.css";
+import "../styles/studio-shell.css";
+
+export interface Props {
+  title: string;
+  description?: string;
+  /** The one line of credit under the stage: what the rig was, and that
+   *  nothing on this page is generated in the browser. */
+  credit: string;
+}
+
+const { title, description, credit } = Astro.props;
+const { name, links, logo, logoDark, logoCompact, logoCompactDark, socialImage, socialImageAlt } = siteConfig;
+
+const resolvedSocialImage = resolveSocialImage(socialImage);
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    {/* Same reason as BaseLayout: pin the cascade-layer order before any
+        stylesheet, so precedence never depends on emission order. */}
+    <style is:inline>@layer at.tokens, at.base, at.components;</style>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    {fontVariables.map((cssVariable) => (
+      <Font cssVariable={cssVariable} preload={preloadFontVariables.includes(cssVariable)} />
+    ))}
+    <title>{title}</title>
+    {description && <meta name="description" content={description} />}
+    <OpenGraph
+      title={title}
+      description={description}
+      name={name}
+      image={resolvedSocialImage}
+      imageAlt={socialImageAlt}
+    />
+    <meta name="generator" content={Astro.generator} />
+    {llmsTxtHref && <link rel="alternate" type="text/markdown" href={llmsTxtHref} title="llms.txt" />}
+    <ClientRouter />
+    {/* BaseLayout's theme init, with the status bar's button in place of the
+        footer's. It runs during parsing so the page never paints the wrong
+        theme, and `data-astro-rerun` re-runs it after a client-side
+        navigation. The dark default for a first visit is the site-wide one
+        from DefaultDarkTheme.astro, kept here rather than imported so the
+        whole decision is one script rather than two that have to agree.
+
+        The key is written out rather than passed through `define:vars`: that
+        directive emits a top-level `const`, and `data-astro-rerun` runs this
+        again as a second script in the same window, which is a redeclaration
+        the browser refuses. spec/studio-shell.test.ts checks this literal
+        against THEME_STORAGE_KEY instead. */}
+    <script is:inline data-astro-rerun>
+      (function () {
+        var stored = localStorage.getItem("at-theme");
+        var theme = stored === "dark" || stored === "light" ? stored : "dark";
+        document.documentElement.dataset.theme = theme;
+        var label = theme === "dark" ? "Switch to light theme" : "Switch to dark theme";
+        document.querySelectorAll(".studio-status__theme").forEach(function (button) {
+          button.setAttribute("aria-label", label);
+          button.setAttribute("title", label);
+        });
+      })();
+    </script>
+    <slot name="head" />
+  </head>
+  <body class="studio-body">
+    <a href="#main" class="visually-hidden">Skip to main content</a>
+    <Nav
+      name={name}
+      links={links}
+      logo={logo}
+      logoDark={logoDark}
+      logoCompact={logoCompact}
+      logoCompactDark={logoCompactDark}
+    />
+    <main id="main" class="at-main studio-shell">
+      <slot />
+    </main>
+    <footer class="studio-status">
+      <p class="studio-status__credit">{credit}</p>
+      <div class="studio-status__controls">
+        <button
+          type="button"
+          class="studio-status__list at-button at-button--outline"
+          data-studio-list
+          aria-expanded="true"
+          aria-controls="studio-list"
+          hidden
+        >
+          Show as a list
+        </button>
+        <button
+          type="button"
+          class="studio-status__theme"
+          data-studio-theme
+          aria-label="Switch to light theme"
+          title="Switch to light theme"
+        >
+          <Icon name="sun-light" size={16} class="at-theme-icon-sun" />
+          <Icon name="half-moon" size={16} class="at-theme-icon-moon" />
+        </button>
+      </div>
+    </footer>
+    <script src="../scripts/studio/status-bar.ts"></script>
+  </body>
+</html>

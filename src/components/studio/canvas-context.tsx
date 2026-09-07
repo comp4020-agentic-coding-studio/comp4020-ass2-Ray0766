@@ -8,9 +8,15 @@ import type { ClientTier, ClientWeek } from "../../lib/studio-client";
 
 export interface CanvasActions {
   addToDesk(nodeId: string): void;
+  /** Every take on one board, side by side, in the order the board holds
+   *  them — which for a recorded board is the manifest's tier order. */
+  compareBoard(boardId: string): void;
 }
 
-const ActionsContext = createContext<CanvasActions>({ addToDesk: () => undefined });
+const ActionsContext = createContext<CanvasActions>({
+  addToDesk: () => undefined,
+  compareBoard: () => undefined,
+});
 export const CanvasActionsProvider = ActionsContext.Provider;
 export function useCanvasActions(): CanvasActions {
   return useContext(ActionsContext);

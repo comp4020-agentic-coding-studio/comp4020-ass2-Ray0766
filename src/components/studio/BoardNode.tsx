@@ -6,10 +6,11 @@
 import type { NodeProps } from "@xyflow/react";
 import { useEffect, useRef, useState } from "react";
 import type { RfBoardNode } from "../../lib/canvas/rf";
-import { useBoardRename } from "./canvas-context";
+import { useBoardRename, useCanvasActions } from "./canvas-context";
 
 export function BoardNode({ id, data, selected }: NodeProps<RfBoardNode>) {
   const rename = useBoardRename();
+  const actions = useCanvasActions();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(data.title);
   const input = useRef<HTMLInputElement>(null);
@@ -74,6 +75,17 @@ export function BoardNode({ id, data, selected }: NodeProps<RfBoardNode>) {
           <span className="studio-board__title">{data.title}</span>
         )}
         {data.week ? <span className="studio-board__week">Week {data.week}</span> : null}
+        {/* The per-week ladder comparison, where the ladder actually is. The
+            lecture pages keep their own; this one is the takes themselves. */}
+        {data.takes >= 2 ? (
+          <button
+            type="button"
+            className="studio-board__compare at-button at-button--outline"
+            onClick={() => actions.compareBoard(id)}
+          >
+            Compare this board
+          </button>
+        ) : null}
       </div>
       {canRename ? (
         <p className="studio-board__hint" id={`${id}-rename-hint`}>

@@ -9,6 +9,9 @@ export interface BoardData extends Record<string, unknown> {
   title: string;
   kind: "recorded" | "user";
   week?: number;
+  /** How many takes are on it, so the title bar knows whether there is
+   *  anything to compare. */
+  takes: number;
 }
 
 export interface CardData extends Record<string, unknown> {
@@ -38,7 +41,12 @@ export function toRfNodes(doc: CanvasDoc, meta: Record<string, NodeMeta>, readOn
     id: board.id,
     type: RF_TYPE.board,
     position: { x: board.x, y: board.y },
-    data: { title: board.title, kind: board.kind, week: board.week },
+    data: {
+      title: board.title,
+      kind: board.kind,
+      week: board.week,
+      takes: doc.nodes.filter((node) => node.boardId === board.id && node.type === "take").length,
+    },
     width: board.w,
     height: board.h,
     draggable: !readOnly,

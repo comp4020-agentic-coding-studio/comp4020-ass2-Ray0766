@@ -443,6 +443,152 @@
   font-weight: 600;
 }
 
+/* ----------------------------------------------------------------- compare */
+
+/* A native <dialog>: the platform owns the focus trap, Escape, and returning
+   focus to whatever opened it, and reimplementing those in a div is how a
+   lightbox ends up almost accessible. */
+.studio-compare {
+  inline-size: min(96vw, 110rem);
+  max-block-size: 92dvh;
+  padding: var(--at-spacing-md);
+  border: 1px solid var(--at-border);
+  border-radius: var(--at-border-radius);
+  background: var(--at-bg-elevated);
+  color: var(--at-text);
+  overflow: auto;
+}
+
+.studio-compare::backdrop {
+  background: rgb(0 0 0 / 72%);
+}
+
+.studio-compare__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--at-spacing-md);
+  margin-block-end: var(--at-spacing-sm);
+}
+
+.studio-compare__title {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+/* Equal height is the whole point: two takes of different aspect are compared
+   by what is in the frame, not by how big the frame is. */
+.studio-compare__panels {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  gap: var(--at-spacing-sm);
+  align-items: start;
+}
+
+.studio-compare__panel {
+  min-inline-size: 0;
+  border-radius: var(--at-border-radius);
+}
+
+.studio-compare__panel:focus-visible {
+  outline: 2px solid var(--at-brand-ink);
+  outline-offset: 3px;
+}
+
+.studio-compare__figure {
+  margin: 0;
+  display: grid;
+  gap: var(--at-spacing-xs);
+}
+
+/* Equal height, natural width. Stretching a 9:16 take across a 1fr column
+   letterboxes it in black and the comparison becomes a comparison of the black
+   bars; letting each panel be as wide as its own frame puts the pictures next
+   to each other, which is the point. */
+.studio-compare__figure img,
+.studio-compare__figure video {
+  inline-size: auto;
+  max-inline-size: 100%;
+  block-size: min(56dvh, 34rem);
+  justify-self: center;
+  object-fit: contain;
+  background: var(--at-black);
+  border-radius: var(--at-border-radius);
+}
+
+.studio-compare__figure figcaption {
+  display: grid;
+  gap: 2px;
+  font-size: 0.75rem;
+  color: var(--at-text-secondary);
+}
+
+.studio-compare__address {
+  font-family: ui-monospace, "SFMono-Regular", "Menlo", monospace;
+  overflow-wrap: anywhere;
+}
+
+.studio-compare__label {
+  color: var(--at-text);
+  font-weight: 600;
+}
+
+.studio-compare__counter {
+  justify-self: start;
+  padding-inline: 0.4em;
+  border-radius: var(--at-border-radius);
+  background: var(--at-accent);
+  color: var(--at-on-accent);
+  font-weight: 600;
+}
+
+.studio-compare__transport {
+  display: flex;
+  align-items: center;
+  gap: var(--at-spacing-sm);
+  margin-block-start: var(--at-spacing-md);
+}
+
+.studio-compare__scrub {
+  flex: 1 1 auto;
+  accent-color: var(--at-accent);
+}
+
+.studio-compare__clock {
+  font-family: ui-monospace, "SFMono-Regular", "Menlo", monospace;
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--at-text-secondary);
+}
+
+.studio-compare__hint {
+  margin: var(--at-spacing-sm) 0 0;
+  font-size: 0.75rem;
+  color: var(--at-text-muted);
+}
+
+/* Below 900 the canvas is read-only and there is no multi-select, but the
+   board title bar's own Compare still opens: stack rather than shrink. */
+@media (max-width: 899px) {
+  .studio-compare__panels {
+    grid-auto-flow: row;
+    grid-auto-columns: auto;
+  }
+
+  .studio-compare__figure img,
+  .studio-compare__figure video {
+    block-size: min(40dvh, 20rem);
+  }
+}
+
+.studio-board__compare {
+  padding-block: 0;
+  padding-inline: var(--at-spacing-xs);
+  font-size: var(--at-font-size-xs);
+  white-space: nowrap;
+}
+
 /* ------------------------------------------------------------- the thread */
 
 /* Above the composer on screen, after it in the markup: `order` moves the box,

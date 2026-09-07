@@ -34,6 +34,7 @@ import {
   reparentNodes,
   worldRect,
 } from "../../lib/canvas/engine";
+import { boardTakes, canCompare, comparePanels as compareTakes } from "../../lib/canvas/compare";
 import { RF_TYPE, toRfEdges, toRfNodes, type StudioRfNode } from "../../lib/canvas/rf";
 import {
   addRigBoard,
@@ -58,6 +59,7 @@ import {
   TierIndexProvider,
   useReducedMotion,
 } from "./canvas-context";
+import { CompareLightbox } from "./CompareLightbox";
 import { Desk, NODE_DRAG_TYPE, useDesk, type DeskState } from "./Desk";
 
 const NODE_TYPES: NodeTypes = {
@@ -206,11 +208,18 @@ function StudioCanvasInner({ bundle, weeks, assetPrefix }: CanvasPayload) {
     [onNodesChangeInternal, setDoc, bundle.doc],
   );
 
+  // Selection *order*, not selection: Compare puts the panels in the order
+  // they were picked, and React Flow reports its selection in node order. So
+  // ids already in the list keep their place and new ones go on the end.
   const onSelectionChange = useCallback(
     ({ nodes: selected }: OnSelectionChangeParams<StudioRfNode>) => {
       const boards = selected.filter((node) => node.type === RF_TYPE.board).map((node) => node.id);
-      const cards = selected.filter((node) => node.type !== RF_TYPE.board).map((node) => node.id);
-      setSelection({ nodes: cards, boards });
+      const cards = new Set(selected.filter((node) => node.type !== RF_TYPE.board).map((node) => node.id));
+      setSelection((current) => {
+        const kept = current.nodes.filter((id) => cards.has(id));
+        const added = [...cards].filter((id) => !kept.includes(id));
+        return { nodes: [...kept, ...added], boards };
+      });
     },
     [],
   );
@@ -496,6 +505,23 @@ function StudioCanvasInner({ bundle, weeks, assetPrefix }: CanvasPayload) {
     [readOnly, flow, setDoc, focusNode],
   );
 
+  // Compare. The ids are held rather than the panels, so a take that is
+  // deleted while the lightbox is open simply stops being one of the panels.
+  const [comparing, setComparing] = useState<string[]>([]);
+
+  const comparePanels = useMemo(
+    () =>
+      compareTakes(doc, comparing).map((node) => ({
+        node,
+        meta: effectiveMeta[node.id] ?? {},
+        tier: tierIndex.get(node.tierId)?.tier,
+      })),
+    [doc, comparing, effectiveMeta, tierIndex],
+  );
+
+  const compareSelection = useCallback(() => setComparing(selection.nodes), [selection.nodes]);
+  const compareBoard = useCallback((boardId: string) => setComparing(boardTakes(docRef.current, boardId)), []);
+
   const rename = useCallback((boardId: string, title: string) => setDoc(renameBoard(docRef.current, boardId, title)), [setDoc]);
 
   const fitSelectedBoard = useCallback(() => {
@@ -507,7 +533,7 @@ function StudioCanvasInner({ bundle, weeks, assetPrefix }: CanvasPayload) {
   const empty = doc.boards.length === 0;
 
   return (
-    <CanvasActionsProvider value={{ addToDesk: deskState.addReference }}>
+    <CanvasActionsProvider value={{ addToDesk: deskState.addReference, compareBoard }}>
       <TierIndexProvider value={tierIndex}>
       <BoardRenameProvider value={rename}>
         <PlaybackProvider value={{ playingId, setPlayingId }}>
@@ -580,6 +606,14 @@ function StudioCanvasInner({ bundle, weeks, assetPrefix }: CanvasPayload) {
                     >
                       Fit board
                     </button>
+                    <button
+                      type="button"
+                      className="at-button at-button--outline"
+                      onClick={compareSelection}
+                      aria-disabled={!canCompare(doc, selection.nodes)}
+                    >
+                      Compare
+                    </button>
                     <button type="button" className="at-button at-button--outline" onClick={loadRig}>
                       Load the whole rig
                     </button>
@@ -619,6 +653,9 @@ function StudioCanvasInner({ bundle, weeks, assetPrefix }: CanvasPayload) {
                 </Panel>
               </ReactFlow>
             </div>
+            {comparePanels.length >= 2 ? (
+              <CompareLightbox panels={comparePanels} onClose={() => setComparing([])} />
+            ) : null}
             <div className="studio-desk__column" ref={desk}>
               <Desk
                 desk={deskState}

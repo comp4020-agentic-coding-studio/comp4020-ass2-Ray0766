@@ -31,7 +31,8 @@ import {
 } from "../../lib/canvas/engine";
 import { RF_TYPE, toRfEdges, toRfNodes, type StudioRfNode } from "../../lib/canvas/rf";
 import { clearDoc, mergeStoredDoc, readStoredDoc, writeDoc } from "../../lib/canvas/storage";
-import type { CanvasBundle, CanvasDoc } from "../../lib/canvas/types";
+import { planLine, productionLine } from "../../lib/canvas/doc";
+import type { CanvasBundle, CanvasDoc, NodeMeta } from "../../lib/canvas/types";
 import type { ClientWeek } from "../../lib/studio-client";
 import { BoardNode } from "./BoardNode";
 import { InputCard, PlaceholderCard, TakeCard } from "./CardNodes";
@@ -43,7 +44,7 @@ import {
   TierIndexProvider,
   useReducedMotion,
 } from "./canvas-context";
-import { Desk, useDesk } from "./Desk";
+import { Desk, useDesk, type DeskState } from "./Desk";
 
 const NODE_TYPES: NodeTypes = {
   [RF_TYPE.board]: BoardNode,
@@ -94,7 +95,9 @@ function StudioCanvasInner({ bundle, weeks, assetPrefix }: CanvasPayload) {
   const [playingId, setPlayingId] = useState<string | undefined>(undefined);
   const [selection, setSelection] = useState<{ nodes: string[]; boards: string[] }>({ nodes: [], boards: [] });
   const [readOnly, setReadOnly] = useState(false);
+  const [progressMeta, setProgressMeta] = useState<Record<string, NodeMeta>>({});
   const resetButton = useRef<HTMLButtonElement>(null);
+  const desk = useRef<HTMLDivElement>(null);
 
   const docRef = useRef(doc);
   docRef.current = doc;
@@ -122,7 +125,37 @@ function StudioCanvasInner({ bundle, weeks, assetPrefix }: CanvasPayload) {
     setDocState(merged);
   }, [bundle.doc, assetPrefix]);
 
-  const rfNodes = useMemo(() => toRfNodes(doc, bundle.meta, readOnly), [doc, bundle.meta, readOnly]);
+  const tierIndex = useMemo(() => buildTierIndex(weeks), [weeks]);
+
+  // A desk generation's card needs the same furniture a recorded one has —
+  // the address, the production line, the plan line, where it is taught. All
+  // of it is derivable from the tier it replayed, so it is derived here
+  // rather than written into localStorage: a reloaded canvas rebuilds it.
+  const effectiveMeta = useMemo(() => {
+    const derived: Record<string, NodeMeta> = {};
+    for (const node of doc.nodes) {
+      if (node.type !== "take" || node.origin.kind !== "desk") continue;
+      const entry = tierIndex.get(node.tierId);
+      if (!entry) continue;
+      const recorded = bundle.meta[`${node.tierId}-take`] ?? {};
+      derived[node.id] = {
+        week: entry.week.week,
+        tier: entry.tier.tier,
+        model: entry.week.model,
+        mode: entry.week.mode,
+        resolution: entry.week.resolution,
+        note: entry.tier.note,
+        takeId: node.takeId,
+        productionLine: productionLine(entry.week, entry.tier, node.takeId),
+        planLine: planLine(node.takeId, entry.week.model, entry.week.mode, entry.week.resolution),
+        openHref: recorded.openHref,
+        openLabel: recorded.openLabel,
+      };
+    }
+    return { ...bundle.meta, ...derived, ...progressMeta };
+  }, [doc.nodes, bundle.meta, tierIndex, progressMeta]);
+
+  const rfNodes = useMemo(() => toRfNodes(doc, effectiveMeta, readOnly), [doc, effectiveMeta, readOnly]);
   const rfEdges = useMemo(() => toRfEdges(doc, showSources), [doc, showSources]);
   const [nodes, setNodes, onNodesChangeInternal] = useNodesState<StudioRfNode>(rfNodes);
 
@@ -166,12 +199,51 @@ function StudioCanvasInner({ bundle, weeks, assetPrefix }: CanvasPayload) {
     [],
   );
 
-  const tierIndex = useMemo(() => buildTierIndex(weeks), [weeks]);
-  const desk = useDesk({ doc, meta: bundle.meta, weeks, tierIndex, setDoc, reducedMotion });
+  const deskRef = useRef<DeskState | undefined>(undefined);
+
+  const setProgress = useCallback((nodeId: string, progress: NodeMeta | undefined) => {
+    setProgressMeta((current) => {
+      if (!progress) {
+        const { [nodeId]: _gone, ...rest } = current;
+        return rest;
+      }
+      return { ...current, [nodeId]: progress };
+    });
+  }, []);
+
+  const deskState = useDesk({
+    getDoc: () => docRef.current,
+    setDoc,
+    meta: effectiveMeta,
+    tierIndex,
+    setProgress,
+  });
+  deskRef.current = deskState;
 
   const onNodeDragStop = useCallback(
-    (_event: unknown, dragged: StudioRfNode, group: StudioRfNode[]) => {
+    (event: MouseEvent | TouchEvent, dragged: StudioRfNode, group: StudioRfNode[]) => {
       const current = docRef.current;
+
+      // Let go of a card over the desk and it becomes a reference rather than
+      // moving: the third way in, alongside Add to desk and Enter. React Flow
+      // has already moved the card on screen by now, so the nodes are pushed
+      // back from the document, which never changed.
+      const pointer = "clientX" in event ? { x: event.clientX, y: event.clientY } : undefined;
+      const deskRect = desk.current?.getBoundingClientRect();
+      if (
+        pointer &&
+        deskRect &&
+        pointer.x >= deskRect.left &&
+        pointer.x <= deskRect.right &&
+        pointer.y >= deskRect.top &&
+        pointer.y <= deskRect.bottom
+      ) {
+        for (const node of group) {
+          if (node.type !== RF_TYPE.board) deskRef.current?.addReference(node.id);
+        }
+        setNodes(rfNodes);
+        return;
+      }
 
       if (dragged.type === RF_TYPE.board) {
         const moved = group.filter((node) => node.type === RF_TYPE.board);
@@ -223,7 +295,7 @@ function StudioCanvasInner({ bundle, weeks, assetPrefix }: CanvasPayload) {
 
       setDoc(moveNodes(current, cards.map((card) => ({ id: card.id, x: card.position.x, y: card.position.y }))));
     },
-    [setDoc],
+    [setDoc, rfNodes, setNodes],
   );
 
   const fitAll = useCallback(() => {
@@ -288,6 +360,17 @@ function StudioCanvasInner({ bundle, weeks, assetPrefix }: CanvasPayload) {
         event.preventDefault();
         zoomHundred();
       }
+      // Enter on a focused card adds it to the desk. The check is on the node
+      // wrapper itself, so Enter inside a board's rename field still commits
+      // the rename rather than quietly filling a reference slot.
+      if (event.key === "Enter") {
+        const target = event.target as HTMLElement | null;
+        if (!target?.classList.contains("react-flow__node")) return;
+        const nodeId = target.dataset.id;
+        if (!nodeId || !docRef.current.nodes.some((node) => node.id === nodeId)) return;
+        event.preventDefault();
+        deskRef.current?.addReference(nodeId);
+      }
     }
 
     element.addEventListener("keydown", onKeyDown);
@@ -313,7 +396,7 @@ function StudioCanvasInner({ bundle, weeks, assetPrefix }: CanvasPayload) {
   }, [selection.boards, setDoc]);
 
   return (
-    <CanvasActionsProvider value={{ addToDesk: desk.addReference }}>
+    <CanvasActionsProvider value={{ addToDesk: deskState.addReference }}>
       <TierIndexProvider value={tierIndex}>
       <BoardRenameProvider value={rename}>
         <PlaybackProvider value={{ playingId, setPlayingId }}>
@@ -400,7 +483,9 @@ function StudioCanvasInner({ bundle, weeks, assetPrefix }: CanvasPayload) {
                 </Panel>
               </ReactFlow>
             </div>
-            <Desk desk={desk} readOnly={readOnly} onFocusNode={focusNode} />
+            <div className="studio-desk__column" ref={desk}>
+              <Desk desk={deskState} readOnly={readOnly} onFocusNode={focusNode} />
+            </div>
           </div>
         </PlaybackProvider>
       </BoardRenameProvider>

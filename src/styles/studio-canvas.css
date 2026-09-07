@@ -358,7 +358,13 @@
 
 /* ------------------------------------------------------------------ desk */
 
+.studio-desk__column {
+  display: flex;
+  min-inline-size: 0;
+}
+
 .studio-desk {
+  flex: 1 1 auto;
   display: flex;
   flex-direction: column;
   gap: var(--at-spacing-sm);
@@ -410,16 +416,31 @@
 }
 
 .studio-desk__slot {
-  display: grid;
-  grid-template-columns: 3rem minmax(0, 1fr);
+  display: flex;
+  flex-direction: column;
   gap: var(--at-spacing-xs);
-  align-items: start;
   padding: var(--at-spacing-xs);
   border: 1px solid var(--at-divider);
   border-radius: var(--at-border-radius);
 }
 
-.studio-desk__slot img,
+/* The whole slot is the drag handle and the arrow-key target, so reordering
+   from the keyboard and reordering with the pointer are the same control. */
+.studio-desk__slot-handle {
+  display: grid;
+  grid-template-columns: 3rem minmax(0, 1fr);
+  gap: var(--at-spacing-xs);
+  align-items: center;
+  text-align: start;
+  font: inherit;
+  color: var(--at-text);
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: grab;
+}
+
+.studio-desk__slot-handle img,
 .studio-desk__slot-mark {
   inline-size: 3rem;
   block-size: 4rem;
@@ -435,10 +456,50 @@
 }
 
 .studio-desk__slot-controls {
-  grid-column: 2;
   display: flex;
   flex-wrap: wrap;
   gap: 0.25rem;
+}
+
+.studio-desk__run {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--at-spacing-xs);
+  margin-block-start: var(--at-spacing-sm);
+}
+
+.studio-desk__answer {
+  margin: var(--at-spacing-sm) 0 0;
+  font-size: var(--at-font-size-xs);
+  color: var(--at-text-secondary);
+  min-block-size: 1.4em;
+}
+
+.studio-desk__answer:empty {
+  margin-block-start: 0;
+}
+
+.studio-desk__recorded {
+  display: block;
+  margin-block: var(--at-spacing-xs);
+  padding: var(--at-spacing-xs);
+  border-inline-start: 2px solid var(--at-accent);
+  color: var(--at-text);
+  white-space: pre-wrap;
+}
+
+.studio-desk__recent {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.studio-desk__recent .at-button {
+  inline-size: 100%;
+  font-family: ui-monospace, "SFMono-Regular", "Menlo", monospace;
 }
 
 .studio-desk__prompt {

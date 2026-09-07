@@ -8,12 +8,16 @@
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
+import { weekManifestSchema } from "../src/data/studio.schema";
 import { canvasBundle } from "../src/lib/canvas/build";
+import { recordedInputOf } from "../src/lib/canvas/doc";
 import { createBoardFor, deleteObjects, reparentNodes, worldRect } from "../src/lib/canvas/engine";
 import { layoutBoard, placeBoard, wrapNodes, type PlaceAnchor } from "../src/lib/canvas/layout";
 import { RF_TYPE, toRfEdges } from "../src/lib/canvas/rf";
+import { DESK_MESSAGES, resolveDeskRequest, tierIdOfNode } from "../src/lib/canvas/resolve";
 import { mergeStoredDoc } from "../src/lib/canvas/storage";
 import type { CanvasDoc, TakeNode } from "../src/lib/canvas/types";
+import { toClientWeek } from "../src/lib/studio-client";
 
 const FIXTURE_DIR = "src/lib/canvas/fixtures";
 const DATA_DIR = "src/data/studio";
@@ -108,8 +112,12 @@ interface RawTier {
   sameAs?: string;
 }
 
-function readManifest(name: string): { week: number; tiers: RawTier[] } {
+function readManifestRaw(name: string): unknown {
   return JSON.parse(readFileSync(resolve(DATA_DIR, name), "utf8"));
+}
+
+function readManifest(name: string): { week: number; tiers: RawTier[] } {
+  return readManifestRaw(name) as { week: number; tiers: RawTier[] };
 }
 
 const { doc } = canvasBundle;
@@ -278,6 +286,122 @@ describe("every edge names a handle that its cards actually carry", () => {
       expect(rf.sourceHandle, `${edge.id} runs ${backwards ? "right to left" : "left to right"}`).toBe(
         backwards ? "s-left" : "s-right",
       );
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The desk's resolver. The rig replays; it does not generate. So the whole of
+// "Generate" is this lookup, and the thing worth checking is that it round
+// trips — every tier's own recorded input resolves back to that tier, and
+// anything else resolves to nothing at all.
+// ---------------------------------------------------------------------------
+
+const clientWeeks = WEEK_FILES.map((file) => {
+  const manifest = weekManifestSchema.parse(readManifestRaw(file));
+  return toClientWeek({
+    ...manifest,
+    tiers: manifest.tiers.map((tier) => {
+      const input = tier.input as Record<string, unknown>;
+      const promptFile = typeof input.prompt_file === "string" ? input.prompt_file : undefined;
+      const negFile = typeof input.neg_file === "string" ? input.neg_file : undefined;
+      return {
+        ...tier,
+        ...(promptFile ? { promptText: readFileSync(resolve(DATA_DIR, promptFile), "utf8").trimEnd() } : {}),
+        ...(negFile ? { negText: readFileSync(resolve(DATA_DIR, negFile), "utf8").trimEnd() } : {}),
+      };
+    }),
+  });
+});
+
+// `recordedInput` is what the resolver compares against (normalised);
+// `rawPrompt` is what the desk actually pre-fills the box with — the prompt
+// file as written, newlines and all. The round trip has to start from the raw
+// one, or it would only prove the resolver can compare a string to itself.
+const tierRefs = new Map<string, { week: number; tierId: string; recordedInput: string; rawPrompt: string }>();
+for (const week of clientWeeks) {
+  for (const tier of week.tiers) {
+    tierRefs.set(tier.id, {
+      week: week.week,
+      tierId: tier.id,
+      recordedInput: recordedInputOf(tier),
+      rawPrompt: tier.input.promptText ?? (typeof tier.input.value === "number" ? String(tier.input.value) : ""),
+    });
+  }
+}
+
+const tierOf = (nodeId: string) => {
+  const node = doc.nodes.find((candidate) => candidate.id === nodeId);
+  const tierId = tierIdOfNode(node);
+  return tierId ? tierRefs.get(tierId) : undefined;
+};
+
+// Seen red twice.
+//  - Dropped the whitespace normalisation from rule 1: 36 of the 37 tiers
+//    failed with "expected { kind: 'prompt-differs', …(3) } to deeply equal
+//    { kind: 'resolved', week: 2, …(1) }". The one that stayed green is
+//    week02-t1, whose recorded input is a bare seed with no whitespace in it
+//    to normalise — which is why the round trip starts from the raw prompt
+//    file rather than from the normalised string.
+//  - Made rule 1 ignore the prompt entirely: all 37 "refuses a prompt the rig
+//    was never given" checks failed with "expected 'resolved' to be
+//    'prompt-differs'".
+describe("every tier's own recorded input resolves back to that tier", () => {
+  for (const [tierId, ref] of tierRefs) {
+    it(`${tierId}'s own recorded input resolves back to it`, () => {
+      expect(resolveDeskRequest({ references: [`${tierId}-take`], prompt: ref.rawPrompt, tierOf })).toEqual({
+        kind: "resolved",
+        week: ref.week,
+        tierId,
+      });
+    });
+
+    it(`${tierId} refuses a prompt the rig was never given`, () => {
+      const result = resolveDeskRequest({
+        references: [`${tierId}-take`],
+        prompt: `${ref.rawPrompt} and then she turns around`,
+        tierOf,
+      });
+      expect(result.kind).toBe("prompt-differs");
+      if (result.kind === "prompt-differs") expect(result.recordedInput).toBe(ref.recordedInput);
+    });
+  }
+
+  it("takes the input card as readily as the take card", () => {
+    const ref = tierRefs.get("week05-t3")!;
+    expect(resolveDeskRequest({ references: ["week05-t3-input"], prompt: ref.rawPrompt, tierOf })).toEqual({
+      kind: "resolved",
+      week: 5,
+      tierId: "week05-t3",
+    });
+  });
+
+  it("normalises whitespace, so a re-wrapped paste still matches", () => {
+    const ref = tierRefs.get("week05-t3")!;
+    const rewrapped = `\n  ${ref.recordedInput.split(" ").join("\n")}  \n`;
+    expect(resolveDeskRequest({ references: ["week05-t3-take"], prompt: rewrapped, tierOf }).kind).toBe("resolved");
+  });
+
+  it("says so when there is nothing on the desk", () => {
+    expect(resolveDeskRequest({ references: [], prompt: "anything", tierOf }).kind).toBe("no-reference");
+  });
+
+  it("says so for a clip the rig cut rather than generated", () => {
+    expect(resolveDeskRequest({ references: ["cut-hook-take"], prompt: "", tierOf }).kind).toBe("no-recorded-run");
+    expect(resolveDeskRequest({ references: ["reference-episode-take"], prompt: "", tierOf }).kind).toBe(
+      "no-recorded-run",
+    );
+  });
+
+  it("says so when the references come from different tiers", () => {
+    expect(
+      resolveDeskRequest({ references: ["week05-t3-take", "week05-t4-take"], prompt: "", tierOf }).kind,
+    ).toBe("mixed-tiers");
+  });
+
+  it("has a line for every answer it can give", () => {
+    for (const kind of ["prompt-differs", "no-reference", "no-recorded-run", "mixed-tiers"] as const) {
+      expect(DESK_MESSAGES[kind].length, `${kind} needs a line`).toBeGreaterThan(0);
     }
   });
 });

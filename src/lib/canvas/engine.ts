@@ -9,15 +9,18 @@
 
 import {
   BOARD_GAP,
+  deskBoardTitle,
   growBoard,
   layoutBoard,
   nextUserBoardTitle,
+  NODE_W,
   placeBoard,
   wrapNodes,
+  type PlaceAnchor,
   type PlacedItem,
   type Rect,
 } from "./layout";
-import type { Board, CanvasDoc, Edge, ID, Node } from "./types";
+import type { Board, CanvasDoc, Edge, ID, Node, Origin, PlaceholderNode, TakeNode } from "./types";
 
 export interface Move {
   id: ID;
@@ -299,6 +302,115 @@ export function fitBoardToContent(doc: CanvasDoc, boardId: ID): CanvasDoc {
     nodes: doc.nodes.map((node) => {
       const position = local.get(node.id);
       return position ? { ...node, x: position.x, y: position.y } : node;
+    }),
+  };
+}
+
+export interface DeskGenerationRequest {
+  /** A stable id for the node and the board; the caller owns it so the
+   *  progress updates and the completion can find them again. */
+  id: string;
+  refNodeIds: ID[];
+  prompt: string;
+  at: Date;
+  /** The size of the take this will become, so the placeholder is already
+   *  the right shape and nothing on the board moves when the clip arrives. */
+  naturalW: number;
+  naturalH: number;
+  /** The recorded take being replayed. */
+  resolvesTo: ID;
+}
+
+/** Opens a board for a desk generation and puts a placeholder on it, with an
+ *  edge from every reference. §3: under the board that holds all the
+ *  references, or past the rightmost one when they span boards. */
+export function beginDeskGeneration(
+  doc: CanvasDoc,
+  request: DeskGenerationRequest,
+): { doc: CanvasDoc; nodeId: ID; boardId: ID } {
+  const boardIds = new Set(
+    request.refNodeIds.flatMap((id) => {
+      const node = doc.nodes.find((candidate) => candidate.id === id);
+      return node ? [node.boardId] : [];
+    }),
+  );
+
+  const nodeId = `desk-${request.id}`;
+  const boardId = `desk-board-${request.id}`;
+  const height = Math.round((NODE_W * request.naturalH) / request.naturalW);
+  const layout = layoutBoard([{ id: nodeId, naturalW: request.naturalW, naturalH: request.naturalH }]);
+
+  const anchor: PlaceAnchor =
+    boardIds.size === 1 ? { kind: "below", boardId: [...boardIds][0] } : { kind: "right-of-all" };
+  const placed = placeBoard(doc, layout, anchor);
+
+  const board: Board = {
+    id: boardId,
+    title: deskBoardTitle(request.prompt, request.at),
+    x: placed.x,
+    y: placed.y,
+    w: layout.w,
+    h: layout.h,
+    kind: "user",
+    order: doc.boards.length,
+  };
+
+  const origin: Origin = {
+    kind: "desk",
+    refNodeIds: request.refNodeIds,
+    prompt: request.prompt,
+    at: request.at.toISOString(),
+  };
+
+  const placeholder: PlaceholderNode = {
+    id: nodeId,
+    boardId,
+    type: "placeholder",
+    x: layout.positions[0].x,
+    y: layout.positions[0].y,
+    w: NODE_W,
+    h: height,
+    locked: false,
+    origin,
+    expectedAspect: request.naturalW / request.naturalH,
+    resolvesTo: request.resolvesTo,
+  };
+
+  const edges: Edge[] = request.refNodeIds.map((from) => ({
+    id: `desk-${request.id}-${from}`,
+    from,
+    to: nodeId,
+    kind: "desk",
+    label: "reference",
+  }));
+
+  return {
+    doc: { ...doc, boards: [...doc.boards, board], nodes: [...doc.nodes, placeholder], edges: [...doc.edges, ...edges] },
+    nodeId,
+    boardId,
+  };
+}
+
+export interface ResolvedTake {
+  media: "image" | "video";
+  file: string;
+  poster?: string;
+  naturalW: number;
+  naturalH: number;
+  tierId: string;
+  takeId: string;
+}
+
+/** Swaps the placeholder for the take the rig recorded. Same node id, so the
+ *  edges drawn from each reference at the start are the edges that end up on
+ *  the finished take. */
+export function completeDeskGeneration(doc: CanvasDoc, nodeId: ID, take: ResolvedTake): CanvasDoc {
+  return {
+    ...doc,
+    nodes: doc.nodes.map((node) => {
+      if (node.id !== nodeId || node.type !== "placeholder") return node;
+      const { expectedAspect: _aspect, resolvesTo: _resolves, ...base } = node;
+      return { ...base, type: "take", ...take } satisfies TakeNode;
     }),
   };
 }

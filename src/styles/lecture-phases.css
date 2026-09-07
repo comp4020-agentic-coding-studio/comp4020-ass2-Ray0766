@@ -28,7 +28,15 @@
  * layered one regardless of specificity. Colour comes from the four
  * `--phase-*` tokens (src/styles/phase-colours.css, imported by site.css,
  * which every lecture page also loads) and the theme's `--at-*` tokens; this
- * file introduces no colour of its own. */
+ * file introduces no colour of its own.
+ *
+ * A phase colour is a fill here, never an ink. The four are a gold, a bronze,
+ * a warm grey and a darker gold, and measured against the two page surfaces
+ * they land between 2.7:1 and 3.5:1 — enough for a rule, a bar or a pin, not
+ * enough for text at any size the lecture body actually uses. The build's axe
+ * pass cannot catch this (it runs in JSDOM, which has no layout and no CSS, so
+ * colour-contrast never even runs), so it was measured in Chrome at both
+ * viewports in both themes. Text takes --at-text or --at-text-secondary. */
 
 .at-main[data-phase="rig"] {
   --phase-color: var(--phase-rig);
@@ -76,7 +84,7 @@
    rather than as a comparison table. */
 
 .spec-sheet {
-  border-block-start: 1px solid var(--at-divider);
+  border-block-start: 2px solid var(--phase-color);
 }
 
 .spec-sheet caption {
@@ -91,7 +99,6 @@
   font-family: var(--at-font-mono);
   font-weight: 600;
   font-size: var(--at-font-size-sm);
-  color: var(--phase-color);
   vertical-align: baseline;
 }
 
@@ -174,7 +181,7 @@
 .rung__tier {
   font-family: var(--at-font-mono);
   font-weight: 600;
-  color: var(--phase-color);
+  color: var(--at-text);
 }
 
 /* ----------------------------------------------------------------------
@@ -280,6 +287,10 @@
   color: var(--at-text-secondary);
 }
 
+.ladder-rail__rung.is-current .ladder-rail__tier {
+  color: var(--at-text);
+}
+
 .ladder-rail__label {
   grid-column: 2;
   font-size: var(--at-font-size-sm);
@@ -294,12 +305,8 @@
   opacity: 1;
 }
 
-.ladder-rail__rung.is-current :is(.ladder-rail__tier, .ladder-rail__label) {
+.ladder-rail__rung.is-current .ladder-rail__label {
   color: var(--at-text);
-}
-
-.ladder-rail__rung.is-current .ladder-rail__tier {
-  color: var(--phase-color);
 }
 
 /* ----------------------------------------------------------------------
@@ -343,6 +350,10 @@
 .at-main[data-phase="episode"] > section > h2 {
   font-size: clamp(1.25rem, 1.1rem + 0.5vw, 1.6rem);
   letter-spacing: -0.005em;
+  /* Ink, not the theme's gold: on a tinted band the gold measures 2.73:1,
+     which fails at both marking viewports --- as large text at 1920 and as
+     small text at 390, where the clamp bottoms out below 24px. */
+  color: var(--at-text);
   background: color-mix(in oklab, var(--phase-color) 14%, transparent);
   border-inline-start: 4px solid var(--phase-color);
   padding: 0.45em 0.7em;

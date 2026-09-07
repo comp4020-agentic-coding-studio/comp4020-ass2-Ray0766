@@ -215,6 +215,16 @@ find the real one or state the technique generically.
   must be fully readable at both viewports in every resting state.
 - Both colour themes are checked, because the OS chooses the default and the
   footer toggle exists.
+- The build's axe run is not a contrast check. `astro-theme-university`'s
+  `a11y-worker.mjs` runs axe-core over the HTML inside a JSDOM document, and
+  JSDOM has no layout and no computed colour, so contrast rules cannot fire;
+  the theme's own `contrast.ts` says axe-core cannot read oklch anyway, which
+  is why the palette is checked as token arithmetic instead. Neither of those
+  reaches a semi-transparent fill over something else, which has no token
+  value at all — the hero scrim, a card wash, any overlay on a frame. So any
+  new colour gets measured in a real browser, on the composite: read the
+  rendered pixel, not the declared one. "58 pages, no accessibility
+  violations" is silent about every one of them.
 - Walk the page from the address bar with the keyboard alone before calling
   an interactive change done: every control reachable, in document order,
   with a ring you can see. `all: unset` is an opt-out of the focus indicator,

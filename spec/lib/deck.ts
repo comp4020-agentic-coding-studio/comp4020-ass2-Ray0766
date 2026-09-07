@@ -58,6 +58,12 @@ export interface BuiltDeck {
   /** Path relative to the repo root, for failure messages. */
   path: string;
   slides: string[];
+  /**
+   * The same slides as rendered HTML, for the checks that count what kind of
+   * element a word is in --- `slides` has already flattened a heading, a
+   * table cell and a sentence of prose into the same string.
+   */
+  sections: string[];
 }
 
 export function loadBuiltDeck(route: string): BuiltDeck {
@@ -65,10 +71,10 @@ export function loadBuiltDeck(route: string): BuiltDeck {
   const html = readFileSync(resolve(path), "utf8");
   const slidesBlock = /<div class="slides">([\s\S]*)<\/div>/.exec(html);
   if (!slidesBlock) throw new Error(`${path} has no .slides container`);
-  const slides = [...slidesBlock[1].matchAll(/<section\b[^>]*>([\s\S]*?)<\/section>/g)].map((match) =>
-    slideText(match[1]),
+  const sections = [...slidesBlock[1].matchAll(/<section\b[^>]*>([\s\S]*?)<\/section>/g)].map(
+    (match) => match[1],
   );
-  return { route, path, slides };
+  return { route, path, slides: sections.map(slideText), sections };
 }
 
 /**

@@ -79,6 +79,12 @@ find the real one or state the technique generically.
 
 - Never hand-edit anything under `dist/` or `src/content/**/*.json` — build
   output. Fix the source and rebuild.
+- The repo sits under `~/Desktop`, inside iCloud Drive's sync range, so it
+  grows conflict copies — `week-08 2.mdx` beside `week-08.mdx`. A copy in a
+  content collection is a second entry with a colliding key, and in
+  `src/decks/` a thirteenth deck; both build. So **never `git add -A`**: add
+  named paths, and let `spec/no-duplicate-copies.test.ts` name any copy that
+  has appeared.
 - A build-time-only module (reads JSON/text off disk to feed a page) must not
   resolve its own file paths at runtime via `import.meta.url`/`readFileSync`:
   the prerender step bundles the module into a chunk that no longer sits next

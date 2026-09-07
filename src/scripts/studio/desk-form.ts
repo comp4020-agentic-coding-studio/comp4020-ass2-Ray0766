@@ -26,8 +26,12 @@ const root = document.querySelector<HTMLElement>("[data-studio-form]");
 const payloadEl = document.querySelector<HTMLScriptElement>("[data-studio-canvas-payload]");
 
 // Above the phone breakpoint the canvas is the desk, so this never runs and
-// never reveals its section.
-if (root && payloadEl && window.matchMedia(PHONE).matches) {
+// never reveals its section — but it has to be able to run later. A window
+// dragged down past 640 hides the canvas by media query, and before this was
+// a function that could be called twice, what the reader got at 600px was a
+// page with no canvas and a desk section still carrying its `hidden`
+// attribute: an empty week selector nobody could see. Measured in Chrome.
+function mountPhoneDesk(root: HTMLElement, payloadEl: HTMLScriptElement): void {
   const weekSelect = root.querySelector<HTMLSelectElement>("[data-form-week]");
   const tierSelect = root.querySelector<HTMLSelectElement>("[data-form-tier]");
   const kindLine = root.querySelector<HTMLElement>("[data-form-kind]");
@@ -278,3 +282,14 @@ if (root && payloadEl && window.matchMedia(PHONE).matches) {
     setBusy(false);
   }
 }
+
+// Once, and on whichever side of the breakpoint the reader ends up on.
+let mounted = false;
+function mountOnce(): void {
+  if (mounted || !root || !payloadEl || !window.matchMedia(PHONE).matches) return;
+  mounted = true;
+  mountPhoneDesk(root, payloadEl);
+}
+
+mountOnce();
+window.matchMedia(PHONE).addEventListener("change", mountOnce);

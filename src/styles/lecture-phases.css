@@ -17,6 +17,12 @@
  * This week's exercise), the register, and the H1, so the pages still read
  * as one course rather than four microsites.
  *
+ * It also styles the components those shapes are built from
+ * (src/components/lecture/), which carry no stylesheet of their own: they are
+ * lecture-page furniture, and keeping the whole per-phase look in one file is
+ * what makes "is this phase consistent?" a question you can answer by reading
+ * one screen of CSS.
+ *
  * Unlayered on purpose, like site.css: the theme wraps its rules in
  * `@layer at.base / at.components`, and an unlayered declaration beats every
  * layered one regardless of specificity. Colour comes from the four
@@ -61,6 +67,80 @@
   border-block-start: 1px solid var(--at-divider);
   padding-block-start: 0.9em;
   margin-block: 2.6em 0.9em;
+}
+
+/* The sheet itself: no thead, because both columns are the same rank of
+   fact --- the item and what it fixes --- and the theme's header fill is for
+   a table with column headings. Row headers instead, in the mono face the
+   rig headings already use, so the sheet reads as an instrument's datasheet
+   rather than as a comparison table. */
+
+.spec-sheet {
+  border-block-start: 1px solid var(--at-divider);
+}
+
+.spec-sheet caption {
+  text-align: start;
+  padding-block-end: var(--at-spacing-sm);
+  color: var(--at-text-secondary);
+  font-size: var(--at-font-size-sm);
+}
+
+.spec-sheet th {
+  width: 30%;
+  font-family: var(--at-font-mono);
+  font-weight: 600;
+  font-size: var(--at-font-size-sm);
+  color: var(--phase-color);
+  vertical-align: baseline;
+}
+
+.spec-sheet td {
+  vertical-align: baseline;
+}
+
+.spec-sheet tbody tr {
+  border-block-end: 1px solid var(--at-divider);
+}
+
+/* Stripes are for scanning a grid of comparable values; a definition sheet
+   is read a row at a time, and the rules between rows already separate
+   them. */
+.spec-sheet tbody tr:nth-child(even) {
+  background: none;
+}
+
+.spec-sheet__source {
+  margin-block: var(--at-spacing-sm) var(--at-spacing-xl);
+  font-size: var(--at-font-size-sm);
+  color: var(--at-text-secondary);
+}
+
+/* The production log prints as it was kept, so it keeps its own line breaks
+   and its own column alignment; the wrapper scrolls rather than reflowing,
+   because a log whose columns have wrapped is no longer a log. */
+
+.production-log {
+  margin-block: var(--at-spacing-lg);
+  margin-inline: 0;
+}
+
+.production-log .log {
+  overflow-x: auto;
+  margin: 0;
+  padding: var(--at-spacing-md);
+  border: 1px solid var(--at-divider);
+  border-inline-start: 3px solid var(--phase-color);
+  background: var(--at-bg-alt);
+  font-family: var(--at-font-mono);
+  font-size: var(--at-font-size-sm);
+  line-height: 1.5;
+}
+
+.production-log figcaption {
+  margin-block-start: var(--at-spacing-sm);
+  font-size: var(--at-font-size-sm);
+  color: var(--at-text-secondary);
 }
 
 /* ----------------------------------------------------------------------

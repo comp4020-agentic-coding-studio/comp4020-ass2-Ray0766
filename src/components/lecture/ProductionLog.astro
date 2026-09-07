@@ -1,0 +1,63 @@
+---
+// The week's own production log, rendered from the manifest that recorded it
+// (src/data/studio/week-NN.json) rather than typed out again underneath it.
+// Week 2's lecture argues that a log is what turns a good roll into a
+// repeatable one; printing the actual log next to that claim is the cheapest
+// way to show what "enough that someone who wasn't in the room could land on
+// a comparable result" looks like in practice.
+//
+// Every line here is a field that exists in the manifest. Nothing is invented
+// to make the log look fuller: a week with no fps, or tiers whose input isn't
+// a seed, simply prints fewer columns.
+import { studioWeeks } from "../../lib/studio";
+
+interface Props {
+  week: number;
+}
+
+const { week: weekNumber } = Astro.props;
+const week = studioWeeks.find((entry) => entry.week === weekNumber);
+if (!week) throw new Error(`ProductionLog: no studio manifest for week ${weekNumber}`);
+
+const header: [string, string][] = [
+  ["instrument", week.instrument],
+  ["model", week.model],
+  ["mode", week.mode],
+  ["resolution", week.resolution],
+  ...(week.fps ? ([["fps", String(week.fps)]] as [string, string][]) : []),
+];
+
+// Every tier in a rig week shares one prompt file; say so once in the header
+// rather than repeating the same path down the whole table.
+const promptFiles = [
+  ...new Set(
+    week.tiers.map((tier) => (tier.input as { prompt_file?: string }).prompt_file).filter(Boolean),
+  ),
+] as string[];
+if (promptFiles.length === 1) header.push(["prompt", promptFiles[0]]);
+
+const rows = week.tiers.map((tier) => {
+  const input = tier.input as { kind: string; value?: unknown };
+  const seed = typeof input.value === "number" ? String(input.value) : "—";
+  return { tier: tier.tier, seed, output: tier.output.file };
+});
+
+const pad = (value: string, width: number) => value.padEnd(width);
+const keyWidth = Math.max(...header.map(([key]) => key.length)) + 2;
+const seedWidth = Math.max(4, ...rows.map((row) => row.seed.length)) + 2;
+
+const log = [
+  ...header.map(([key, value]) => `${pad(key, keyWidth)}${value}`),
+  "",
+  `${pad("tier", 6)}${pad("seed", seedWidth)}output`,
+  ...rows.map((row) => `${pad(row.tier, 6)}${pad(row.seed, seedWidth)}${row.output}`),
+].join("\n");
+---
+
+<figure class="production-log">
+  <pre class="log">{log}</pre>
+  <figcaption>
+    The rolls in this week's ladder as the log records them: one prompt file,
+    one set of settings, and the seed that addresses each roll.
+  </figcaption>
+</figure>

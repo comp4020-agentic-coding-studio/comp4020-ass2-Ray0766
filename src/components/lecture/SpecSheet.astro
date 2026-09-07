@@ -1,0 +1,40 @@
+---
+// A two-column spec sheet, the shape the rig weeks take: the page opens with
+// what the rig actually consists of, item by item, and argues about it
+// afterwards. Weeks 1-2 are the only two weeks where the material really is a
+// list of settings and obligations rather than a technique, so this is the
+// one phase where a table can carry the opening.
+//
+// Rows come in as <SpecRow> children so a value can hold a link or a piece of
+// inline markdown; the sheet itself only owns the caption, the scroll wrapper
+// (the theme's own .at-table-wrap, so a wide sheet scrolls on a phone instead
+// of pushing the page sideways) and the source line.
+//
+// `source` is for a sheet whose values come from outside the page --- one
+// line under the table, in the same "Source: <short title> --- <url>" form
+// the decks use. A sheet that only restates what the page's own prose says
+// takes no source line.
+interface Props {
+  caption: string;
+  source?: string;
+  sourceUrl?: string;
+}
+
+const { caption, source, sourceUrl } = Astro.props;
+---
+
+<div class="at-table-wrap">
+  <table class="spec-sheet">
+    <caption>{caption}</caption>
+    <tbody>
+      <slot />
+    </tbody>
+  </table>
+</div>
+{
+  source && sourceUrl && (
+    <p class="spec-sheet__source">
+      Source: <a href={sourceUrl}>{source}</a>
+    </p>
+  )
+}

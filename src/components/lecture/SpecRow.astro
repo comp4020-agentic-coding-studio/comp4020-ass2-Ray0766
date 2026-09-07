@@ -1,0 +1,14 @@
+---
+// One row of a <SpecSheet>: the item on the left as a row header, what it
+// fixes on the right.
+interface Props {
+  term: string;
+}
+
+const { term } = Astro.props;
+---
+
+<tr>
+  <th scope="row">{term}</th>
+  <td><slot /></td>
+</tr>

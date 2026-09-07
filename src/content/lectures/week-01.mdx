@@ -14,6 +14,9 @@ related:
 draft: false
 ---
 
+import SpecSheet from "../../components/lecture/SpecSheet.astro";
+import SpecRow from "../../components/lecture/SpecRow.astro";
+
 Every shot this semester comes out of a rig, and a rig is one of exactly
 two things: a graphics card with a VRAM ceiling, or an account with a
 credit balance. Neither is the legitimate one — a booked slot on the
@@ -22,6 +25,14 @@ treats them as interchangeable inputs to the same discipline. What doesn't
 change between them is what has to be tracked: where the weights or the
 model came from, what licence governs the output, and a record detailed
 enough that today's result can be found again next week.
+
+<SpecSheet caption="The rig, item by item. Both kinds of rig carry all five.">
+  <SpecRow term="Budget">A VRAM ceiling on a local rig, a credit balance on an API rig. One of those two numbers is yours, and it is known before a shot is planned, not after.</SpecRow>
+  <SpecRow term="Weights">One base release plus a long tail of community finetunes, from a public repository. An API model publishes the same information as terms of service instead of as a file.</SpecRow>
+  <SpecRow term="Licence">Not interchangeable between files: some permit commercial use outright, some are research-only, and some carry a responsible-use clause restricting the output itself.</SpecRow>
+  <SpecRow term="The record">The workflow graph on a local rig, the request log on an API rig. Either one lets someone rerun the decision that produced a frame; the frame does not.</SpecRow>
+  <SpecRow term="Render time">Tens of seconds to minutes per five-second take, plus queue time and a metered cost on an API rig — before counting the takes thrown away.</SpecRow>
+</SpecSheet>
 
 ## The two shapes of a budget
 

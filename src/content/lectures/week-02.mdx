@@ -15,6 +15,9 @@ draft: false
 ---
 
 import CompareSet from "../../components/widgets/CompareSet.astro";
+import ProductionLog from "../../components/lecture/ProductionLog.astro";
+import SpecSheet from "../../components/lecture/SpecSheet.astro";
+import SpecRow from "../../components/lecture/SpecRow.astro";
 
 Every generator this course touches runs the same loop underneath
 whatever interface sits on top of it: set some parameters, generate,
@@ -24,6 +27,17 @@ nodes; the workflow is the actual sequence of operations underneath it,
 and the two are not the same thing. For the first six weeks this course
 supplies the workflow, as a starting graph, so the loop itself is the
 whole lesson.
+
+<SpecSheet
+  caption="What one roll is specified by, on the sampler the supplied graph runs."
+  source="ComfyUI, KSampler"
+  sourceUrl="https://docs.comfy.org/built-in-nodes/KSampler"
+>
+  <SpecRow term="seed">0 to 0xffffffffffffffff — the random seed used for creating the noise. Change it and a different roll has been generated; hold it, and one other parameter is being tested on its own.</SpecRow>
+  <SpecRow term="steps">How many denoising steps the sampler runs before it hands a result back. Default 20.</SpecRow>
+  <SpecRow term="cfg">How hard the sampler is pushed toward the prompt rather than toward whatever the model would produce unprompted. Default 8.0, with 6 to 8 recommended.</SpecRow>
+  <SpecRow term="sampler">`euler`, `euler_ancestral`, `heun`, `dpmpp_2m`, `dpmpp_2m_sde` or `dpmpp_3m_sde`, each paired with a scheduler: `simple`, `sgm_uniform`, `karras`, `exponential`, `ddim_uniform`, `beta` or `normal`. The list is read out of the running software and moves; this one was read in September 2026.</SpecRow>
+</SpecSheet>
 
 ## Rolling is not re-prompting
 
@@ -54,6 +68,8 @@ workflow graph in use, the seed, and every parameter that could plausibly
 change the output — enough that someone who wasn't in the room could load
 the same graph and land on a comparable result. A roll without a log is a
 lucky accident the moment the tab closes.
+
+<ProductionLog week={2} />
 
 ## The ladder
 

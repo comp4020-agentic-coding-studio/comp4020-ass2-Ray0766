@@ -5,6 +5,8 @@ description: The two shapes of a budget, the licence on the weights, and the rec
 
 {/* _class: deck-title deck-phase--rig */}
 
+![bg blur:6px brightness:0.35](./assets/hero_full_wet.avif)
+
 # The Rig
 
 ## Week 1 · SLOP8760
@@ -52,10 +54,20 @@ The four phases, in the course's own words from the home page:
 
 ---
 
-## The two shapes of a budget
+{/* _class: deck-spec */}
 
-A local rig is bounded by VRAM. An API rig is bounded by a credit balance.
-Know which number is yours before planning a shot around a model.
+## The budget has two shapes
+
+A local rig is bounded by VRAM; an API rig by a credit balance. Wan2.2
+publishes the floor for both of its sizes, and the floor decides which models
+exist for you at all.
+
+| Wan2.2 model         | Single-GPU VRAM |
+| -------------------- | --------------- |
+| TI2V-5B              | at least 24GB   |
+| T2V-A14B, I2V-A14B   | at least 80GB   |
+
+<p class="deck-source">Source: Wan2.2 README — https://github.com/Wan-Video/Wan2.2</p>
 
 ```notes
 A local rig is bounded by VRAM, not by price or processor speed — VRAM sets
@@ -64,14 +76,50 @@ can produce. Running out of it doesn't mean slower; past a point, it means the
 model does not run at all. An API rig is bounded by a credit balance instead:
 no ceiling on model size, but every call has a metered cost, and a workflow
 that loops without a limit burns through a semester's budget in an afternoon.
+
+The README's own words: TI2V-5B "can run on a GPU with at least 24GB VRAM
+(e.g, RTX 4090 GPU)", while the A14B text-to-video and image-to-video models
+want "at least 80GB VRAM". The A14B pair is a mixture-of-experts design —
+"27B parameters but only 14B active parameters per step" — which is why the
+name and the memory floor disagree.
 ```
 
 ---
 
-## Licences are not interchangeable
+## Render time is not shooting time
 
-Some weights permit commercial use, some are research-only, and some carry a
-responsible-use clause on specific output regardless of what you paid.
+<p class="deck-figure">9<span class="deck-figure__unit">minutes, at most</span></p>
+
+Wan2.2's own figure for one five-second 720P clip out of TI2V-5B on an RTX
+4090. That is one take, before the takes you throw away.
+
+<p class="deck-source">Source: Wan2.2 README — https://github.com/Wan-Video/Wan2.2</p>
+
+```notes
+The README states it as "TI2V-5B can generate a 5-second 720P video in under 9
+minutes on a single consumer-grade GPU". Read it as a floor rather than a
+promise: it is the model's own best case, on the fastest consumer card, at the
+smallest of the three sizes, for a take that works. A shot that survives
+Dailies is rarely attempt one, on either kind of rig, and an API call adds
+queue time on top of its metered cost.
+```
+
+---
+
+{/* _class: deck-spec */}
+
+## A licence is three separate questions
+
+Weights arrive with terms attached, and the terms are not interchangeable.
+One model's licence answers all three at once.
+
+| Question  | MiniMax H3's answer                                          |
+| --------- | ------------------------------------------------------------ |
+| Revenue   | separate authorisation above US$20 million yearly revenue      |
+| Territory | the EU, the UK, the Republic of Korea and the USA are excluded |
+| Output    | MiniMax claims no rights over the outputs you generate         |
+
+<p class="deck-source">Source: MiniMax H3 Community License Agreement — https://huggingface.co/MiniMaxAI/MiniMax-H3/blob/main/LICENSE</p>
 
 ```notes
 Local model weights come from public repositories — one base release, then a
@@ -82,14 +130,50 @@ responsible-use clause restricting specific output regardless of what was paid
 for access. An API model publishes the same information differently, as terms
 of service rather than a licence file, but the obligation to read it before
 building a shot around it is identical.
+
+The licence's own definitions section names the Excluded Territories as the
+European Union, the United Kingdom, the Republic of Korea and the United
+States, and requires separate authorisation from any entity with "more than 20
+million US dollars ... in yearly revenue". The model card adds that the local
+weights are "released under the MiniMax H3 Community License Agreement" rather
+than an open-source licence.
+```
+
+---
+
+{/* _class: quote */}
+
+> Licensor claims no rights in the Output You generate using the Model.
+>
+> <cite>CreativeML Open RAIL-M, §6</cite>
+
+<p class="deck-source">Source: CreativeML Open RAIL-M licence text — https://huggingface.co/spaces/CompVis/stable-diffusion-license/raw/main/license.txt</p>
+
+```notes
+The output clause is the one students most often assume and least often read.
+Three unrelated licences on this week's list say the same thing in their own
+words — the CreativeML Open RAIL-M text quoted here, Stability's community
+licence ("You own any outputs generated from the Models"), and the Fair AI
+Public License ("The output of this software is not covered by this license").
+What those licences do restrict is the weights and the use: RAIL licences are
+the ones carrying behavioural-use clauses, listed in the CreativeML text as
+Attachment A, and the Fair AI licence is copyleft — modifications go back out
+under the same terms, and network users need "a reasonable way to receive the
+corresponding source code".
 ```
 
 ---
 
 ## The artefact is the record, not the frame
 
-Keep the workflow graph, or keep the request log. Today's frame is not the
-point; what lets someone rerun the decision behind it is.
+![bg right:40%](./assets/reference-episode.avif)
+
+Keep whatever lets someone rerun the decision. A node graph exports to API
+format: UI metadata dropped, every node carrying a `class_type`, its `inputs`,
+and a link written as `["4", 0]`. An API rig has no graph, but its request log
+does the same job.
+
+<p class="deck-source">Source: ComfyUI docs, Workflow API Format — https://docs.comfy.org/development/api-development/workflow-api-format</p>
 
 ```notes
 On a local rig, the thing worth keeping is the workflow graph: a node-based
@@ -99,23 +183,11 @@ graph to save, but there is a request log — the exact parameters sent and the
 response received — and it does the same job. Either way, today's frame is not
 the point. What's worth keeping is whatever lets someone else rerun the
 decision that produced it.
-```
 
----
-
-## Render time is not shooting time
-
-Call it five seconds of compute, or a few cents, per second of footage — at
-the optimistic end, before counting the takes you throw away.
-
-```notes
-On the fastest consumer card sold today, a five-second take renders in tens of
-seconds on the lighter models and over a minute on the heavier ones; mid-range
-hardware measures the same take in minutes, and an API call adds queue time on
-top of its metered cost. Call it five seconds of compute — or a few cents —
-per second of footage, at the optimistic end, before counting the takes thrown
-away. A shot that survives Dailies is rarely attempt one, on either kind of
-rig.
+The export is File → Export Workflow (API), and the docs are explicit that the
+API format "omits UI metadata": no node positions, no colours, nothing about
+how the graph looked. The frame on the right is one still from this course's
+reference episode; the record behind it is a file of exactly this shape.
 ```
 
 ---
@@ -142,15 +214,19 @@ clips, their graphs or logs, and your timing notes to Wednesday's Dailies.
 
 ## Reading
 
-- [ComfyUI documentation](https://docs.comfy.org/)
-- [Hugging Face: repository licences](https://huggingface.co/docs/hub/repositories-licenses)
-- [Hugging Face: OpenRAIL](https://huggingface.co/blog/open_rail)
+- [Wan2.2](https://github.com/Wan-Video/Wan2.2)
+- [Hugging Face Hub: Licenses](https://huggingface.co/docs/hub/repositories-licenses)
+- [CreativeML Open RAIL-M licence text](https://huggingface.co/spaces/CompVis/stable-diffusion-license/raw/main/license.txt)
+- [ComfyUI: Workflow API Format](https://docs.comfy.org/development/api-development/workflow-api-format)
 
 ```notes
-- ComfyUI documentation — the reference for the graph you'll be saving all
-  semester, not just this week.
-- Hugging Face: repository licences — what a model's licence field actually
-  restricts, before you build a shot around a checkpoint.
-- Hugging Face: OpenRAIL — the responsible-use clause behind a lot of the
-  checkpoints you'll download this semester.
+- Wan2.2 — the README both of this week's numbers come from, and the clearest
+  published statement of what a VRAM floor actually buys you.
+- Hugging Face Hub: Licenses — where a repository declares its licence, and
+  what `license: other` obliges the publisher to add alongside it.
+- CreativeML Open RAIL-M — the licence text behind the output clause, and the
+  Attachment A use restrictions that make it a RAIL licence rather than an
+  ordinary permissive one.
+- ComfyUI: Workflow API Format — the shape of the record you will be keeping
+  all semester, whichever rig you picked.
 ```

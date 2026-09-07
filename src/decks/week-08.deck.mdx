@@ -7,6 +7,8 @@ import LadderStill from "../components/deck/LadderStill.astro";
 
 {/* _class: deck-title deck-phase--holding */}
 
+![bg blur:6px brightness:0.35](./assets/week08-t4.avif)
+
 # Continuity
 
 ## Week 8 · SLOP8760
@@ -23,6 +25,9 @@ Continuity as a system: a reference library built once, a model sheet that
 documents it, and an audit that checks every new shot against both.
 
 ```notes
+A generated character has no memory of its own face between shots; whatever
+consistency a scene has comes entirely from what gets fed back into the
+generator on your own graph, not from anything the model remembers on its own.
 This week turns that feeding-back into a system: a reference library built
 once, a model sheet that documents what's in it, and an audit that checks
 every new shot against it rather than trusting a general impression.
@@ -30,28 +35,15 @@ every new shot against it rather than trusting a general impression.
 
 ---
 
-## The model remembers nothing
-
-A generated character has no memory of its own face between shots. Whatever
-consistency a scene has comes from what you feed back in.
-
-```notes
-A generated character has no memory of its own face between shots; whatever
-consistency a scene has comes entirely from what gets fed back into the
-generator on your own graph, not from anything the model remembers on its
-own.
-```
-
----
-
-{/* _class: deck-claim--still */}
-
 ## Two ways to lock identity
 
-Reference adapters need no training and hold loosely. LoRA and DreamBooth
-train first and hold harder. That is the whole trade.
+<p class="deck-figure">10,000x<span class="deck-figure__unit">fewer trainable parameters than a full fine-tune</span></p>
 
-<LadderStill week={8} tier="t1" />
+Reference adapters need no training and hold loosely. LoRA trains first and
+holds harder: it freezes the pretrained weights and injects trainable rank
+decomposition matrices into each layer instead.
+
+<p class="deck-source">Source: LoRA: Low-Rank Adaptation of Large Language Models — https://arxiv.org/abs/2106.09685</p>
 
 ```notes
 There are two genuinely different ways to make a generator produce the same
@@ -61,61 +53,97 @@ moment a reference image exists, but they hold identity loosely enough that
 drift is still possible under enough motion or style pressure. LoRA and
 DreamBooth work the opposite way: both fine-tune a small set of weights on
 several images of the same subject, producing a checkpoint that reproduces
-that subject more reliably than any single reference image can, at the cost
-of needing a training pass before the first shot instead of after it.
+that subject more reliably than any single reference image can, at the cost of
+needing a training pass before the first shot instead of after it.
+
+The comparison on the slide is the paper's own, against a full fine-tune of
+GPT-3 175B: 10,000 times fewer trainable parameters and three times less GPU
+memory. The mechanism is a rank decomposition, and the paper reports that for
+the query and value projections "a rank as small as one suffices" — the
+adaptation a subject needs is much smaller than the model it adapts. For
+comparison, an IP-Adapter is 22M parameters and needs no training pass at all.
 ```
 
 ---
 
-## The model sheet
+{/* _class: quote */}
 
-A face, a full costume, and the props a viewer would notice if they changed —
-written down before the first real shot, for someone else to check against.
+> Given only a few (typically 3-5) casually captured images of a specific
+> subject
+>
+> <cite>Ruiz et al., DreamBooth, 2022</cite>
+
+<p class="deck-source">Source: DreamBooth — https://arxiv.org/abs/2208.12242</p>
+
+```notes
+Three to five images. That is the whole entry cost, and it is why a model
+sheet is worth building before the first real shot rather than after the
+tenth: the material a training pass needs is the same material a reference
+adapter needs, and you were going to shoot it either way.
+
+The other two pieces of the method are worth naming because they show up in
+every tool built on it: a unique identifier, so the subject gets a token of
+its own rather than colonising an ordinary word, and a class-specific prior
+preservation loss, which is what stops the model forgetting every other
+instance of the class while it learns this one.
+```
+
+---
+
+## The reference set is the whole system
+
+![bg right:40%](./assets/week08-t4.avif)
+
+The top tier hands the model five references: the face, the full body, two dry
+states, and the street itself as a subject of its own. H3's reference task
+takes up to nine images, three clips, and twelve files in total.
+
+<p class="deck-source">Source: MiniMax-H3 model card, Tasks — https://huggingface.co/MiniMaxAI/MiniMax-H3</p>
 
 ```notes
 A model sheet is the document a reference library becomes once it's organised
 for someone else to use: a face reference, a full costume reference, and a
-short list of props or details a viewer would notice if they changed.
-Building the sheet once, before the season's first real shot, is what turns
-"I remember what the costume looks like" into something a second person — or
-a second week of production — can check against without asking.
+short list of props or details a viewer would notice if they changed. Building
+the sheet once, before the season's first real shot, is what turns "I remember
+what the costume looks like" into something a second person — or a second week
+of production — can check against without asking.
+
+The fifth reference on this tier is the one students skip. A scene that runs
+several shots in the same location needs a master plate of the location
+itself, locked the same way a face is locked, or a background detail drifts
+between two shots that are supposed to be seconds apart in the same room. In
+the recorded prompt it is written as a subject in its own right, with its own
+retention line, alongside the character.
+
+The card's limits are worth knowing before you plan a shot around them: up to
+nine reference images, three reference videos and three standalone audio
+clips, each 2 to 15 seconds, with a total of no more than twelve files.
 ```
 
 ---
 
 {/* _class: deck-claim--still */}
 
-## The scene master plate
+## The model sheet, then the audit
 
-Lock the location the way a face is locked. Regenerated fresh per shot, a
-room looks plausible alone and inconsistent the moment two shots meet.
+Face, costume, props, location — a verdict per item, not one verdict for the
+shot. A shot can pass on the face and fail on a prop in the background at the
+same time.
 
-<LadderStill week={8} tier="t4" />
-
-```notes
-A scene that runs several shots in the same location needs one more reference
-beyond the character: a master plate of the location itself, locked the same
-way a face is locked, so a background detail doesn't drift between two shots
-that are supposed to be seconds apart in the same room. Without a master
-plate, a location regenerated fresh for each shot will look plausible in
-isolation and inconsistent the moment two shots sit next to each other in an
-edit.
-```
-
----
-
-## The audit
-
-Item by item against the sheet and the plate — face, costume, props, location
-— with a verdict per item, not one verdict for the shot.
+<LadderStill week={8} tier="t1" />
 
 ```notes
-Checking continuity means comparing every new shot against the model sheet
-and the master plate item by item — face, costume, key props, location — not
-watching a rough cut and trusting that it felt right. An audit produces a
-pass or fail per item, not a single verdict for the whole shot, because a
-shot can pass on the face and fail on a prop in the background at the same
-time.
+Checking continuity means comparing every new shot against the model sheet and
+the master plate item by item — face, costume, key props, location — not
+watching a rough cut and trusting that it felt right. An audit produces a pass
+or fail per item, not a single verdict for the whole shot.
+
+The still is the lowest tier, generated from a single face crop and nothing
+else, which is the honest baseline an audit is run against. VBench's temporal
+dimensions are the vocabulary for writing the verdict down: Subject
+Consistency measured as DINO feature similarity across frames, Background
+Consistency as CLIP feature similarity, and Temporal Flickering as mean
+absolute difference between frames.
 ```
 
 ---
@@ -133,8 +161,8 @@ One two-shot scene, with more reference behind it each time.
 
 ```notes
 The ladder this week builds one two-shot scene, climbing through how complete
-the reference set behind it is. The lowest tier uses a single face crop as
-the only reference. The next tier adds a half-body and a full-body reference
+the reference set behind it is. The lowest tier uses a single face crop as the
+only reference. The next tier adds a half-body and a full-body reference
 alongside the face. The next tier adds a full reference set covering multiple
 costume states. The top tier keeps the full set and adds a scene master plate
 for the location the two shots share.
@@ -144,8 +172,8 @@ for the location the two shots share.
 
 ## Before class
 
-Gather whatever reference images already exist for one character — even just
-a single face crop — to use as the starting point for this week's ladder.
+Gather whatever reference images already exist for one character — even just a
+single face crop — to use as the starting point for this week's ladder.
 
 ---
 
@@ -164,10 +192,16 @@ Dailies.
 
 - [LoRA: Low-Rank Adaptation of Large Language Models](https://arxiv.org/abs/2106.09685)
 - [DreamBooth: Fine Tuning Text-to-Image Diffusion Models for Subject-Driven Generation](https://arxiv.org/abs/2208.12242)
+- [VACE: All-in-One Video Creation and Editing](https://arxiv.org/abs/2503.07598)
+- [MiniMax-H3 model card](https://huggingface.co/MiniMaxAI/MiniMax-H3)
 
 ```notes
-- LoRA — the fine-tuning technique behind the fastest way to lock a character
-  identity harder than a reference image alone can.
-- DreamBooth — the technique this week's model-sheet training pass is built
-  on.
+- LoRA — the trained half of the trade, and how small the trained part
+  actually is.
+- DreamBooth — three to five images, a unique identifier, and the prior
+  preservation loss that keeps the rest of the class intact.
+- VACE — reference-to-video, video-to-video editing and masked editing brought
+  under one conditioning unit, which is where this family of tools is heading.
+- MiniMax-H3 model card — the reference task's real limits, in images, clips
+  and total files.
 ```

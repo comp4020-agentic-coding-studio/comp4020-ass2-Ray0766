@@ -1,7 +1,7 @@
 ---
-import { getPublishedCollection } from "astro-course-university/content";
-import Card from "astro-theme-university/components/Card.astro";
 import CardGrid from "astro-theme-university/components/CardGrid.astro";
+import { getPublishedCollection } from "astro-course-university/content";
+import { withBase } from "astro-theme-university/url";
 import { formatCourseDate } from "../lib/dates";
 import { PHASES } from "../lib/phases";
 
@@ -21,14 +21,46 @@ const groups = PHASES.map((phase) => ({
       </h2>
       <CardGrid columns={3}>
         {group.lectures.map((lecture) => (
-          <Card headingLevel="h3" title={lecture.data.title} href={`/lectures/${lecture.id}/`}>
-            {lecture.data.description && <p>{lecture.data.description}</p>}
-            <p>
-              <small>
-                Week {lecture.data.week} · {formatCourseDate(lecture.data.date)}
-              </small>
-            </p>
-          </Card>
+          /* Hand-rolled rather than <Card>, for the same reason
+             AssessmentsGrid is: <Card> renders the whole card as the anchor,
+             and this card carries two destinations — the lecture and its
+             deck. A second <a> inside an <a> is invalid, and the browser
+             closes the outer one on the way in rather than telling anyone.
+             So the card is a plain container, the title carries the link,
+             and the link stretches over the card (site.css) to keep the
+             whole surface clickable. Wrapping <Card> in an extra element
+             was the other option and it breaks `.at-card-grid > .at-card`'s
+             direct-child subgrid rule that aligns rows across columns. */
+          <div class="at-card lecture-card">
+            <div class="at-card-body">
+              <h3 class="at-card-title">
+                <a class="lecture-card__link" href={withBase(`/lectures/${lecture.id}/`)}>
+                  {lecture.data.title}
+                </a>
+              </h3>
+              {lecture.data.description && <p>{lecture.data.description}</p>}
+              <p>
+                <small>
+                  Week {lecture.data.week} · {formatCourseDate(lecture.data.date)}
+                </small>
+              </p>
+              {lecture.data.slides && (
+                <p class="lecture-card__actions">
+                  {/* Twelve links reading "Slides" go to twelve different
+                      decks, so each gets a name that says which one. The
+                      visible word stays inside the accessible name, which is
+                      what WCAG's label-in-name asks for. */}
+                  <a
+                    class="lecture-card__slides"
+                    href={withBase(lecture.data.slides)}
+                    aria-label={`Slides for Week ${lecture.data.week}`}
+                  >
+                    Slides
+                  </a>
+                </p>
+              )}
+            </div>
+          </div>
         ))}
       </CardGrid>
     </Fragment>

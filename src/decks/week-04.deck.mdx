@@ -3,9 +3,11 @@ title: Week 4 · Image to Image
 description: The second generator — denoising strength, ControlNet and IP-Adapter, and the turnaround from a rough input to a finished frame.
 ---
 
-import LadderStill from "../components/deck/LadderStill.astro";
+import LadderInput from "../components/deck/LadderInput.astro";
 
 {/* _class: deck-title deck-phase--generators */}
+
+![bg blur:6px brightness:0.35](./assets/week04-t3.avif)
 
 # Image to Image
 
@@ -24,33 +26,26 @@ keyframe, with one dial deciding how much of it survives.
 
 ```notes
 Text to image starts from nothing; image to image starts from something, and
-this week is about how much of that something survives.
+this week is about how much of that something survives. Denoising strength is
+the single number that decides it: low strength keeps most of the input's
+structure and repaints its surface, high strength keeps almost nothing and
+lets the prompt take over. Everything else this week is about giving the
+generator a better "something" to start from.
 ```
 
 ---
 
 ## One number decides it
 
-Low denoising strength keeps the input's structure and repaints its surface.
-High strength keeps almost nothing and lets the prompt take over.
+![bg right:40%](./assets/week04-t3.avif)
 
-```notes
-Denoising strength is the single number that decides it: low strength keeps
-most of the input's structure and repaints its surface, high strength keeps
-almost nothing and lets the prompt take over. Everything else this week is
-about giving the generator a better "something" to start from.
-```
+<LadderInput week={4} tier="t3" captions={["In: flat-coloured lineart"]} />
 
----
+One prompt and one strength across all five tiers. At `denoise` 1 the docs
+say the latent becomes completely random noise, losing all characteristics of
+the reference image.
 
-{/* _class: deck-claim--still */}
-
-## Reading the strength dial
-
-The useful range sits well below the top of the scale. Pushing the number up
-because a result looks unfinished erases the one thing worth keeping.
-
-<LadderStill week={4} tier="t1" />
+<p class="deck-source">Source: ComfyUI docs, image-to-image — https://docs.comfy.org/tutorials/basic/image-to-image</p>
 
 ```notes
 Denoising strength runs from barely touching the input to nearly regenerating
@@ -59,44 +54,94 @@ keyframe sits well below the top of that scale — high enough to fix
 proportions and clean up linework, low enough that the composition the input
 already got right survives the pass. Pushing the number up because a result
 looks unfinished usually erases the one thing worth keeping.
+
+The tutorial's own sentence is worth reading twice: "If `denoise` is 1, the
+latent space image will become completely random noise ... losing all
+characteristics of the reference image." The dial does not blend the input
+with the prompt. It decides how much of the input is still there when the
+sampler starts — which is why the pair on this slide holds its composition
+while everything on its surface is repainted.
 ```
 
 ---
 
-{/* _class: deck-claim--still */}
+## A pose signal is a list of coordinates
 
-## Structure and identity are different jobs
+<p class="deck-figure">25<span class="deck-figure__unit">body keypoints, plus 21 per hand and 70 on the face</span></p>
 
-ControlNet holds a pose or depth signal fixed while the rest regenerates.
-IP-Adapter carries identity or style forward from a reference.
+ControlNet does not read your picture. It reads a signal extracted from it,
+and a pose signal is numbers: `x0,y0,c0,x1,y1,c1,...`, starting at the nose
+and the neck.
 
-<LadderStill week={4} tier="t5" />
+<p class="deck-source">Source: OpenPose output documentation — https://github.com/CMU-Perceptual-Computing-Lab/openpose/blob/master/doc/02_output.md</p>
 
 ```notes
-ControlNet reads a separate signal from the input — a pose skeleton or a
-depth map — and holds that signal fixed while everything else in the image
-regenerates, which is the difference between "keep this composition" and
-"keep this exact picture." IP-Adapter does the opposite job: it carries
-identity or style forward from a reference image into the new one,
-independent of the pose or depth signal entirely. Used together, a pose comes
-from one input and a face or style anchor comes from another, and the
-generator reconciles both.
+The BODY_25 model's ordering starts {0 Nose, 1 Neck, 2 RShoulder ...} and the
+JSON writes `pose_keypoints_2d` as a flat run of x, y and confidence triples.
+Hands add 21 keypoints each and the face adds 70. Seeing the signal as a list
+of coordinates is what makes its failures legible: a pose that comes out wrong
+is usually a pose that was detected wrong, and no amount of prompt work fixes
+a bad detection.
+
+The paper this comes from is the Part Affinity Fields work — the fields are
+how it associates limbs with the right body when there is more than one person
+in frame.
 ```
 
 ---
 
-## The turnaround
+{/* _class: quote */}
 
-Measured in passes, not in how good the first one looked. A clean sketch and
-one controlled pass beats a long fight with a vague input.
+> first adds noise to the input, then subsequently denoises the resulting
+> image
+>
+> <cite>Meng et al., SDEdit, 2021</cite>
+
+<p class="deck-source">Source: SDEdit — https://arxiv.org/abs/2108.01073</p>
 
 ```notes
-A production turnaround is the distance between a rough input and a keyframe
-good enough to hand to the next stage, and this course measures it the same
-way a studio does: not by how good the first pass looks, but by how few
-passes it took to get somewhere usable. A short turnaround built on a clean
-sketch and one controlled pass beats a long one spent fighting a vague input
-with prompt changes alone.
+That sentence is the whole mechanism, and it explains the dial: how much noise
+gets added is how much of the input gets forgotten. The paper frames the
+choice as a "balance between realism and faithfulness", which is the honest
+name for what the slider is trading, and it notes the technique "does not
+require task-specific training or inversions" — no training pass, no model of
+your own, which is why it was available from the first week you had a
+checkpoint at all.
+```
+
+---
+
+## Structure and identity
+
+![bg right:40%](./assets/week04-t5.avif)
+
+<LadderInput week={4} tier="t5" captions={["In: the pose signal alone"]} />
+
+ControlNet holds one extracted signal fixed — edges, depth, pose — through
+what it calls zero convolutions. IP-Adapter does the other job: identity
+carried from a reference, in 22M parameters.
+
+<p class="deck-source">Source: ControlNet — https://arxiv.org/abs/2302.05543<br />Source: IP-Adapter — https://arxiv.org/abs/2308.06721</p>
+
+```notes
+The picture on the left is the whole of what the generator was given for
+structure on the top ladder tier: a skeleton on black, no face, no costume, no
+light. Everything else in the frame beside it came from the prompt and the
+reference. That is the difference between "keep this composition" and "keep
+this exact picture."
+
+IP-Adapter does the opposite job: it carries identity or style forward from a
+reference image into the new one, independent of the pose or depth signal
+entirely, through what the paper calls a decoupled cross-attention mechanism.
+Used together, a pose comes from one input and a face or style anchor comes
+from another, and the generator reconciles both.
+
+Three numbers worth knowing before you touch the node:
+`ControlNetApplyAdvanced` defaults to strength 1.0, `start_percent` 0.0 and
+`end_percent` 1.0, stepping in thousandths — so the control can be released
+partway through the sampling run rather than held for all of it. The
+ControlNet paper also reports the method staying "robust with small (<50k) and
+large (>1m) datasets", which is why so many community control models exist.
 ```
 
 ---
@@ -118,10 +163,17 @@ The ladder this week holds the prompt and the denoising strength fixed and
 climbs by improving the input image instead — five tiers, one prompt, one
 strength, across all five. The lowest tier starts from a rough sketch. The
 next tier starts from clean lineart instead of a rough one. The next tier
-starts from a flat-coloured version of that lineart. The next tier starts
-from an already finished keyframe, refined rather than built. The top tier
-starts from that same finished keyframe plus a ControlNet pose signal locking
-its composition in place.
+starts from a flat-coloured version of that lineart. The next tier starts from
+an already finished keyframe, refined rather than built. The top tier starts
+from that same finished keyframe plus a ControlNet pose signal locking its
+composition in place.
+
+A production turnaround is the distance between a rough input and a keyframe
+good enough to hand to the next stage, and this course measures it the same
+way a studio does: not by how good the first pass looks, but by how few passes
+it took to get somewhere usable. A short turnaround built on a clean sketch
+and one controlled pass beats a long one spent fighting a vague input with
+prompt changes alone.
 ```
 
 ---
@@ -135,9 +187,9 @@ it at decreasing levels of finish, to use as this week's ladder of inputs.
 
 ## This week's exercise
 
-Run the same prompt and denoising strength against your four rough inputs
-plus one ControlNet-locked pass, producing all five ladder tiers. Bring all
-five outputs, their shared prompt, and the strength value used to Wednesday's
+Run the same prompt and denoising strength against your four rough inputs plus
+one ControlNet-locked pass, producing all five ladder tiers. Bring all five
+outputs, their shared prompt, and the strength value used to Wednesday's
 Dailies.
 
 ---
@@ -149,11 +201,15 @@ Dailies.
 - [SDEdit: Guided Image Synthesis and Editing with Stochastic Differential Equations](https://arxiv.org/abs/2108.01073)
 - [Adding Conditional Control to Text-to-Image Diffusion Models](https://arxiv.org/abs/2302.05543)
 - [IP-Adapter: Text Compatible Image Prompt Adapter](https://arxiv.org/abs/2308.06721)
+- [ComfyUI: image to image](https://docs.comfy.org/tutorials/basic/image-to-image)
 
 ```notes
 - SDEdit — the technique behind the strength dial this week's whole ladder
-  runs on.
-- Adding Conditional Control — ControlNet, for holding a pose or depth signal
-  fixed through a pass.
-- IP-Adapter — carrying identity or style forward from a reference image.
+  runs on, and the clearest statement of what it trades.
+- Adding Conditional Control — ControlNet, the zero convolutions, and the list
+  of signals it can hold fixed.
+- IP-Adapter — carrying identity or style forward from a reference image, and
+  how small that adapter actually is.
+- ComfyUI: image to image — the sentence about `denoise` at 1, on the page
+  you'll have open while you run the ladder.
 ```

@@ -7,6 +7,8 @@ import LadderStill from "../components/deck/LadderStill.astro";
 
 {/* _class: deck-title deck-phase--rig */}
 
+![bg blur:6px brightness:0.35](./assets/week02-t1.avif)
+
 # The Loop
 
 ## Week 2 · SLOP8760
@@ -25,81 +27,132 @@ and log the seed that made the one you kept.
 ```notes
 Every generator this course touches runs the same loop underneath whatever
 interface sits on top of it: set some parameters, generate, look at what came
-back, decide whether to keep it, and either stop or go again.
+back, decide whether to keep it, and either stop or go again. The interface is
+the part you see; the workflow is the actual sequence of operations
+underneath, and the two are not the same thing. For the first six weeks this
+course supplies the workflow, as a starting graph, so the loop itself is the
+whole lesson.
 ```
 
 ---
-
-## The interface is not the workflow
-
-The interface is the part you see. The workflow is the sequence of operations
-underneath it. For six weeks this course supplies the workflow, so the loop
-is the whole lesson.
-
-```notes
-The interface is the part you see — a form, a chat box, a graph of nodes; the
-workflow is the actual sequence of operations underneath it, and the two are
-not the same thing. For the first six weeks this course supplies the
-workflow, as a starting graph, so the loop itself is the whole lesson.
-```
-
----
-
-{/* _class: deck-claim--still */}
 
 ## Rolling is not re-prompting
 
-A generator is a sampler, not an oracle. The same prompt with a different
-draw returns a genuinely different result.
+![bg right:40%](./assets/week02-t4.avif)
 
-<LadderStill week={2} tier="t1" />
+One prompt file, five rolls, and the only thing moving between them is the
+seed: 66740, 66741, 66742, 66743, 66744. The still on this slide is 66743. A
+seed is the address of the noise a sampler starts from, so the same seed on
+the same settings returns to the same result.
+
+<p class="deck-source">Source: ComfyUI docs, KSampler — https://docs.comfy.org/built-in-nodes/KSampler</p>
 
 ```notes
-Running the same prompt more than once is called rolling, and it is not a
-sign the first attempt failed — it's the default way this loop is used. A
-generator is a sampler, not an oracle: the same prompt with a different
-random draw produces a genuinely different result, and the skill this course
-credits is choosing well among several rolls, not writing a prompt so precise
-it only needs one. Selection is the actual job. Generation is just what makes
+Running the same prompt more than once is called rolling, and it is not a sign
+the first attempt failed — it's the default way this loop is used. A generator
+is a sampler, not an oracle: the same prompt with a different random draw
+produces a genuinely different result, and the skill this course credits is
+choosing well among several rolls, not writing a prompt so precise it only
+needs one. Selection is the actual job. Generation is just what makes
 selection possible.
+
+The KSampler docs describe `seed` as "The random seed used for creating the
+noise", over the range 0 to 0xffffffffffffffff. That is the whole of it: not a
+style knob, not a quality setting. Change one parameter and keep the seed, and
+a specific variable is being tested in isolation; change the seed and a
+different roll has been generated regardless of what else stayed the same.
+```
+
+---
+
+{/* _class: deck-spec */}
+
+## The four dials the loop turns
+
+Every generator in this course exposes some version of these, under some
+interface. Read the published defaults before changing one of them.
+
+| Input     | Default | Published note                              |
+| --------- | ------- | ------------------------------------------- |
+| `seed`    | —       | 0 to 0xffffffffffffffff                     |
+| `steps`   | 20      | —                                           |
+| `cfg`     | 8.0     | "6-8 recommended"                           |
+| `denoise` | 1.0     | lower values maintain the input's structure |
+
+<p class="deck-source">Source: ComfyUI docs, KSampler — https://docs.comfy.org/built-in-nodes/KSampler</p>
+
+```notes
+Four inputs, and the docs give a default and a range for each. `cfg` is
+classifier-free guidance, from Ho and Salimans: a conditional and an
+unconditional model trained together, then combined "to attain a trade-off
+between sample quality and diversity" — which is exactly what moving the
+number does. `denoise` at 1.0 means the sampler starts from pure noise; the
+docs note that "lower values will maintain the structure of the initial
+image", which only matters once there is an initial image to keep. This week
+only `seed` moves.
+```
+
+---
+
+{/* _class: quote */}
+
+> high-quality samples within only 15 to 20 steps for guided sampling
+>
+> <cite>Lu et al., DPM-Solver++, 2022</cite>
+
+<p class="deck-source">Source: DPM-Solver++ — https://arxiv.org/abs/2211.01095</p>
+
+```notes
+Steps are the loop's budget, and the sampler decides what a step buys. The
+paper quoted here is where the `dpmpp_` family of sampler names comes from,
+and its claim is a throughput claim rather than a quality one: the same result
+in fewer network evaluations means more rolls per hour on the same rig.
+Earlier work says the same thing in its own terms — DDIM reports being "10x to
+50x faster in terms of wall-clock time compared to DDPMs" and frames it
+explicitly as a way to "trade off computation for sample quality". Karras et
+al. put a price on the alternative: Heun's method reaches "O(h³) local error at
+the cost of one additional evaluation ... per step" against Euler's O(h²).
+```
+
+---
+
+## The names on the two lists
+
+Sampler and scheduler are separate choices and they compose. Samplers include
+`euler`, `euler_ancestral`, `heun`, `dpmpp_2m`, `dpmpp_2m_sde`; schedulers
+include `simple`, `karras`, `sgm_uniform`, `exponential`, `beta`. Both lists
+are read from source and both drift.
+
+<p class="deck-source">Source: ComfyUI source, as of September 2026 — https://github.com/comfyanonymous/ComfyUI</p>
+
+```notes
+The two lists live in `comfy/samplers.py` and are read out of the source
+rather than a document, which is why the slide dates them: an upgrade adds
+names, and a workflow saved against a name that has moved is a workflow that
+no longer runs. The naming is not arbitrary — `karras` is the noise schedule
+from Karras et al., and the `dpmpp_` prefix is the solver quoted on the
+previous slide. Knowing which paper a name came from is how you guess what it
+will cost before you spend a roll finding out.
 ```
 
 ---
 
 {/* _class: deck-claim--still */}
-
-## The seed as an address
-
-A seed is not a style knob. On the same model and settings it returns to the
-same result, so a seed plus its parameters is what specifies a roll.
-
-<LadderStill week={2} tier="t4" />
-
-```notes
-A generation seed is not a style knob; it's an address. On the same model,
-sampler, and software version, the same seed with the same parameters returns
-to the same result, which means a seed plus its full parameter list is the
-only thing that actually specifies a roll. Change one parameter and keep the
-seed, and a specific variable is being tested in isolation; change the seed
-and a different roll has been generated regardless of what else stayed the
-same. Log both, every time, or the roll that looked right yesterday is
-unfindable tomorrow.
-```
-
----
 
 ## The production log
 
 A roll without a log is a lucky accident the moment the tab closes. Name the
 graph, the seed, and every parameter that could change the output.
 
+<LadderStill week={2} tier="t1" />
+
 ```notes
 The log is not paperwork attached to the work; it is the record that turns a
-good roll into a repeatable one. A usable log names the workflow graph in
-use, the seed, and every parameter that could plausibly change the output —
-enough that someone who wasn't in the room could load the same graph and land
-on a comparable result. A roll without a log is a lucky accident the moment
-the tab closes.
+good roll into a repeatable one. A usable log names the workflow graph in use,
+the seed, and every parameter that could plausibly change the output — enough
+that someone who wasn't in the room could load the same graph and land on a
+comparable result. A roll without a log is a lucky accident the moment the tab
+closes.
 ```
 
 ---
@@ -149,10 +202,15 @@ your five verdicts to Wednesday's Dailies.
 
 ## Reading
 
-- [High-Resolution Image Synthesis with Latent Diffusion Models](https://arxiv.org/abs/2112.10752)
+- [Denoising Diffusion Implicit Models](https://arxiv.org/abs/2010.02502)
+- [DPM-Solver++](https://arxiv.org/abs/2211.01095)
+- [ComfyUI: KSampler](https://docs.comfy.org/built-in-nodes/KSampler)
 
 ```notes
-- High-Resolution Image Synthesis with Latent Diffusion Models — the paper
-  behind the sampler doing the rolling underneath the workflow you're running
-  this week.
+- Denoising Diffusion Implicit Models — where the trade between step count and
+  sample quality was first stated as a trade rather than a limitation.
+- DPM-Solver++ — the solver behind the `dpmpp_` names on the sampler list, and
+  the source of the 15-to-20-step figure.
+- ComfyUI: KSampler — the four dials, their defaults, and their published
+  ranges, which is the page to have open while you roll.
 ```

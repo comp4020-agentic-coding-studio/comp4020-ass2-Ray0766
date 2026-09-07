@@ -3,9 +3,9 @@ title: Week 3 · Text to Image
 description: The first generator — prompt grammar for a single keyframe on anime-trained checkpoints, from one line to a full colour script.
 ---
 
-import LadderStill from "../components/deck/LadderStill.astro";
-
 {/* _class: deck-title deck-phase--generators */}
+
+![bg blur:6px brightness:0.35](./assets/week03-t5.avif)
 
 # Text to Image
 
@@ -26,43 +26,38 @@ build the rest of the week on.
 Text to image is the first of four generators this course teaches, and it
 produces the smallest possible unit of work: one still frame, called a
 keyframe once it's good enough to build something else on top of it.
+Everything from here through the phase either generates a keyframe or does
+something to one, so a prompt that reliably produces a usable keyframe is this
+week's entire craft question.
 ```
 
 ---
-
-## The keyframe is the unit
-
-Everything from here on either generates a keyframe or does something to one.
-A prompt that reliably produces a usable keyframe is this week's whole craft
-question.
-
-```notes
-Everything from here through Phase 2 either generates a keyframe or does
-something to one, so a prompt that reliably produces a usable keyframe is
-this week's entire craft question.
-```
-
----
-
-{/* _class: deck-claim--still */}
 
 ## Why anime, first
 
-Flat colour and clean linework absorb a generator's small errors as line
-style. The same error on a photoreal face reads as wrong.
+<p class="deck-figure">8 million<span class="deck-figure__unit">tagged images in the caption corpus</span></p>
 
-<LadderStill week={3} tier="t3" />
+Flat colour and clean linework absorb a generator's small errors as line
+style. They also arrive with a vocabulary: Illustrious reports training on
+Danbooru's corpus of over eight million images, so the checkpoint answers in
+that corpus's own words.
+
+<p class="deck-source">Source: Illustrious: an Open Advanced Illustration Model — https://arxiv.org/abs/2409.19946</p>
 
 ```notes
 This phase works in anime grammar on purpose, and it's a technical decision,
 not an aesthetic one. A generator's small mistakes — a slightly wrong
-proportion, an edge that drifts — read differently depending on the style
-they land in: flat colour and clean linework compress detail into shape and
+proportion, an edge that drifts — read differently depending on the style they
+land in: flat colour and clean linework compress detail into shape and
 outline, so a minor error gets absorbed as "that's the line style." The same
 magnitude of error on a photorealistic face lands squarely in the range human
 perception is most sensitive to and reads as wrong rather than stylised.
-Anime checkpoints buy room to make mistakes while the rest of the rig is
-still being learned.
+
+The second reason is the one on this slide. Illustrious builds on the SDXL
+family — a "three times larger UNet backbone" than the previous generation,
+with a second text encoder, OpenCLIP ViT-bigG alongside CLIP ViT-L — and
+trains it on a tag-captioned dataset rather than a prose-captioned one. That
+is why the vocabulary matters more here than the sentence does.
 ```
 
 ---
@@ -74,23 +69,83 @@ naming the checkpoint's own register. In that order.
 
 ```notes
 A usable prompt for a still collapses into four decisions, each earning
-roughly one clause: who or what the subject is, how the shot is framed —
-size and angle — what the light is doing, and a style anchor naming the
+roughly one clause: who or what the subject is, how the shot is framed — size
+and angle — what the light is doing, and a style anchor naming the
 checkpoint's own aesthetic register rather than leaving it to chance. Write
 those four in order and the prompt is usable before any further polish gets
-added.
+added. The recorded ladder's middle tier is written exactly this way, as four
+labelled lines and nothing else.
 ```
 
 ---
 
-{/* _class: deck-claim--still */}
+{/* _class: deck-spec */}
+
+## The checkpoint publishes its own settings
+
+An anime checkpoint is not a general-purpose model with a style applied. Its
+card states the numbers it was tuned for, and they are not the defaults.
+
+| Setting        | NoobAI-XL 1.1 |
+| -------------- | ------------- |
+| CFG            | 5 to 6        |
+| Steps          | 25 to 30      |
+| Sampler        | Euler a       |
+| 9:16 dimension | 768 x 1344    |
+
+<p class="deck-source">Source: NoobAI-XL 1.1 model card — https://huggingface.co/Laxhar/noobai-XL-1.1</p>
+
+```notes
+Four numbers, all off the model card, and all lower than the generic defaults
+from last week: CFG 5 to 6 against 8.0, steps 25 to 30 against 20. A card that
+publishes its own settings is telling you the generic ones will cost you
+rolls.
+
+The same card is where the licence complication for this family lives. Its
+metadata declares `fair-ai-public-license-1.0-sd`, and the README adds a
+sentence of its own: "We prohibit any form of commercialization." Those are
+two separate instruments and the second is not part of the first, so a shot
+built on this checkpoint has to satisfy both.
+```
+
+---
+
+{/* _class: quote */}
+
+> person count ||| character names ||| rating ||| general tags ||| artist |||
+> score range based rating ||| year modifier
+>
+> <cite>Illustrious, on caption order</cite>
+
+<p class="deck-source">Source: Illustrious: an Open Advanced Illustration Model — https://arxiv.org/abs/2409.19946</p>
+
+```notes
+This is the order the captions were written in during training, which is the
+order the model learned to read a prompt in. It is not a rule you can be
+graded against, but it explains why moving a tag changes a result at all, and
+why a checkpoint answers a tag list more precisely than a sentence saying the
+same thing.
+
+Danbooru's own community wiki is where the tag categories come from: Artist,
+Character, Copyright — which "identify the anime, manga, game, or novel" —
+General, which "objectively describe the contents", and Meta. Spaces in tag
+names become underscores. The quality tiers Illustrious describes run from
+"Worst quality ~8%" up through "Best quality ~92%, Masterpiece ~100%", which
+is why "masterpiece" is a percentile and not a compliment.
+```
+
+---
 
 ## The checkpoint's own vocabulary
 
-Anime checkpoints are trained on tags, not prose. A negative prompt naming
-what to suppress removes more bad rolls than any added qualifier.
+![bg right:40%](./assets/week03-t4.avif)
 
-<LadderStill week={3} tier="t4" />
+Tier four opens `masterpiece, best quality, amazing quality, very aesthetic,
+absurdres, newest` and its negative opens `worst quality, low quality,
+lowres, bad hands`. NoobAI-XL's card recommends almost exactly that pair.
+These are trained tokens, not adjectives.
+
+<p class="deck-source">Source: NoobAI-XL 1.1 model card — https://huggingface.co/Laxhar/noobai-XL-1.1</p>
 
 ```notes
 Anime-trained checkpoints are largely trained on tag-style captions, not
@@ -99,6 +154,14 @@ than to a naturally written sentence saying the same thing. Pairing that
 vocabulary with a negative prompt — naming what to suppress, not just what to
 include — removes far more bad rolls than adding qualifiers to the positive
 prompt ever does.
+
+The card's own recommended positive is "masterpiece, best quality, newest,
+absurdres, highres, safe," and its negative is "nsfw, worst quality, old,
+early, low quality, lowres, signature, username, logo, bad hands, mutated
+hands". The recorded ladder's tier four is that pair with the shot's own tags
+threaded through it. The card also documents the year tags — newest is
+2021–2024, old is 2005–2010 — which is a date filter wearing a style tag's
+clothes.
 ```
 
 ---
@@ -144,12 +207,18 @@ keyframes, in ladder order, to Wednesday's Dailies.
 
 ## Reading
 
-- [SDXL: Improving Latent Diffusion Models for High-Resolution Image Synthesis](https://arxiv.org/abs/2307.01952)
 - [Illustrious: an Open Advanced Illustration Model](https://arxiv.org/abs/2409.19946)
+- [SDXL: Improving Latent Diffusion Models for High-Resolution Image Synthesis](https://arxiv.org/abs/2307.01952)
+- [NoobAI-XL 1.1 model card](https://huggingface.co/Laxhar/noobai-XL-1.1)
+- [Danbooru wiki: Help:Tags](https://danbooru.donmai.us/wiki_pages/help:tags)
 
 ```notes
-- SDXL — the base architecture behind a lot of the checkpoints you'll be
-  prompting this week.
-- Illustrious — a checkpoint trained specifically on the anime tag vocabulary
-  this lecture asks you to use.
+- Illustrious — the caption order, the quality tiers, and the dataset the
+  vocabulary comes from.
+- SDXL — the base architecture underneath this family: the larger UNet, the
+  second text encoder, the roughly 1024 x 1024 training area.
+- NoobAI-XL 1.1 — a card that publishes its own settings, its own prompt
+  template, and two licence clauses that have to be read together.
+- Danbooru wiki: Help:Tags — a community wiki, so read it as one, but it is
+  where the tag categories are actually defined.
 ```

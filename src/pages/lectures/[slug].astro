@@ -10,6 +10,7 @@ import TeachingTeam from "../../components/TeachingTeam.astro";
 import WeekPager from "../../components/WeekPager.astro";
 import WeekStrip from "../../components/WeekStrip.astro";
 import { formatCourseDate } from "../../lib/dates";
+import { deckForRoute } from "../../lib/decks";
 import { phaseForWeek } from "../../lib/phases";
 import { graphCollections, siteConfig } from "../../site-config";
 import "../../styles/site.css";
@@ -23,12 +24,22 @@ export async function getStaticPaths() {
 const { lecture } = Astro.props;
 const { Content } = await render(lecture);
 const title = `Week ${lecture.data.week}: ${lecture.data.title}`;
+
 // The phase decides the shape of the page, not just a colour --- see
 // src/styles/lecture-phases.css. It goes on `<main>` itself through the
 // theme's `mainAttrs` rather than on a wrapper div, because the type scale in
 // site.css is scoped to `.at-main > h1/h2/h3` and any wrapper would put the
 // MDX body one level too deep for it.
 const phase = phaseForWeek(lecture.data.week);
+
+// The deck this lecture is delivered from, so the button can say how much is
+// behind it rather than only that something is. A `slides:` route with no
+// deck behind it fails the build rather than quietly rendering a page with
+// no way into its own slides — the failure this button exists to fix.
+const deck = deckForRoute(lecture.data.slides);
+if (lecture.data.slides && !deck) {
+  throw new Error(`${lecture.id}: slides: ${lecture.data.slides} matches no deck in src/decks/`);
+}
 ---
 
 <ContentLayout
@@ -40,7 +51,15 @@ const phase = phaseForWeek(lecture.data.week);
   <DefaultDarkTheme slot="head" />
   <p><strong>{formatCourseDate(lecture.data.date)}</strong></p>
   <WeekStrip week={lecture.data.week} highlight="lectures" />
-  {lecture.data.slides && <p><a href={withBase(lecture.data.slides)}>Open the slides</a></p>}
+  {
+    deck && (
+      <p class="lecture-slides-link">
+        <a class="at-button at-button--outline" href={withBase(deck.route)}>
+          Open the {deck.slideCount} slides
+        </a>
+      </p>
+    )
+  }
   {/* The bench's rail, for the four generator weeks: styled out of the way
       below 1440px, where the ladder in the prose is the whole of it. */}
   {phase.key === "generators" && <LadderRail week={lecture.data.week} />}

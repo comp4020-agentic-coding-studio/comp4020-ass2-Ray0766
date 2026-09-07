@@ -7,6 +7,8 @@ import LadderStill from "../components/deck/LadderStill.astro";
 
 {/* _class: deck-title deck-phase--generators */}
 
+![bg blur:6px brightness:0.35](./assets/week05-t3.avif)
+
 # Text to Video
 
 ## Week 5 · SLOP8760
@@ -24,47 +26,78 @@ thing anchoring the shot.
 
 ```notes
 Text to video generates motion from words alone, with nothing to anchor
-composition but the prompt itself.
+composition but the prompt itself. That's weaker control than starting from a
+keyframe, but it's the fastest way to test an idea before committing an image
+to it, and every video generator this course uses has a native clip length
+that the prompt has to respect rather than fight.
 ```
 
 ---
 
-## Weaker control, faster answers
+{/* _class: deck-spec */}
 
-Nothing anchors composition but the prompt. That is less control than
-starting from a keyframe, and the fastest way to test an idea before
-committing an image to it.
+## The native clip length is a published number
+
+It is not a style choice and not a limit to argue with. It is in the config
+file, and the prompt is written inside it.
+
+| Model                | Native clip                    |
+| -------------------- | ------------------------------ |
+| Wan2.1 shared config | 81 frames at 16 fps — 5.06 s   |
+| Wan2.2 TI2V-5B       | 121 frames at 24 fps           |
+| MiniMax H3           | 4 to 15 s, at 24 fps           |
+
+<p class="deck-source">Source: Wan configs, `shared_config.py` and `wan_ti2v_5B.py` — https://github.com/Wan-Video/Wan2.2<br />Source: MiniMax-H3 model card, Output — https://huggingface.co/MiniMaxAI/MiniMax-H3</p>
 
 ```notes
-That's weaker control than starting from a keyframe, but it's the fastest way
-to test an idea before committing an image to it, and every video generator
-this course uses has a native clip length that the prompt has to respect
-rather than fight.
+Every video generator this course uses has a native clip length — the duration
+one pass reliably holds together before coherence starts to fall apart — that
+the prompt has to respect rather than fight.
+
+Two of these three numbers are not in a README; they are in a config file
+inside the repository, which is worth saying out loud, because "how long is a
+clip" is exactly the kind of question a project answers in code and nowhere
+else. The H3 card also fixes the canvas: "shorter side is set to 768 pixels by
+default", with 9:16 among the listed aspect ratios. Wan2.1's own README puts a
+render cost beside its length: "a 5-second 480P video on an RTX 4090 in about
+4 minutes", and the 1.3B model needs "only 8.19 GB VRAM".
 ```
 
 ---
 
-## The native clip length
+{/* _class: quote */}
 
-The duration one pass reliably holds together before coherence falls apart.
-Write inside it rather than against it.
+> spacetime patches which act as transformer tokens
+>
+> <cite>OpenAI, Video generation models as world simulators, 2024</cite>
+
+<p class="deck-source">Source: Video generation models as world simulators — https://openai.com/index/video-generation-models-as-world-simulators/</p>
 
 ```notes
-Every video generator this course uses has a native clip length — the
-duration one pass reliably holds together before coherence starts to fall
-apart — that the prompt has to respect rather than fight.
+Six words, and they explain the clip length better than any tip does. A video
+model of this kind cuts the clip into patches across space and time and treats
+each one as a token, the way a language model treats a word — so a longer clip
+is more tokens, and coherence across the whole clip is a property of how many
+of them the model can hold in relation to each other. The same report says
+plainly that "Sora is a diffusion transformer", and the architecture behind
+that name replaced "the commonly-used U-Net backbone with a transformer that
+operates on latent patches", with the paper reporting that higher Gflops
+"consistently have lower FID".
 ```
 
 ---
 
-{/* _class: deck-claim--still */}
+## The prompt has fields, not paragraphs
 
-## The four sentences
+![bg right:40%](./assets/week05-t3.avif)
 
-Subject and action. Shot size. What the camera is doing. What the light is
-doing. In that order, inside the clip length.
+The recorded ladder's middle tier is written into three:
+`integrated_multimodal_description` carries visuals, actions, shots, speakers
+and dialogue along the timeline; `overall_soundscape` takes one to four
+English sentences; `non_diegetic_music` is the music the characters cannot
+hear.
 
-<LadderStill week={5} tier="t3" />
+<p class="deck-source">Source: MiniMax H3 Video Prompt Writing Guide — https://huggingface.co/MiniMaxAI/MiniMax-H3/raw/main/docs/VIDEO_PROMPT_WRITING_GUIDE_base_en.md</p>
 
 ```notes
 A usable video prompt collapses into four sentences, each doing one job: who
@@ -73,6 +106,28 @@ size, from wide to close-up — what the camera itself is doing while the
 subject acts, and what the light is doing. Write those four in order, inside
 the model's native clip length, and the prompt is usable before style ever
 enters the conversation.
+
+Where those four sentences go is the thing this slide adds. The guide splits
+the prompt into named fields, and sound is not an afterthought in it: the
+soundscape is its own field, and music the characters cannot hear is a third
+field again, kept apart from the diegetic audio described along the timeline.
+A prompt written as one undifferentiated paragraph is throwing that structure
+away.
+```
+
+---
+
+## The four sentences
+
+Subject and action. Shot size. What the camera is doing. What the light is
+doing. In that order, inside the clip length.
+
+```notes
+Four sentences, four jobs, and the order matters because each one narrows the
+last: the subject decides what is in frame, the shot size decides how much of
+it we see, the camera decides how that changes over the clip, and the light
+decides what it looks like while it happens. Style is not one of the four. It
+goes in once these are settled, or it competes with them.
 ```
 
 ---
@@ -88,11 +143,15 @@ that contradicts the prompt. Each points at a different sentence.
 
 ```notes
 A failed text-to-video take tends to fail in one of three specific ways:
-motion that reads as physically wrong rather than merely stylised, a cut
-where the model quietly changes what the subject looks like partway through
-the clip, or a camera move that contradicts what the prompt asked for. Naming
+motion that reads as physically wrong rather than merely stylised, a cut where
+the model quietly changes what the subject looks like partway through the
+clip, or a camera move that contradicts what the prompt asked for. Naming
 which of the three happened is more useful than a general "this doesn't look
 right," because each one points at a different sentence in the prompt to fix.
+
+The still here is the ladder's counter-example rather than its top rung: the
+same four sentences buried under contradictory camera and style demands, which
+is what over-specifying costs.
 ```
 
 ---
@@ -112,13 +171,13 @@ contradictory camera and style demands, generated once on purpose.
 ```notes
 The ladder for a text-to-video prompt runs four rising tiers, plus one tier
 that is not a top but a warning. The lowest tier is one line naming only the
-subject. The next tier adds the subject's action. The next tier writes out
-the full four sentences — subject, shot size, camera, light. The top tier
-keeps those four and adds a specific beat the action turns on, plus a
-negative prompt naming what the shot must not do. And a counter-example, not
-a fifth rung: the same four sentences buried under contradictory camera and
-style demands at once, which reliably produces a worse result than the plain
-four sentences alone — worth generating once, on purpose, to see what
+subject. The next tier adds the subject's action. The next tier writes out the
+full four sentences — subject, shot size, camera, light. The top tier keeps
+those four and adds a specific beat the action turns on, plus a negative
+prompt naming what the shot must not do. And a counter-example, not a fifth
+rung: the same four sentences buried under contradictory camera and style
+demands at once, which reliably produces a worse result than the plain four
+sentences alone — worth generating once, on purpose, to see what
 over-specifying actually costs.
 ```
 
@@ -133,10 +192,10 @@ with no camera or light information yet.
 
 ## This week's exercise
 
-Build the ladder above for that action: one line, subject and action, the
-full four sentences, and the four sentences with a beat and a negative
-prompt. Generate the counter-example too, on purpose. Bring all five clips,
-in ladder order with the counter-example marked, to Wednesday's Dailies.
+Build the ladder above for that action: one line, subject and action, the full
+four sentences, and the four sentences with a beat and a negative prompt.
+Generate the counter-example too, on purpose. Bring all five clips, in ladder
+order with the counter-example marked, to Wednesday's Dailies.
 
 ---
 
@@ -146,14 +205,16 @@ in ladder order with the counter-example marked, to Wednesday's Dailies.
 
 - [Video generation models as world simulators](https://openai.com/index/video-generation-models-as-world-simulators/)
 - [Wan: Open and Advanced Large-Scale Video Generative Models](https://arxiv.org/abs/2503.20314)
-- [Seedance 1.0: Exploring the Boundaries of Video Generation Models](https://arxiv.org/abs/2506.09113)
+- [MiniMax H3: Video Prompt Writing Guide](https://huggingface.co/MiniMaxAI/MiniMax-H3/raw/main/docs/VIDEO_PROMPT_WRITING_GUIDE_base_en.md)
+- [Seedance 1.0](https://arxiv.org/abs/2506.09113)
 
 ```notes
-- Video generation models as world simulators — on what a text-to-video model
-  is actually learning, and why its native clip length is not an arbitrary
-  limit.
-- Wan — an openly available model built around exactly this kind of
-  sentence-structured prompting.
-- Seedance 1.0 — on the specific failure modes this lecture's "reading a bad
-  take" section is describing.
+- Video generation models as world simulators — where the spacetime-patch
+  framing comes from, and why a native clip length is not an arbitrary limit.
+- Wan — the open family whose configs the clip lengths on this deck came out
+  of, at 1.3B and 14B parameters.
+- MiniMax H3: Video Prompt Writing Guide — the field structure this week's
+  ladder is written into, including the two sound fields.
+- Seedance 1.0 — on multi-shot generation from a single prompt, and on what a
+  5-second 1080p clip costs on current hardware.
 ```

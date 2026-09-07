@@ -1,0 +1,57 @@
+---
+import Card from "astro-theme-university/components/Card.astro";
+import CardGrid from "astro-theme-university/components/CardGrid.astro";
+import ContentLayout from "astro-theme-university/layouts/ContentLayout.astro";
+import DefaultDarkTheme from "../../components/DefaultDarkTheme.astro";
+import { decks } from "../../lib/decks";
+import { PHASES } from "../../lib/phases";
+import { siteConfig } from "../../site-config";
+import "../../styles/site.css";
+import "../../styles/decks-index.css";
+
+const groups = PHASES.map((phase) => ({
+  phase,
+  decks: decks.filter((deck) => deck.phase.key === phase.key),
+})).filter((group) => group.decks.length > 0);
+---
+
+<ContentLayout
+  title="Decks"
+  description="Every lecture's slides, in one place: twelve decks, one per teaching week, grouped by phase."
+  {...siteConfig}
+>
+  <DefaultDarkTheme slot="head" />
+  <p class="deck-index-note">
+    Each lecture is delivered from a deck, and each deck states the week's
+    evidence — the published numbers, the licence clauses, and a frame from
+    that week's own recorded ladder beside the input that produced it. They
+    open in the browser; arrow keys move, and <kbd>S</kbd> opens the speaker
+    notes, which carry the lecture's own paragraphs.
+  </p>
+
+  {
+    groups.map((group) => (
+      <Fragment>
+        <h2 id={group.phase.key} class={`phase-chip phase-chip--${group.phase.key}`}>
+          {group.phase.title} <span class="phase-chip__weeks">{group.phase.weeks}</span>
+        </h2>
+        <CardGrid columns={3}>
+          {group.decks.map((deck) => (
+            <Card
+              headingLevel="h3"
+              title={deck.title}
+              href={deck.route}
+              image={deck.thumbnail}
+              imageAlt={deck.thumbnailAlt}
+            >
+              {deck.description && <p>{deck.description}</p>}
+              <p>
+                <small>{deck.slideCount} slides</small>
+              </p>
+            </Card>
+          ))}
+        </CardGrid>
+      </Fragment>
+    ))
+  }
+</ContentLayout>

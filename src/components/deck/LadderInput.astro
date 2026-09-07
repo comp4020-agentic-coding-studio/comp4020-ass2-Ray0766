@@ -1,0 +1,53 @@
+---
+// The *input* side of a week's recorded ladder tier, for a deck's evidence
+// slide. LadderStill shows what came out; this shows what went in, when what
+// went in was itself a picture — a sketch, a finished key frame, a first and
+// last frame pair.
+//
+// Same contract as LadderStill: the manifest is the source of truth, the
+// build fails rather than shipping a slide pointing at a tier whose input
+// isn't an image, and the URL goes through withBase because public/studio/
+// sits under the site's base path on Pages.
+import { withBase } from "astro-theme-university/url";
+import { studioWeeks } from "../../lib/studio";
+
+interface Props {
+  week: number;
+  tier: string;
+  /** Caption under each frame, in the order the manifest lists them. */
+  captions: string[];
+}
+
+const { week: weekNumber, tier: tierId, captions } = Astro.props;
+
+const week = studioWeeks.find((entry) => entry.week === weekNumber);
+if (!week) throw new Error(`LadderInput: no studio manifest for week ${weekNumber}`);
+
+const tier = week.tiers.find((entry) => entry.tier === tierId);
+if (!tier) throw new Error(`LadderInput: week ${weekNumber} has no tier "${tierId}"`);
+
+const input = tier.input;
+if (input.kind !== "image" && input.kind !== "image pair") {
+  throw new Error(
+    `LadderInput: week ${weekNumber} tier "${tierId}" takes a ${input.kind}, not an image`,
+  );
+}
+
+const files = Array.isArray(input.file) ? input.file : [input.file];
+if (files.length !== captions.length) {
+  throw new Error(
+    `LadderInput: week ${weekNumber} tier "${tierId}" has ${files.length} input frame(s) and ${captions.length} caption(s)`,
+  );
+}
+---
+
+<div class="deck-input">
+  {
+    files.map((file, index) => (
+      <figure>
+        <img src={withBase(`/studio/${file}`)} alt={`Input to tier ${tier.tier}: ${captions[index]}`} />
+        <figcaption>{captions[index]}</figcaption>
+      </figure>
+    ))
+  }
+</div>

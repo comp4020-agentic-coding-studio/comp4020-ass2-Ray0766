@@ -6,7 +6,7 @@
 // With this module blocked the switch never appears and the page still names
 // both addresses under a playable take, which is the whole teaching point.
 
-function setUpPair(pair: HTMLElement): void {
+function setUpSeedPair(pair: HTMLElement): void {
   const swtch = pair.querySelector<HTMLElement>("[data-switch]");
   const video = pair.querySelector<HTMLVideoElement>("[data-video]");
   const buttons = [...pair.querySelectorAll<HTMLButtonElement>("[data-address]")];
@@ -45,7 +45,7 @@ function setUpPair(pair: HTMLElement): void {
 
 function setUpSameSeed(): void {
   for (const pair of document.querySelectorAll<HTMLElement>("[data-same-seed-pair]")) {
-    setUpPair(pair);
+    setUpSeedPair(pair);
   }
 }
 

@@ -1,0 +1,168 @@
+/* Week 8's DriftAudit. Two states, the same height in both, so the module
+   arriving late never shoves the page: side by side while the stage is a pair
+   of frames, one on top of the other once the slider exists. */
+
+.drift-audit {
+  margin-block: var(--at-spacing-lg);
+  margin-inline: 0;
+}
+
+.drift-audit__audits {
+  display: grid;
+  gap: var(--at-spacing-lg);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.drift-audit__heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.6em;
+  margin: 0 0 var(--at-spacing-sm);
+  font-weight: 600;
+}
+
+.drift-audit__tier {
+  font-family: var(--at-font-mono);
+  font-size: var(--at-font-size-sm);
+}
+
+/* Two 9:16 frames abreast: 26rem wide over 9/8 is exactly the height one
+   frame is at half that width, which is what keeps the two states the same
+   height. */
+.drift-audit__stage {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--at-spacing-sm);
+  width: min(26rem, 100%);
+  aspect-ratio: 9 / 8;
+}
+
+.drift-audit__stage img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: var(--at-border-radius);
+  background: var(--at-bg-alt);
+}
+
+/* With the module running the take moves on top of the reference and is
+   clipped back to `--drift-reveal`; the stage narrows to one frame and keeps
+   its height. */
+.drift-audit__audit.is-wiping .drift-audit__stage {
+  grid-template-columns: 1fr;
+  gap: 0;
+  width: min(13rem, 50%);
+  aspect-ratio: 9 / 16;
+}
+
+.drift-audit__audit.is-wiping .drift-audit__stage img {
+  grid-area: 1 / 1;
+}
+
+.drift-audit__audit.is-wiping .drift-audit__take {
+  clip-path: inset(0 0 0 var(--drift-reveal, 50%));
+}
+
+/* The slider's stops. The position is an attribute rather than an inline
+   style (§9), so the twenty-one values the input can take live here. */
+.drift-audit__audit[data-wipe="0"] {
+  --drift-reveal: 0%;
+}
+.drift-audit__audit[data-wipe="5"] {
+  --drift-reveal: 5%;
+}
+.drift-audit__audit[data-wipe="10"] {
+  --drift-reveal: 10%;
+}
+.drift-audit__audit[data-wipe="15"] {
+  --drift-reveal: 15%;
+}
+.drift-audit__audit[data-wipe="20"] {
+  --drift-reveal: 20%;
+}
+.drift-audit__audit[data-wipe="25"] {
+  --drift-reveal: 25%;
+}
+.drift-audit__audit[data-wipe="30"] {
+  --drift-reveal: 30%;
+}
+.drift-audit__audit[data-wipe="35"] {
+  --drift-reveal: 35%;
+}
+.drift-audit__audit[data-wipe="40"] {
+  --drift-reveal: 40%;
+}
+.drift-audit__audit[data-wipe="45"] {
+  --drift-reveal: 45%;
+}
+.drift-audit__audit[data-wipe="50"] {
+  --drift-reveal: 50%;
+}
+.drift-audit__audit[data-wipe="55"] {
+  --drift-reveal: 55%;
+}
+.drift-audit__audit[data-wipe="60"] {
+  --drift-reveal: 60%;
+}
+.drift-audit__audit[data-wipe="65"] {
+  --drift-reveal: 65%;
+}
+.drift-audit__audit[data-wipe="70"] {
+  --drift-reveal: 70%;
+}
+.drift-audit__audit[data-wipe="75"] {
+  --drift-reveal: 75%;
+}
+.drift-audit__audit[data-wipe="80"] {
+  --drift-reveal: 80%;
+}
+.drift-audit__audit[data-wipe="85"] {
+  --drift-reveal: 85%;
+}
+.drift-audit__audit[data-wipe="90"] {
+  --drift-reveal: 90%;
+}
+.drift-audit__audit[data-wipe="95"] {
+  --drift-reveal: 95%;
+}
+.drift-audit__audit[data-wipe="100"] {
+  --drift-reveal: 100%;
+}
+
+.drift-audit__control {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--at-spacing-sm);
+  margin-block-start: var(--at-spacing-sm);
+  max-width: min(26rem, 100%);
+}
+
+.drift-audit__control[hidden] {
+  display: none;
+}
+
+.drift-audit__label {
+  font-size: var(--at-font-size-sm);
+  color: var(--at-text-secondary);
+}
+
+.drift-audit__range {
+  flex: 1 1 8rem;
+  accent-color: var(--at-accent);
+}
+
+.drift-audit__note {
+  margin-block: var(--at-spacing-sm) 0;
+  max-width: 60ch;
+  color: var(--at-text-secondary);
+}
+
+.drift-audit__caption {
+  margin-block-start: var(--at-spacing-md);
+  font-size: var(--at-font-size-sm);
+  color: var(--at-text-secondary);
+}

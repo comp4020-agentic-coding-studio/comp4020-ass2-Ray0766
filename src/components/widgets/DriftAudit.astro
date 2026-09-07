@@ -1,0 +1,104 @@
+---
+// Week 8's audit: comparing a new shot against the locked reference item by
+// item, rather than watching a rough cut and trusting that it felt right. The
+// lecture says the audit is a per-item verdict; this is one item, done twice,
+// on the week's own two-shot scene — the face reference against the take that
+// had only the face, and the scene master plate against the take that had the
+// whole set.
+//
+// The pairing is a teaching choice, so it is written here rather than derived:
+// which reference a take is audited against is exactly the judgement the
+// lecture is teaching. Everything else — which take, and what to say about it
+// — comes from the manifest, and a tier that stopped existing fails the build.
+import { withBase } from "astro-theme-university/url";
+import { studioWeeks } from "../../lib/studio";
+import "../../styles/drift-audit.css";
+
+interface Props {
+  week: number;
+}
+
+const { week: weekNumber } = Astro.props;
+const week = studioWeeks.find((entry) => entry.week === weekNumber);
+if (!week) throw new Error(`DriftAudit: no studio manifest for week ${weekNumber}`);
+
+const PAIRINGS = [
+  {
+    tier: "t1",
+    reference: "week08-ref-face.avif",
+    referenceLabel: "Face reference",
+    referenceAlt: "The locked face reference: a close-up of the character in warm light, wet hair across her cheek",
+  },
+  {
+    tier: "t4",
+    reference: "week08-ref-scene.avif",
+    referenceLabel: "Scene master plate",
+    referenceAlt: "The locked master plate: the wet street at night, warm lamps reflected down the road",
+  },
+] as const;
+
+const audits = PAIRINGS.map((pairing) => {
+  const tier = week.tiers.find((entry) => entry.tier === pairing.tier);
+  if (!tier) throw new Error(`DriftAudit: week ${weekNumber} has no tier "${pairing.tier}"`);
+  const still = tier.output.poster ?? tier.output.file;
+  if (!/\.(avif|png|jpe?g|webp)$/.test(still)) {
+    throw new Error(`DriftAudit: week ${weekNumber} tier "${pairing.tier}" has no still to audit (${still})`);
+  }
+  return { ...pairing, label: tier.label, note: tier.note, still };
+});
+---
+
+<figure class="drift-audit" data-drift-audit>
+  <ol class="drift-audit__audits">
+    {
+      audits.map((audit) => (
+        <li class="drift-audit__audit" data-drift-pair data-wipe="50">
+          <p class="drift-audit__heading">
+            <span class="drift-audit__tier">{audit.tier}</span>
+            {audit.referenceLabel} against the take from {audit.label}
+          </p>
+
+          <div class="drift-audit__stage">
+            <img
+              class="drift-audit__reference"
+              src={withBase(`/studio/${audit.reference}`)}
+              alt={audit.referenceAlt}
+              loading="lazy"
+            />
+            <img
+              class="drift-audit__take"
+              src={withBase(`/studio/${audit.still}`)}
+              alt={`The take shot against the ${audit.label} set`}
+              loading="lazy"
+            />
+          </div>
+
+          <div class="drift-audit__control" hidden>
+            <label class="drift-audit__label" for={`drift-${audit.tier}`}>Reveal the take</label>
+            <input
+              class="drift-audit__range"
+              id={`drift-${audit.tier}`}
+              type="range"
+              min="0"
+              max="100"
+              step="5"
+              value="50"
+              data-wipe-input
+            />
+          </div>
+
+          <p class="drift-audit__note">{audit.note}</p>
+        </li>
+      ))
+    }
+  </ol>
+
+  <figcaption class="drift-audit__caption">
+    Each pair is one line of an audit: the locked reference on the left, the
+    take that was supposed to match it on the right. The verdict is per item
+    and per shot, so two takes against two references is two verdicts, not one
+    impression of the scene.
+  </figcaption>
+</figure>
+
+<script src="../../scripts/drift-audit.ts"></script>

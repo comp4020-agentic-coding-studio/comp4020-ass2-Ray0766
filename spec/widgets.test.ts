@@ -76,3 +76,34 @@ describe("week 2's SameSeed: one recording, two addresses", () => {
     expect(widget()).not.toMatch(/\sstyle="/);
   });
 });
+
+// Seen red before the widget existed, all four assertions failing against the
+// built week 8 page:
+//   expected '<!DOCTYPE html><html lang="en"><head>…' to contain
+//   'data-drift-audit'
+//   no element carries data-drift-audit: expected -1 to be greater than -1  (x3)
+describe("week 8's DriftAudit: a take against the reference that was meant to hold it", () => {
+  const html = page("week-08");
+  const widget = () => widgetMarkup(html, "data-drift-audit");
+
+  it("is on the week 8 lecture page", () => {
+    expect(html).toContain("data-drift-audit");
+  });
+
+  it("shows both references and both takes as real images with JS off", () => {
+    const markup = widget();
+    for (const file of ["week08-ref-face.avif", "week08-t1.avif", "week08-ref-scene.avif", "week08-t4.avif"]) {
+      expect(markup, `${file} should be an <img> in the markup, not something a script fetches`).toMatch(
+        new RegExp(`<img[^>]+src="[^"]*${file.replace(".", "\\.")}"`),
+      );
+    }
+  });
+
+  it("captions each pair with its own tier's note", () => {
+    expect(widget()).toContain("watch the coat and the street change at 00:07");
+  });
+
+  it("carries no inline style attribute", () => {
+    expect(widget()).not.toMatch(/\sstyle="/);
+  });
+});

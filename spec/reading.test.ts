@@ -17,8 +17,9 @@
 // compiled. A live-network assertion here would therefore be red forever, for
 // three sources that are fine, and would make `pnpm check` fail on a train.
 // What is checked instead is the part that is this repo's fault: that the URL
-// actually shipped into the page. Re-run the sweep by hand when the list
-// changes; the result belongs in the round's receipt.
+// actually shipped into the page. The sweep is `pnpm check:links`, which
+// builds that URL index for you; re-run it by hand when the list changes and
+// put the result in the round's receipt.
 //
 // Seen red before it was trusted, three injections, output verbatim:
 //   - deleted the MiniMax H3 prompt-guide entry from week 5 in reading.json,

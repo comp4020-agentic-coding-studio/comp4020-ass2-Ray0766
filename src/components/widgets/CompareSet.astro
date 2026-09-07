@@ -1,6 +1,6 @@
 ---
 import { withBase } from "astro-theme-university/url";
-import { studioWeeks } from "../../lib/studio";
+import { RECORDED_CREDIT, studioWeeks } from "../../lib/studio";
 import { toClientWeek } from "../../lib/studio-client";
 import "../../styles/compare-set.css";
 
@@ -12,9 +12,6 @@ const { week: weekNumber } = Astro.props;
 const weekRecord = studioWeeks.find((w) => w.week === weekNumber);
 if (!weekRecord) throw new Error(`CompareSet: no studio manifest for week ${weekNumber}`);
 const week = toClientWeek(weekRecord);
-
-const CREDIT_LINE =
-  "Recorded on the convener's rig with MiniMax H3 (local weights), keyframes with NoobAI-XL, reference stills for The Ninth Head with ChatGPT's image generator. Nothing is generated in the browser.";
 
 const weekTag = String(week.week).padStart(2, "0");
 const groupName = `compare-set-week-${weekTag}`;
@@ -70,7 +67,7 @@ const firstTier = week.tiers[0];
   </div>
 
   <figcaption class="compare-set__credit">
-    {CREDIT_LINE}{" "}
+    {RECORDED_CREDIT}{" "}
     {firstTier && <a href={withBase(`/studio/#week-${weekTag}:${firstTier.tier}`)}>Run it in the Studio</a>}.
   </figcaption>
 </figure>

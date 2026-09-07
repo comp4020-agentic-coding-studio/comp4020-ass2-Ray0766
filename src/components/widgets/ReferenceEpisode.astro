@@ -1,13 +1,10 @@
 ---
 import "../../styles/site.css";
 import "../../styles/reference-episode.css";
-import { referenceEpisode } from "../../lib/studio";
+import { RECORDED_CREDIT, referenceEpisode } from "../../lib/studio";
 import { toClientReferenceEpisode } from "../../lib/studio-client";
 
 const ref = toClientReferenceEpisode(referenceEpisode);
-
-const CREDIT_LINE =
-  "Recorded on the convener's rig with MiniMax H3 (local weights), keyframes with NoobAI-XL, reference stills for The Ninth Head with ChatGPT's image generator. Nothing is generated in the browser.";
 ---
 
 <figure class="reference-episode" id="reference-episode" aria-label={`${ref.title}, reference episode`}>
@@ -30,6 +27,6 @@ const CREDIT_LINE =
         ))
       }
     </ol>
-    <p class="reference-episode__credit">{CREDIT_LINE}</p>
+    <p class="reference-episode__credit">{RECORDED_CREDIT}</p>
   </figcaption>
 </figure>

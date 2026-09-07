@@ -69,6 +69,12 @@ const weekFiles = [
 
 export const studioWeeks = weekFiles.map(loadWeek);
 
+// One line, one place. Every component that shows a recording carries the same
+// credit, and three copies of a sentence is how two of them end up saying
+// something slightly different about how the work was made.
+export const RECORDED_CREDIT =
+  "Recorded on the convener's rig with MiniMax H3 (local weights), keyframes with NoobAI-XL, reference stills for The Ninth Head with ChatGPT's image generator. Nothing is generated in the browser.";
+
 export const cutLibrary: CutLibrary = cutLibrarySchema.parse(readJson("cut.json"));
 
 export const referenceEpisode: ReferenceEpisode = referenceEpisodeSchema.parse(readJson("reference.json"));

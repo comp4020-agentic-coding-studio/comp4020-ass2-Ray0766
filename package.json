@@ -15,17 +15,23 @@
   },
   "dependencies": {
     "@astrojs/mdx": "^7.0.0",
+    "@astrojs/react": "^6.0.5",
     "@iconify-json/iconoir": "^1.2.11",
+    "@xyflow/react": "^12.11.6",
     "astro": "^7.2.0",
     "astro-course-university": "github:ANUcybernetics/astro-course-university#v0.1.0",
     "astro-theme-slop": "github:benswift/astro-theme-slop#v0.1.0",
     "astro-theme-university": "git+https://github.com/ANUcybernetics/astro-theme-university.git#v0.13.2",
     "astromotion": "git+https://github.com/ANUcybernetics/astromotion.git#v0.23.0",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
     "sharp": "^0.35.3"
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.9",
     "@types/node": "^24.0.0",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.7",
     "lightningcss": "^1.32.0",
     "pagefind": "^1.5.2",
     "typescript": "^6.0.3",

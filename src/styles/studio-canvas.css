@@ -1,0 +1,657 @@
+/* The lineage canvas on /studio/.
+   Every colour is an --at-* token, so both themes come out of the same rules
+   and the footer's theme toggle changes the canvas with the rest of the page.
+   React Flow's own stylesheet is loaded first and only overridden here. */
+
+.studio-canvas {
+  margin-block: var(--at-spacing-xl);
+
+  /* An infinite canvas inside the 864px prose column is a 400px canvas next
+     to a 400px desk: at 1920 the whole rig fit only at the 10% minimum zoom,
+     with half of it outside the pane. This section leaves the column.
+
+     `.at-main` is a subgrid spanning inset-start/content-end, so the theme's
+     own `grid-column: full` escape hatch isn't reachable from inside it —
+     only a direct child of <body> can use that. What is reachable is the
+     arithmetic: body's grid puts an extra --at-content-inset on the left of
+     the content column and nothing on the right, so a plain `50% - 50vw`
+     bleed lands 18px right of centre and overflows into a horizontal
+     scrollbar. Splitting that inset between the two margins cancels it
+     exactly, and it stays exact at the width where the content column stops
+     being --at-content-width and starts being what's left of the viewport. */
+  margin-inline-start: calc(50% - 50vw - var(--at-content-inset) / 2 + var(--at-spacing-md));
+  margin-inline-end: calc(50% - 50vw + var(--at-content-inset) / 2 + var(--at-spacing-md));
+
+  /* base.css draws a 1px accent rule down the page as `body::after`, absolutely
+     positioned with no z-index. Against prose it is a margin rule; across a
+     canvas it reads as a stray line through the artwork, and being a later
+     sibling it paints over everything here. One stacking context lifts the
+     whole section clear of it. */
+  position: relative;
+  z-index: 1;
+}
+
+/* The reservation that holds this section's space open from first paint
+   lives with the other one in site.css, keyed on [hidden]. */
+
+.studio-canvas__layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 25rem;
+  gap: var(--at-spacing-md);
+  block-size: 44rem;
+}
+
+/* One tab stop for the whole canvas, so it needs a ring of its own. */
+.studio-canvas__stage:focus-visible {
+  outline: 2px solid var(--at-accent);
+  outline-offset: -2px;
+}
+
+.studio-canvas__keys {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.studio-canvas__stage {
+  position: relative;
+  min-inline-size: 0;
+  border: 1px solid var(--at-border);
+  border-radius: var(--at-border-radius);
+  overflow: hidden;
+  background: var(--at-bg-alt);
+}
+
+/* ---------------------------------------------------------------- boards */
+
+.studio-board__frame {
+  block-size: 100%;
+  border: 1px solid var(--at-border);
+  border-radius: var(--at-border-radius);
+  background: color-mix(in srgb, var(--at-bg-elevated) 82%, transparent);
+}
+
+.studio-board--user .studio-board__frame {
+  border-style: dashed;
+  border-color: var(--at-accent);
+}
+
+.studio-board__frame[data-selected="true"] {
+  outline: 2px solid var(--at-accent);
+  outline-offset: 2px;
+}
+
+.studio-board__bar {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--at-spacing-sm);
+  block-size: 36px;
+  padding-inline: var(--at-spacing-sm);
+  border-block-end: 1px solid var(--at-divider);
+}
+
+.studio-board__title,
+.studio-board__rename {
+  font: inherit;
+  font-weight: 600;
+  color: var(--at-text);
+  background: none;
+  border: 0;
+  padding: 0;
+  text-align: start;
+  cursor: text;
+}
+
+.studio-board__rename {
+  border-block-end: 1px solid var(--at-accent);
+  inline-size: 100%;
+}
+
+.studio-board__week {
+  color: var(--at-text-muted);
+  font-size: var(--at-font-size-xs);
+  white-space: nowrap;
+}
+
+.studio-board__hint {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* ----------------------------------------------------------------- cards */
+
+.studio-card {
+  block-size: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--at-border);
+  border-radius: var(--at-border-radius);
+  background: var(--at-bg);
+  color: var(--at-text);
+}
+
+.react-flow__node.selected > .studio-card,
+.react-flow__node:focus-visible > .studio-card {
+  outline: 2px solid var(--at-accent);
+  outline-offset: 2px;
+}
+
+.studio-card__media {
+  flex: 1 1 auto;
+  min-block-size: 0;
+  background: var(--at-black);
+}
+
+.studio-card__media img,
+.studio-card__media video {
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.studio-card__foot {
+  display: flex;
+  align-items: center;
+  gap: var(--at-spacing-xs);
+  flex-wrap: wrap;
+  padding: var(--at-spacing-xs) var(--at-spacing-sm);
+  border-block-start: 1px solid var(--at-divider);
+}
+
+.studio-card__badge {
+  margin: 0;
+  padding-inline: 0.4em;
+  border-radius: var(--at-border-radius);
+  background: var(--at-accent);
+  color: var(--at-on-accent);
+  font-size: var(--at-font-size-xs);
+  font-weight: 600;
+}
+
+.studio-card__address,
+.studio-card__counter,
+.studio-card__kind,
+.studio-card__text,
+.studio-card__status {
+  margin: 0;
+  font-size: var(--at-font-size-xs);
+  color: var(--at-text-secondary);
+}
+
+.studio-card__address {
+  font-family: ui-monospace, "SFMono-Regular", "Menlo", monospace;
+  overflow-wrap: anywhere;
+}
+
+.studio-card--input {
+  padding: var(--at-spacing-sm);
+  gap: var(--at-spacing-xs);
+  background: var(--at-bg-elevated);
+}
+
+.studio-card__kind {
+  font-weight: 600;
+  color: var(--at-text);
+}
+
+.studio-card__text {
+  flex: 1 1 auto;
+  min-block-size: 0;
+  overflow: hidden;
+  white-space: pre-wrap;
+}
+
+.studio-card__strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(3rem, 1fr));
+  gap: 0.25rem;
+  flex: 1 1 auto;
+  min-block-size: 0;
+}
+
+.studio-card__strip img {
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+  border-radius: calc(var(--at-border-radius) / 2);
+}
+
+.studio-card__link {
+  color: var(--at-accent);
+  font-size: var(--at-font-size-xs);
+}
+
+.studio-card--placeholder {
+  padding: var(--at-spacing-sm);
+  gap: var(--at-spacing-xs);
+  justify-content: center;
+  border-style: dashed;
+  background: var(--at-bg-elevated);
+}
+
+.studio-card__progress {
+  inline-size: 100%;
+}
+
+/* The handles are edge anchors, not controls: nothing on this canvas is
+   connected by hand, so they are invisible and out of the tab order. */
+.studio-handle.react-flow__handle {
+  opacity: 0;
+  pointer-events: none;
+  inline-size: 1px;
+  block-size: 1px;
+  min-inline-size: 0;
+  min-block-size: 0;
+  border: 0;
+}
+
+.studio-node-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--at-spacing-xs);
+  padding: var(--at-spacing-xs);
+  border: 1px solid var(--at-border);
+  border-radius: var(--at-border-radius);
+  background: var(--at-bg-elevated);
+  box-shadow: 0 0.5rem 1.5rem rgb(0 0 0 / 0.25);
+}
+
+/* ----------------------------------------------------------------- edges */
+
+/* Every edge is its own zero-size <svg> that paints outside itself, which is
+   how React Flow draws a line between two nodes without knowing the canvas's
+   extent. The theme's base.css resets `img, picture, video, svg { max-width:
+   100% }`; the containing block here is zero wide, so max-width resolves to
+   0 and clamps every edge svg to nothing. Not one of the forty-seven edges
+   painted, with no error and no warning: the paths were in the DOM with
+   correct geometry, checkVisibility() returned true, and the stage was empty.
+   It also swallowed a forced `width: 20000px`, because max-width wins.
+   Scoped to the edge layer, so the reset still applies to the artwork. */
+.react-flow .react-flow__edges svg {
+  max-width: none;
+}
+
+.studio-edge .react-flow__edge-path {
+  stroke: var(--at-text-muted);
+  stroke-width: 1.5;
+}
+
+.studio-edge--same-file .react-flow__edge-path {
+  stroke-dasharray: 6 4;
+  stroke: var(--at-accent);
+}
+
+.studio-edge--desk .react-flow__edge-path {
+  stroke: var(--at-accent);
+}
+
+.react-flow__edge-text {
+  fill: var(--at-text-secondary);
+  font-size: 11px;
+}
+
+/* --------------------------------------------------------------- chrome */
+
+.studio-toolbar.react-flow__panel {
+  margin: var(--at-spacing-sm);
+}
+
+.studio-toolbar__group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--at-spacing-xs);
+  padding: var(--at-spacing-xs);
+  border: 1px solid var(--at-border);
+  border-radius: var(--at-border-radius);
+  background: color-mix(in srgb, var(--at-bg-elevated) 92%, transparent);
+}
+
+/* Canvas chrome, not page furniture: at the theme's full button size this
+   row was 660px wide and sat over a whole board title. The theme's own
+   focus ring is left alone. */
+.studio-toolbar__group .at-button,
+.studio-node-toolbar .at-button,
+.studio-desk__slot-controls .at-button {
+  padding: 0.3em 0.7em;
+  font-size: var(--at-font-size-xs);
+  line-height: 1.4;
+}
+
+.react-flow__controls {
+  box-shadow: none;
+  border: 1px solid var(--at-border);
+  border-radius: var(--at-border-radius);
+  overflow: hidden;
+}
+
+.react-flow__controls-button {
+  background: var(--at-bg-elevated);
+  border-block-end: 1px solid var(--at-divider);
+  fill: var(--at-text);
+}
+
+.react-flow__controls-button:hover {
+  background: var(--at-bg-alt);
+}
+
+.react-flow__minimap {
+  background: var(--at-bg-alt);
+  border: 1px solid var(--at-border);
+  border-radius: var(--at-border-radius);
+}
+
+.studio-minimap__node {
+  fill: var(--at-text-muted);
+  stroke: none;
+}
+
+.studio-minimap__node--board {
+  fill: var(--at-border);
+}
+
+.studio-minimap__node--take {
+  fill: var(--at-accent);
+}
+
+.react-flow__minimap-mask {
+  fill: color-mix(in srgb, var(--at-bg) 60%, transparent);
+}
+
+.react-flow__attribution {
+  display: none;
+}
+
+/* ------------------------------------------------------------------ desk */
+
+.studio-desk__column {
+  display: flex;
+  min-inline-size: 0;
+}
+
+.studio-desk {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--at-spacing-sm);
+  min-inline-size: 0;
+  padding: var(--at-spacing-sm);
+  border: 1px solid var(--at-border);
+  border-radius: var(--at-border-radius);
+  background: var(--at-bg-elevated);
+  overflow-y: auto;
+}
+
+.studio-desk__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--at-spacing-sm);
+}
+
+.studio-desk__title {
+  margin: 0;
+}
+
+.studio-desk__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--at-spacing-md);
+}
+
+.studio-desk__label {
+  display: block;
+  margin: 0 0 var(--at-spacing-xs);
+  font-weight: 600;
+}
+
+.studio-desk__hint,
+.studio-desk__empty {
+  margin: 0 0 var(--at-spacing-xs);
+  color: var(--at-text-muted);
+  font-size: var(--at-font-size-xs);
+}
+
+.studio-desk__slots {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--at-spacing-xs);
+}
+
+.studio-desk__slot {
+  display: flex;
+  flex-direction: column;
+  gap: var(--at-spacing-xs);
+  padding: var(--at-spacing-xs);
+  border: 1px solid var(--at-divider);
+  border-radius: var(--at-border-radius);
+}
+
+/* The whole slot is the drag handle and the arrow-key target, so reordering
+   from the keyboard and reordering with the pointer are the same control. */
+.studio-desk__slot-handle {
+  display: grid;
+  grid-template-columns: 3rem minmax(0, 1fr);
+  gap: var(--at-spacing-xs);
+  align-items: center;
+  text-align: start;
+  font: inherit;
+  color: var(--at-text);
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: grab;
+}
+
+.studio-desk__slot-handle img,
+.studio-desk__slot-mark {
+  inline-size: 3rem;
+  block-size: 4rem;
+  object-fit: cover;
+  border-radius: calc(var(--at-border-radius) / 2);
+  background: var(--at-bg-alt);
+  display: block;
+}
+
+.studio-desk__slot-name {
+  font-size: var(--at-font-size-xs);
+  overflow-wrap: anywhere;
+}
+
+.studio-desk__slot-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+
+.studio-desk__run {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--at-spacing-xs);
+  margin-block-start: var(--at-spacing-sm);
+}
+
+.studio-desk__answer {
+  margin: var(--at-spacing-sm) 0 0;
+  font-size: var(--at-font-size-xs);
+  color: var(--at-text-secondary);
+  min-block-size: 1.4em;
+}
+
+.studio-desk__answer:empty {
+  margin-block-start: 0;
+}
+
+.studio-desk__recorded {
+  display: block;
+  margin-block: var(--at-spacing-xs);
+  padding: var(--at-spacing-xs);
+  border-inline-start: 2px solid var(--at-accent);
+  color: var(--at-text);
+  white-space: pre-wrap;
+}
+
+.studio-desk__recent {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.studio-desk__recent .at-button {
+  inline-size: 100%;
+  font-family: ui-monospace, "SFMono-Regular", "Menlo", monospace;
+}
+
+.studio-desk__prompt {
+  inline-size: 100%;
+  font: inherit;
+  font-size: var(--at-font-size-xs);
+  color: var(--at-text);
+  background: var(--at-bg);
+  border: 1px solid var(--at-border);
+  border-radius: var(--at-border-radius);
+  padding: var(--at-spacing-xs);
+}
+
+/* --------------------------------------------------------- the two sizes */
+
+/* ------------------------------------------------------ the desk on a phone */
+
+.studio-form {
+  margin-block: var(--at-spacing-xl);
+  padding: var(--at-spacing-md);
+  border: 1px solid var(--at-border);
+  border-radius: var(--at-border-radius);
+  background: var(--at-bg-elevated);
+}
+
+.studio-form h2 {
+  margin-block-start: 0;
+}
+
+.studio-form__pickers {
+  display: flex;
+  flex-direction: column;
+  gap: var(--at-spacing-sm);
+}
+
+.studio-form__label {
+  display: block;
+  font-weight: 600;
+  margin-block-end: var(--at-spacing-sm);
+}
+
+.studio-form__select,
+.studio-form__prompt {
+  display: block;
+  inline-size: 100%;
+  margin-block-start: var(--at-spacing-xs);
+  font: inherit;
+  font-weight: 400;
+  color: var(--at-text);
+  background: var(--at-bg);
+  border: 1px solid var(--at-border);
+  border-radius: var(--at-border-radius);
+  padding: var(--at-spacing-xs);
+}
+
+.studio-form__kind {
+  color: var(--at-text-muted);
+  font-size: var(--at-font-size-xs);
+}
+
+.studio-form__run {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--at-spacing-xs);
+  margin-block: var(--at-spacing-sm);
+}
+
+.studio-form__status,
+.studio-form__line {
+  margin-block: var(--at-spacing-xs);
+  font-size: var(--at-font-size-xs);
+  color: var(--at-text-secondary);
+}
+
+.studio-form__recorded {
+  margin-block: var(--at-spacing-xs);
+  padding: var(--at-spacing-xs);
+  border-inline-start: 2px solid var(--at-accent);
+  font-size: var(--at-font-size-xs);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.studio-form__progress {
+  inline-size: 100%;
+}
+
+.studio-form__result {
+  margin: var(--at-spacing-sm) 0;
+}
+
+.studio-form__media {
+  inline-size: 100%;
+  block-size: auto;
+  border-radius: var(--at-border-radius);
+  background: var(--at-black);
+}
+
+.studio-form__media[hidden] {
+  display: none;
+}
+
+/* Below 641 there is no canvas at all: the page is the gallery and the desk
+   as a plain form. display:none also means the island's IntersectionObserver
+   never fires, so a phone downloads neither React nor React Flow — which is
+   why this has to beat site.css's `[data-reserve][hidden] { display: block }`
+   rather than sit beside it. The form is the mirror image: shown only here. */
+@media (max-width: 640px) {
+  .studio-canvas,
+  .studio-canvas[hidden] {
+    display: none !important;
+  }
+}
+
+@media (min-width: 641px) {
+  .studio-form,
+  .studio-form[hidden] {
+    display: none !important;
+  }
+}
+
+/* 641-899: one column, canvas above the desk, and the canvas is read-only
+   (pan, zoom and select), which the island enforces rather than the CSS. */
+@media (max-width: 899px) {
+  .studio-canvas__layout {
+    grid-template-columns: minmax(0, 1fr);
+    block-size: auto;
+  }
+
+  .studio-canvas__stage {
+    block-size: 32rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .react-flow__pane,
+  .react-flow__viewport {
+    transition: none !important;
+  }
+}

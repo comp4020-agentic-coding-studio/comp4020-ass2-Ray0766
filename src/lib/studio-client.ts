@@ -51,6 +51,12 @@ function assetUrl(file: string): string {
   return withBase(`/studio/${stripFinalPrefix(file)}`);
 }
 
+/** The canvas builds its own node shapes from the same manifests but needs
+ *  the identical URL rule; exported rather than restated there, because two
+ *  copies of this is how the gallery and the canvas start pointing at
+ *  different files. */
+export { assetUrl as studioAssetUrl, isPublicFile as isStudioPublicFile };
+
 // `inputs/**` paths are prompt/negative text read at build time (see
 // src/lib/studio.ts) and never copied into public/ — only a bare filename
 // (no directory, or a "final/"-prefixed one) was copied into public/studio/

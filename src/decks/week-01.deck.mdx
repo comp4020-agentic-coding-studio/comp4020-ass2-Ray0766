@@ -4,6 +4,7 @@ description: The two shapes of a budget, the licence on the weights, and the rec
 ---
 
 import DeckFocus from "../components/deck/DeckFocus.astro";
+import Reading from "../components/Reading.astro";
 
 <DeckFocus />
 
@@ -218,16 +219,15 @@ clips, their graphs or logs, and your timing notes to Wednesday's Dailies.
 
 ## Reading
 
-- [Wan2.2](https://github.com/Wan-Video/Wan2.2)
-- [Hugging Face Hub: Licenses](https://huggingface.co/docs/hub/repositories-licenses)
-- [CreativeML Open RAIL-M licence text](https://huggingface.co/spaces/CompVis/stable-diffusion-license/raw/main/license.txt)
-- [ComfyUI: Workflow API Format](https://docs.comfy.org/development/api-development/workflow-api-format)
+<Reading week={1} />
 
 ```notes
 - Wan2.2 — the README both of this week's numbers come from, and the clearest
   published statement of what a VRAM floor actually buys you.
 - Hugging Face Hub: Licenses — where a repository declares its licence, and
   what `license: other` obliges the publisher to add alongside it.
+- Responsible AI Licenses — the initiative behind the RAIL family, and the
+  reason a behavioural-use clause is a licence term rather than a request.
 - CreativeML Open RAIL-M — the licence text behind the output clause, and the
   Attachment A use restrictions that make it a RAIL licence rather than an
   ordinary permissive one.

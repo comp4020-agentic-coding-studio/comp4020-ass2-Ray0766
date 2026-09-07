@@ -1,0 +1,86 @@
+/* Reading: one card per source, rendered from src/data/reading.json on both
+   the lecture page and that week's deck. Two columns where there is room, one
+   below 720px, and never a fixed height --- a card is as tall as its own
+   quotation. */
+
+.reading {
+  display: grid;
+  gap: var(--at-spacing-md);
+  grid-template-columns: repeat(auto-fit, minmax(19rem, 1fr));
+  margin: var(--at-spacing-md) 0;
+  padding: 0;
+  list-style: none;
+}
+
+.reading__card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--at-spacing-xs);
+  border: 1px solid var(--at-border);
+  border-radius: var(--at-border-radius);
+  /* The accent reads as a rule down the edge, never as ink: a phase colour
+     composited over either surface lands between 2.7:1 and 3.5:1, which is a
+     bar and not text. See CLAUDE.md 7. */
+  border-inline-start: 3px solid var(--at-accent);
+  padding: var(--at-spacing-md);
+  background: var(--at-bg-alt);
+}
+
+.reading__title {
+  margin: 0;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.reading__link {
+  /* The whole title is the target, so a card is one keyboard stop rather than
+     a heading and a separate "link" afterwards. */
+  color: inherit;
+}
+
+.reading__by {
+  margin: 0;
+  color: var(--at-text-secondary);
+  font-size: var(--at-font-size-sm);
+}
+
+.reading__year::before {
+  content: " · ";
+}
+
+.reading__quote {
+  margin: var(--at-spacing-xs) 0 0;
+  border: 0;
+  padding: 0;
+  color: var(--at-text);
+  font-size: var(--at-font-size-sm);
+  font-style: italic;
+}
+
+.reading__quote::before {
+  content: "\201C";
+}
+
+.reading__quote::after {
+  content: "\201D";
+}
+
+.reading__unquoted {
+  margin: var(--at-spacing-xs) 0 0;
+  color: var(--at-text-secondary);
+  font-size: var(--at-font-size-xs);
+}
+
+/* Inside a deck the cards sit on a slide rather than in a prose column: the
+   type is smaller and the grid is allowed to run three across, because a
+   Reading slide is scanned from the back of a room rather than read. */
+.reveal .reading {
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  gap: 0.6em;
+  font-size: 0.5em;
+}
+
+.reveal .reading__card {
+  padding: 0.7em;
+  gap: 0.25em;
+}

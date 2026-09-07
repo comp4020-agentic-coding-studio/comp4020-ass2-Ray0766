@@ -16,6 +16,7 @@ draft: false
 
 import CompareSet from "../../components/widgets/CompareSet.astro";
 import Rung from "../../components/lecture/Rung.astro";
+import Reading from "../../components/Reading.astro";
 
 Text to image starts from nothing; image to image starts from something,
 and this week is about how much of that something survives. Denoising
@@ -88,10 +89,4 @@ to Wednesday's Dailies.
 
 ## Reading
 
-- [SDEdit: Guided Image Synthesis and Editing with Stochastic
-  Differential Equations](https://arxiv.org/abs/2108.01073) — the
-  technique behind the strength dial this week's whole ladder runs on.
-- [Adding Conditional Control to Text-to-Image Diffusion Models](https://arxiv.org/abs/2302.05543)
-  — ControlNet, for holding a pose or depth signal fixed through a pass.
-- [IP-Adapter: Text Compatible Image Prompt Adapter](https://arxiv.org/abs/2308.06721)
-  — carrying identity or style forward from a reference image.
+<Reading week={4} />

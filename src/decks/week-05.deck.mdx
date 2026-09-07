@@ -5,6 +5,7 @@ description: The third generator — the four-sentence prompt that controls moti
 
 import DeckFocus from "../components/deck/DeckFocus.astro";
 import LadderStill from "../components/deck/LadderStill.astro";
+import Reading from "../components/Reading.astro";
 
 <DeckFocus />
 
@@ -206,10 +207,7 @@ order with the counter-example marked, to Wednesday's Dailies.
 
 ## Reading
 
-- [Video generation models as world simulators](https://openai.com/index/video-generation-models-as-world-simulators/)
-- [Wan: Open and Advanced Large-Scale Video Generative Models](https://arxiv.org/abs/2503.20314)
-- [MiniMax H3: Video Prompt Writing Guide](https://huggingface.co/MiniMaxAI/MiniMax-H3/raw/main/docs/VIDEO_PROMPT_WRITING_GUIDE_base_en.md)
-- [Seedance 1.0](https://arxiv.org/abs/2506.09113)
+<Reading week={5} />
 
 ```notes
 - Video generation models as world simulators — where the spacetime-patch
@@ -218,6 +216,8 @@ order with the counter-example marked, to Wednesday's Dailies.
   of, at 1.3B and 14B parameters.
 - MiniMax H3: Video Prompt Writing Guide — the field structure this week's
   ladder is written into, including the two sound fields.
+- Scalable Diffusion Models with Transformers — the DiT backbone the report's
+  patches are fed into, and where the scaling argument is actually made.
 - Seedance 1.0 — on multi-shot generation from a single prompt, and on what a
   5-second 1080p clip costs on current hardware.
 ```

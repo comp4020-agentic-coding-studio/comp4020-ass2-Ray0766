@@ -17,6 +17,7 @@ draft: false
 import PromptComposer from "../../components/widgets/PromptComposer.astro";
 import CompareSet from "../../components/widgets/CompareSet.astro";
 import Rung from "../../components/lecture/Rung.astro";
+import Reading from "../../components/Reading.astro";
 
 Text to video generates motion from words alone, with nothing to anchor
 composition but the prompt itself. That's weaker control than starting
@@ -81,12 +82,4 @@ Wednesday's Dailies.
 
 ## Reading
 
-- [Video generation models as world simulators](https://openai.com/index/video-generation-models-as-world-simulators/)
-  — on what a text-to-video model is actually learning, and why its
-  native clip length is not an arbitrary limit.
-- [Wan: Open and Advanced Large-Scale Video Generative Models](https://arxiv.org/abs/2503.20314)
-  — an openly available model built around exactly this kind of
-  sentence-structured prompting.
-- [Seedance 1.0: Exploring the Boundaries of Video Generation
-  Models](https://arxiv.org/abs/2506.09113) — on the specific failure
-  modes this lecture's "reading a bad take" section is describing.
+<Reading week={5} />

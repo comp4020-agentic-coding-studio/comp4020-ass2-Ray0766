@@ -19,6 +19,7 @@ import ProductionLog from "../../components/lecture/ProductionLog.astro";
 import SameSeed from "../../components/widgets/SameSeed.astro";
 import SpecSheet from "../../components/lecture/SpecSheet.astro";
 import SpecRow from "../../components/lecture/SpecRow.astro";
+import Reading from "../../components/Reading.astro";
 
 Every generator this course touches runs the same loop underneath
 whatever interface sits on top of it: set some parameters, generate,
@@ -103,6 +104,4 @@ rolls, their logs, and your five verdicts to Wednesday's Dailies.
 
 ## Reading
 
-- [High-Resolution Image Synthesis with Latent Diffusion Models](https://arxiv.org/abs/2112.10752)
-  — the paper behind the sampler doing the rolling underneath the
-  workflow you're running this week.
+<Reading week={2} />

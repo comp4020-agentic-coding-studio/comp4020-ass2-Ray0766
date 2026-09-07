@@ -5,6 +5,7 @@ description: The second generator — denoising strength, ControlNet and IP-Adap
 
 import DeckFocus from "../components/deck/DeckFocus.astro";
 import LadderInput from "../components/deck/LadderInput.astro";
+import Reading from "../components/Reading.astro";
 
 <DeckFocus />
 
@@ -201,10 +202,7 @@ Dailies.
 
 ## Reading
 
-- [SDEdit: Guided Image Synthesis and Editing with Stochastic Differential Equations](https://arxiv.org/abs/2108.01073)
-- [Adding Conditional Control to Text-to-Image Diffusion Models](https://arxiv.org/abs/2302.05543)
-- [IP-Adapter: Text Compatible Image Prompt Adapter](https://arxiv.org/abs/2308.06721)
-- [ComfyUI: image to image](https://docs.comfy.org/tutorials/basic/image-to-image)
+<Reading week={4} />
 
 ```notes
 - SDEdit — the technique behind the strength dial this week's whole ladder

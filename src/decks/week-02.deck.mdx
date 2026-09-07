@@ -5,6 +5,7 @@ description: The cycle every generator runs on — rolling and selecting, the se
 
 import DeckFocus from "../components/deck/DeckFocus.astro";
 import LadderStill from "../components/deck/LadderStill.astro";
+import Reading from "../components/Reading.astro";
 
 <DeckFocus />
 
@@ -205,11 +206,11 @@ your five verdicts to Wednesday's Dailies.
 
 ## Reading
 
-- [Denoising Diffusion Implicit Models](https://arxiv.org/abs/2010.02502)
-- [DPM-Solver++](https://arxiv.org/abs/2211.01095)
-- [ComfyUI: KSampler](https://docs.comfy.org/built-in-nodes/KSampler)
+<Reading week={2} />
 
 ```notes
+- High-Resolution Image Synthesis with Latent Diffusion Models — the paper the
+  other three are all adjusting: the loop runs in a latent space, not on pixels.
 - Denoising Diffusion Implicit Models — where the trade between step count and
   sample quality was first stated as a trade rather than a limitation.
 - DPM-Solver++ — the solver behind the `dpmpp_` names on the sampler list, and

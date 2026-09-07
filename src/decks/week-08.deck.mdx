@@ -5,6 +5,7 @@ description: Holding a character and a location steady across shots — referenc
 
 import DeckFocus from "../components/deck/DeckFocus.astro";
 import LadderStill from "../components/deck/LadderStill.astro";
+import Reading from "../components/Reading.astro";
 
 <DeckFocus />
 
@@ -193,10 +194,7 @@ Dailies.
 
 ## Reading
 
-- [LoRA: Low-Rank Adaptation of Large Language Models](https://arxiv.org/abs/2106.09685)
-- [DreamBooth: Fine Tuning Text-to-Image Diffusion Models for Subject-Driven Generation](https://arxiv.org/abs/2208.12242)
-- [VACE: All-in-One Video Creation and Editing](https://arxiv.org/abs/2503.07598)
-- [MiniMax-H3 model card](https://huggingface.co/MiniMaxAI/MiniMax-H3)
+<Reading week={8} />
 
 ```notes
 - LoRA — the trained half of the trade, and how small the trained part
@@ -205,6 +203,8 @@ Dailies.
   preservation loss that keeps the rest of the class intact.
 - VACE — reference-to-video, video-to-video editing and masked editing brought
   under one conditioning unit, which is where this family of tools is heading.
+- Phantom — subject-to-video, and the narrower promise it makes about keeping
+  one face the same face.
 - MiniMax-H3 model card — the reference task's real limits, in images, clips
   and total files.
 ```

@@ -1,0 +1,491 @@
+{
+  "note": "Every row traces to the fetched-and-confirmed source whitelist the decks were rebuilt on. A quote is reproduced verbatim from the page it cites and is never assembled from fragments; where the whitelist recorded a fact without a verbatim sentence to carry it, quoteNote says so instead of inventing one. Lectures and decks both render this file, so the two can never drift apart.",
+  "entries": [
+    {
+      "week": 1,
+      "title": "Wan2.2",
+      "by": "Wan-Video",
+      "year": 2025,
+      "url": "https://github.com/Wan-Video/Wan2.2",
+      "quote": "can run on a GPU with at least 24GB VRAM (e.g, RTX 4090 GPU)",
+      "quoteNote": null
+    },
+    {
+      "week": 1,
+      "title": "Hugging Face Hub: Licenses",
+      "by": "Hugging Face",
+      "year": null,
+      "url": "https://huggingface.co/docs/hub/repositories-licenses",
+      "quote": "Remember to seek out and respect a project's license if you're considering using their code or data.",
+      "quoteNote": null
+    },
+    {
+      "week": 1,
+      "title": "CreativeML Open RAIL-M licence text",
+      "by": "CompVis",
+      "year": 2022,
+      "url": "https://huggingface.co/spaces/CompVis/stable-diffusion-license/raw/main/license.txt",
+      "quote": "Licensor claims no rights in the Output You generate using the Model",
+      "quoteNote": null
+    },
+    {
+      "week": 1,
+      "title": "Responsible AI Licenses",
+      "by": "RAIL Initiative",
+      "year": null,
+      "url": "https://www.licenses.ai/",
+      "quote": "RAIL empower developers to restrict the use of their AI technology in order to prevent irresponsible and harmful applications.",
+      "quoteNote": null
+    },
+    {
+      "week": 1,
+      "title": "ComfyUI: Workflow API Format",
+      "by": "Comfy Org",
+      "year": null,
+      "url": "https://docs.comfy.org/development/api-development/workflow-api-format",
+      "quote": "API format omits UI metadata (positions, colors, groups, node sizes) that is only needed for visual editing in the frontend.",
+      "quoteNote": null
+    },
+    {
+      "week": 2,
+      "title": "High-Resolution Image Synthesis with Latent Diffusion Models",
+      "by": "Rombach et al.",
+      "year": 2022,
+      "url": "https://arxiv.org/abs/2112.10752",
+      "quote": "in the latent space of powerful pretrained autoencoders",
+      "quoteNote": null
+    },
+    {
+      "week": 2,
+      "title": "Denoising Diffusion Implicit Models",
+      "by": "Song, Meng & Ermon",
+      "year": 2020,
+      "url": "https://arxiv.org/abs/2010.02502",
+      "quote": "10× to 50× faster in terms of wall-clock time compared to DDPMs",
+      "quoteNote": null
+    },
+    {
+      "week": 2,
+      "title": "DPM-Solver++",
+      "by": "Lu et al.",
+      "year": 2022,
+      "url": "https://arxiv.org/abs/2211.01095",
+      "quote": "high-quality samples within only 15 to 20 steps for guided sampling",
+      "quoteNote": null
+    },
+    {
+      "week": 2,
+      "title": "ComfyUI: KSampler",
+      "by": "Comfy Org",
+      "year": null,
+      "url": "https://docs.comfy.org/built-in-nodes/KSampler",
+      "quote": "The random seed used for creating the noise",
+      "quoteNote": null
+    },
+    {
+      "week": 3,
+      "title": "Illustrious: an Open Advanced Illustration Model",
+      "by": "Park et al.",
+      "year": 2024,
+      "url": "https://arxiv.org/abs/2409.19946",
+      "quote": "person count ||| character names ||| rating ||| general tags ||| artist ||| score range based rating ||| year modifier",
+      "quoteNote": null
+    },
+    {
+      "week": 3,
+      "title": "SDXL: Improving Latent Diffusion Models for High-Resolution Image Synthesis",
+      "by": "Podell et al.",
+      "year": 2023,
+      "url": "https://arxiv.org/abs/2307.01952",
+      "quote": "three times larger UNet backbone",
+      "quoteNote": null
+    },
+    {
+      "week": 3,
+      "title": "NoobAI-XL 1.1 model card",
+      "by": "Laxhar",
+      "year": 2024,
+      "url": "https://huggingface.co/Laxhar/noobai-XL-1.1",
+      "quote": "We prohibit any form of commercialization",
+      "quoteNote": null
+    },
+    {
+      "week": 3,
+      "title": "Danbooru wiki: Help:Tags",
+      "by": "Danbooru (community wiki)",
+      "year": null,
+      "url": "https://danbooru.donmai.us/wiki_pages/help:tags",
+      "quote": "Spaces in tag names become underscores",
+      "quoteNote": null
+    },
+    {
+      "week": 4,
+      "title": "SDEdit: Guided Image Synthesis and Editing with Stochastic Differential Equations",
+      "by": "Meng et al.",
+      "year": 2021,
+      "url": "https://arxiv.org/abs/2108.01073",
+      "quote": "first adds noise to the input, then subsequently denoises the resulting image",
+      "quoteNote": null
+    },
+    {
+      "week": 4,
+      "title": "Adding Conditional Control to Text-to-Image Diffusion Models",
+      "by": "Zhang, Rao & Agrawala",
+      "year": 2023,
+      "url": "https://arxiv.org/abs/2302.05543",
+      "quote": "robust with small (<50k) and large (>1m) datasets",
+      "quoteNote": null
+    },
+    {
+      "week": 4,
+      "title": "IP-Adapter: Text Compatible Image Prompt Adapter",
+      "by": "Ye et al.",
+      "year": 2023,
+      "url": "https://arxiv.org/abs/2308.06721",
+      "quote": "decoupled cross-attention mechanism",
+      "quoteNote": null
+    },
+    {
+      "week": 4,
+      "title": "ComfyUI: image to image",
+      "by": "Comfy Org",
+      "year": null,
+      "url": "https://docs.comfy.org/tutorials/basic/image-to-image",
+      "quote": "the latent space image will become completely random noise",
+      "quoteNote": null
+    },
+    {
+      "week": 5,
+      "title": "Video generation models as world simulators",
+      "by": "OpenAI",
+      "year": 2024,
+      "url": "https://openai.com/index/video-generation-models-as-world-simulators/",
+      "quote": "spacetime patches which act as transformer tokens",
+      "quoteNote": null
+    },
+    {
+      "week": 5,
+      "title": "Scalable Diffusion Models with Transformers",
+      "by": "Peebles & Xie",
+      "year": 2022,
+      "url": "https://arxiv.org/abs/2212.09748",
+      "quote": "replacing the commonly-used U-Net backbone with a transformer that operates on latent patches",
+      "quoteNote": null
+    },
+    {
+      "week": 5,
+      "title": "Wan: Open and Advanced Large-Scale Video Generative Models",
+      "by": "Team Wan",
+      "year": 2025,
+      "url": "https://arxiv.org/abs/2503.20314",
+      "quote": "requiring only 8.19 GB VRAM",
+      "quoteNote": null
+    },
+    {
+      "week": 5,
+      "title": "Seedance 1.0",
+      "by": "Gao et al.",
+      "year": 2025,
+      "url": "https://arxiv.org/abs/2506.09113",
+      "quote": "a 5-second video at 1080p resolution only with 41.4 seconds (NVIDIA-L20)",
+      "quoteNote": null
+    },
+    {
+      "week": 5,
+      "title": "MiniMax H3: Video Prompt Writing Guide",
+      "by": "MiniMaxAI",
+      "year": 2026,
+      "url": "https://huggingface.co/MiniMaxAI/MiniMax-H3/raw/main/docs/VIDEO_PROMPT_WRITING_GUIDE_base_en.md",
+      "quote": "music that the characters cannot hear",
+      "quoteNote": null
+    },
+    {
+      "week": 6,
+      "title": "Stable Video Diffusion",
+      "by": "Blattmann et al.",
+      "year": 2023,
+      "url": "https://arxiv.org/abs/2311.15127",
+      "quote": "text-to-image pretraining, video pretraining, and high-quality video finetuning",
+      "quoteNote": null
+    },
+    {
+      "week": 6,
+      "title": "Wan2.1",
+      "by": "Wan-Video",
+      "year": 2025,
+      "url": "https://github.com/Wan-Video/Wan2.1",
+      "quote": "Currently, only 720P is supported",
+      "quoteNote": null
+    },
+    {
+      "week": 6,
+      "title": "MiniMax-H3 model card",
+      "by": "MiniMaxAI",
+      "year": 2026,
+      "url": "https://huggingface.co/MiniMaxAI/MiniMax-H3",
+      "quote": "maximum number of files across all input types is 12",
+      "quoteNote": null
+    },
+    {
+      "week": 6,
+      "title": "VBench: Comprehensive Benchmark Suite for Video Generative Models",
+      "by": "Huang et al.",
+      "year": 2023,
+      "url": "https://arxiv.org/abs/2311.17982",
+      "quote": "DINO feature similarity across frames",
+      "quoteNote": null
+    },
+    {
+      "week": 7,
+      "title": "ComfyUI: Load Checkpoint",
+      "by": "Comfy Org",
+      "year": null,
+      "url": "https://docs.comfy.org/built-in-nodes/CheckpointLoaderSimple",
+      "quote": "encoding and decoding images to and from latent space",
+      "quoteNote": null
+    },
+    {
+      "week": 7,
+      "title": "ComfyUI: Workflow API Format",
+      "by": "Comfy Org",
+      "year": null,
+      "url": "https://docs.comfy.org/development/api-development/workflow-api-format",
+      "quote": "API format omits UI metadata (positions, colors, groups, node sizes) that is only needed for visual editing in the frontend.",
+      "quoteNote": null
+    },
+    {
+      "week": 7,
+      "title": "ComfyUI: Server routes",
+      "by": "Comfy Org",
+      "year": null,
+      "url": "https://docs.comfy.org/development/comfyui-server/comms_routes",
+      "quote": "validates the prompt and adds it to an execution queue",
+      "quoteNote": null
+    },
+    {
+      "week": 7,
+      "title": "ComfyUI",
+      "by": "comfyanonymous",
+      "year": null,
+      "url": "https://github.com/comfyanonymous/ComfyUI",
+      "quote": "Save and load workflows as JSON, or recover complete workflows and seeds from supported generated media",
+      "quoteNote": null
+    },
+    {
+      "week": 8,
+      "title": "LoRA: Low-Rank Adaptation of Large Language Models",
+      "by": "Hu et al.",
+      "year": 2021,
+      "url": "https://arxiv.org/abs/2106.09685",
+      "quote": "freezes the pre-trained model weights and injects trainable rank decomposition matrices into each layer",
+      "quoteNote": null
+    },
+    {
+      "week": 8,
+      "title": "DreamBooth: Fine Tuning Text-to-Image Diffusion Models for Subject-Driven Generation",
+      "by": "Ruiz et al.",
+      "year": 2022,
+      "url": "https://arxiv.org/abs/2208.12242",
+      "quote": "Given only a few (typically 3-5) casually captured images of a specific subject",
+      "quoteNote": null
+    },
+    {
+      "week": 8,
+      "title": "VACE: All-in-One Video Creation and Editing",
+      "by": "Jiang et al.",
+      "year": 2025,
+      "url": "https://arxiv.org/abs/2503.07598",
+      "quote": "reference-to-video generation, video-to-video editing, and masked video-to-video editing",
+      "quoteNote": null
+    },
+    {
+      "week": 8,
+      "title": "Phantom: Subject-consistent video generation via cross-modal alignment",
+      "by": "Liu et al.",
+      "year": 2025,
+      "url": "https://arxiv.org/abs/2502.11079",
+      "quote": "extracts subject elements from reference images and generates subject-consistent videos following textual instructions",
+      "quoteNote": null
+    },
+    {
+      "week": 8,
+      "title": "MiniMax-H3 model card",
+      "by": "MiniMaxAI",
+      "year": 2026,
+      "url": "https://huggingface.co/MiniMaxAI/MiniMax-H3",
+      "quote": "Up to 9 reference images, 3 reference videos",
+      "quoteNote": null
+    },
+    {
+      "week": 9,
+      "title": "TikTok: creative best practices for performance ads",
+      "by": "TikTok",
+      "year": null,
+      "url": "https://ads.tiktok.com/help/article/creative-best-practices",
+      "quote": "Prioritize your hook in the first 6 seconds",
+      "quoteNote": null
+    },
+    {
+      "week": 9,
+      "title": "YouTube Help: get started creating YouTube Shorts",
+      "by": "YouTube",
+      "year": null,
+      "url": "https://support.google.com/youtube/answer/10059070",
+      "quote": "short-form videos that are up to 3 minutes long",
+      "quoteNote": null
+    },
+    {
+      "week": 9,
+      "title": "YouTube Help: understand your content performance",
+      "by": "YouTube",
+      "year": null,
+      "url": "https://support.google.com/youtube/answer/12220281",
+      "quote": "The percentage of times viewers stayed to watch past the initial seconds of a Short",
+      "quoteNote": null
+    },
+    {
+      "week": 9,
+      "title": "Film Art: An Introduction, 13th ed.",
+      "by": "Bordwell, Thompson & Smith",
+      "year": 2026,
+      "url": "https://www.mheducation.com/highered/product/film-art-introduction-bordwell-thompson/M9781264296095.html",
+      "quote": "The Relation of Shot to Shot: Editing",
+      "quoteNote": null
+    },
+    {
+      "week": 9,
+      "title": "Pixar in a Box: the art of storytelling",
+      "by": "Khan Academy",
+      "year": null,
+      "url": "https://www.khanacademy.org/computing/pixar/storytelling",
+      "quote": null,
+      "quoteNote": "Linked, not quoted: the lesson contents could not be confirmed by fetching the page."
+    },
+    {
+      "week": 10,
+      "title": "NRTA notice on micro-drama filing (广电办发〔2022〕345号)",
+      "by": "国家广播电视总局",
+      "year": 2022,
+      "url": "https://www.nrta.gov.cn/art/2022/12/27/art_113_63062.html",
+      "quote": "单集时长从几十秒到15分钟左右、有着相对明确的主题和主线、较为连续和完整的故事情节",
+      "quoteNote": null
+    },
+    {
+      "week": 10,
+      "title": "NRTA notice on micro-drama management (广电办发〔2024〕35号)",
+      "by": "国家广播电视总局",
+      "year": 2024,
+      "url": "https://www.nrta.gov.cn/art/2025/2/5/art_113_70148.html",
+      "quote": "从2024年6月1日起，未经审核且备案的微短剧不得上网传播",
+      "quoteNote": null
+    },
+    {
+      "week": 10,
+      "title": "中国微短剧行业发展白皮书（2024）, via Xinhua",
+      "by": "中国网络视听节目服务协会",
+      "year": 2024,
+      "url": "http://www.news.cn/ci/20250416/6f4afd7ffda245b4b46a2664ca4e98db/c.html",
+      "quote": "2024年我国微短剧市场规模约达504.4亿元，同比增长34.90%",
+      "quoteNote": null
+    },
+    {
+      "week": 10,
+      "title": "CNNIC, 57th Statistical Report on China's Internet Development",
+      "by": "CNNIC",
+      "year": 2026,
+      "url": "https://www.cnnic.net.cn/n4/2026/0304/c88-11549.html",
+      "quote": null,
+      "quoteNote": "Linked, not quoted: the figures are read off the report's data tables rather than a sentence."
+    },
+    {
+      "week": 11,
+      "title": "EBU R 128: Loudness normalisation",
+      "by": "European Broadcasting Union",
+      "year": 2023,
+      "url": "https://tech.ebu.ch/publications/r128",
+      "quote": "Programme Loudness Level shall be normalised to a Target Level of −23.0 LUFS",
+      "quoteNote": null
+    },
+    {
+      "week": 11,
+      "title": "W3C WAI: Captions/Subtitles",
+      "by": "W3C Web Accessibility Initiative",
+      "year": null,
+      "url": "https://www.w3.org/WAI/media/av/captions/",
+      "quote": "Captions are a text version of the speech and non-speech audio information needed to understand the content",
+      "quoteNote": null
+    },
+    {
+      "week": 11,
+      "title": "YouTube Help: recommended upload encoding settings",
+      "by": "YouTube",
+      "year": null,
+      "url": "https://support.google.com/youtube/answer/1722171",
+      "quote": "the player automatically adapts",
+      "quoteNote": null
+    },
+    {
+      "week": 11,
+      "title": "抖音开放平台：上传视频",
+      "by": "抖音开放平台",
+      "year": null,
+      "url": "https://open.douyin.com/platform/resource/docs/openapi/video-management/douyin/create/upload/",
+      "quote": "视频文件大小不超过128M",
+      "quoteNote": null
+    },
+    {
+      "week": 11,
+      "title": "FFmpeg Documentation",
+      "by": "FFmpeg",
+      "year": null,
+      "url": "https://ffmpeg.org/documentation.html",
+      "quote": "The following documentation is regenerated nightly, and corresponds to the newest FFmpeg revision.",
+      "quoteNote": null
+    },
+    {
+      "week": 12,
+      "title": "YouTube Help: measure key moments for audience retention",
+      "by": "YouTube",
+      "year": null,
+      "url": "https://support.google.com/youtube/answer/9314415",
+      "quote": "Intro tells you what percentage of your audience still watched your video after the first 30 seconds",
+      "quoteNote": null
+    },
+    {
+      "week": 12,
+      "title": "YouTube Help: understand your YouTube engagement",
+      "by": "YouTube",
+      "year": null,
+      "url": "https://support.google.com/youtube/answer/9313698",
+      "quote": "Average minutes watched among those who stayed to watch",
+      "quoteNote": null
+    },
+    {
+      "week": 12,
+      "title": "TikTok Creator Academy: TikTok Analytics",
+      "by": "TikTok",
+      "year": null,
+      "url": "https://www.tiktok.com/creator-academy/en/article/tool-analytics-intro",
+      "quote": "average watch time, watched the full video (percentage of viewers who watched the entire video)",
+      "quoteNote": null
+    },
+    {
+      "week": 12,
+      "title": "WGA 2020 Theatrical and Television Basic Agreement",
+      "by": "Writers Guild of America",
+      "year": 2020,
+      "url": "https://www.wga.org/uploadedfiles/contracts/mba20.pdf",
+      "quote": "A 'bible' is a written document containing the format, character descriptions and story lines or synopses",
+      "quoteNote": null
+    },
+    {
+      "week": 12,
+      "title": "NRTA CVB: 2025 satellite-channel micro-drama viewing report",
+      "by": "NRTA CVB",
+      "year": 2025,
+      "url": "https://www.nrta.gov.cn/art/2025/12/26/art_114_72199.html",
+      "quote": null,
+      "quoteNote": "Linked, not quoted: the counts come from the report's tables rather than a sentence."
+    }
+  ]
+}

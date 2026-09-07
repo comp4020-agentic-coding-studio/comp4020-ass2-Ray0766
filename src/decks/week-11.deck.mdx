@@ -4,6 +4,7 @@ description: Finishing an episode — assembling the gated shots into one cut, s
 ---
 
 import DeckFocus from "../components/deck/DeckFocus.astro";
+import Reading from "../components/Reading.astro";
 
 <DeckFocus />
 
@@ -204,10 +205,7 @@ production pass, so bring the finished pilot itself to Wednesday's Dailies.
 
 ## Reading
 
-- [EBU R 128: Loudness normalisation](https://tech.ebu.ch/publications/r128)
-- [W3C WAI: Captions and subtitles](https://www.w3.org/WAI/media/av/captions/)
-- [YouTube Help: recommended upload encoding settings](https://support.google.com/youtube/answer/1722171)
-- [TikTok Ads Manager: video ads specifications](https://ads.tiktok.com/help/article/video-ads-specifications)
+<Reading week={11} />
 
 ```notes
 - EBU R 128 — the target, the tolerance, the true-peak ceiling, and the note
@@ -216,6 +214,8 @@ production pass, so bring the finished pilot itself to Wednesday's Dailies.
   level it sits at.
 - YouTube Help — the container, codec and bitrate table, and the two lines
   about frame rate and the moov atom.
-- TikTok Ads Manager — the strictest published statement that platform makes
-  about a vertical file, read as an ad spec rather than as the app's rules.
+- 抖音开放平台 — the upload API a publishing integration has to satisfy, which
+  is not the same document as the consumer app's rules.
+- FFmpeg Documentation — the tool every one of these specs is finally met
+  with, and the only one on the list you run rather than read.
 ```

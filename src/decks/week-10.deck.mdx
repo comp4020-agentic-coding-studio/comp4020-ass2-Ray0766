@@ -4,6 +4,7 @@ description: Turning nine weeks of technique into an episode — the shot queue,
 ---
 
 import DeckFocus from "../components/deck/DeckFocus.astro";
+import Reading from "../components/Reading.astro";
 
 <DeckFocus />
 
@@ -222,13 +223,13 @@ note on what the gate caught, or would have caught, to Wednesday's Dailies.
 
 ## Reading
 
-- [CNNIC, 57th Statistical Report on China's Internet Development](https://www.cnnic.net.cn/n4/2026/0304/c88-11549.html)
-- [NRTA, notice on micro-drama management (广电办发〔2024〕35号)](https://www.nrta.gov.cn/art/2025/2/5/art_113_70148.html)
-- [NRTA, notice on micro-drama filing (广电办发〔2022〕345号)](https://www.nrta.gov.cn/art/2022/12/27/art_113_63062.html)
+<Reading week={10} />
 
 ```notes
 - CNNIC — the audience number, and the two earlier editions that make it a
   trend rather than a snapshot.
+- 白皮书 (2024), via the Xinhua reprint — the market-size figure the deck's own
+  arithmetic is built on. The primary host blocks fetching; the reprint does not.
 - NRTA 35号 — the three review tiers, their budget thresholds, and the date
   after which an unreviewed micro-drama cannot be distributed.
 - NRTA 345号 — the regulator's own definition of the form, which is wider than

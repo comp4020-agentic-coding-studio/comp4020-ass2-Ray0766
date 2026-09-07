@@ -1,0 +1,43 @@
+---
+/**
+ * The week's reading, rendered from src/data/reading.json so the lecture page
+ * and that week's deck cannot disagree about it --- they call this component
+ * with the same week number and get the same list.
+ *
+ * Every quote is verbatim from the page it cites. Where the whitelist the
+ * decks were built on recorded a fact without a sentence to carry it, the card
+ * says so rather than paraphrasing something into quotation marks.
+ */
+import { readingFor } from "../lib/reading";
+import "../styles/reading.css";
+
+interface Props {
+  week: number;
+}
+
+const { week } = Astro.props;
+const entries = readingFor(week);
+---
+
+<ul class="reading" aria-label={`Reading for week ${week}`}>
+  {
+    entries.map((entry) => (
+      <li class="reading__card">
+        <p class="reading__title">
+          <a class="reading__link" href={entry.url} rel="noreferrer">
+            {entry.title}
+          </a>
+        </p>
+        <p class="reading__by">
+          {entry.by}
+          {entry.year !== null && <span class="reading__year">{entry.year}</span>}
+        </p>
+        {entry.quote ? (
+          <blockquote class="reading__quote">{entry.quote}</blockquote>
+        ) : (
+          <p class="reading__unquoted">{entry.quoteNote}</p>
+        )}
+      </li>
+    ))
+  }
+</ul>

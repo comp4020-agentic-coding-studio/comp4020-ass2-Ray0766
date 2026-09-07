@@ -4,6 +4,7 @@ description: The first generator — prompt grammar for a single keyframe on ani
 ---
 
 import DeckFocus from "../components/deck/DeckFocus.astro";
+import Reading from "../components/Reading.astro";
 
 <DeckFocus />
 
@@ -211,10 +212,7 @@ keyframes, in ladder order, to Wednesday's Dailies.
 
 ## Reading
 
-- [Illustrious: an Open Advanced Illustration Model](https://arxiv.org/abs/2409.19946)
-- [SDXL: Improving Latent Diffusion Models for High-Resolution Image Synthesis](https://arxiv.org/abs/2307.01952)
-- [NoobAI-XL 1.1 model card](https://huggingface.co/Laxhar/noobai-XL-1.1)
-- [Danbooru wiki: Help:Tags](https://danbooru.donmai.us/wiki_pages/help:tags)
+<Reading week={3} />
 
 ```notes
 - Illustrious — the caption order, the quality tiers, and the dataset the

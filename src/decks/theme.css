@@ -281,10 +281,18 @@
   margin: 0 0 1.5rem;
 }
 
+.reveal .slides .deck-input figure {
+  margin: 0;
+}
+
+/* Capped by height, not width: every frame in this production is 9:16, so a
+   thumbnail sized to the column would stand taller than the slide. */
 .reveal .slides .deck-input img {
   display: block;
-  inline-size: 100%;
+  inline-size: auto;
+  max-inline-size: 100%;
   block-size: auto;
+  max-block-size: 10rem;
   border-radius: var(--at-border-radius);
 }
 

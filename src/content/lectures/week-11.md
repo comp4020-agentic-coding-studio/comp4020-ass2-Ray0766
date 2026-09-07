@@ -64,6 +64,27 @@ fails a platform's delivery check has not shipped; it's failed at the
 very last step of a nine-week process, which is the most expensive place
 in the whole pipeline to fail.
 
+This is the spec the pilot is delivered against. Every number in it is
+published by the body or the platform that enforces it, and none of it is
+a house rule.
+
+| Requirement | The spec |
+| --- | --- |
+| Programme loudness | Normalised to −23.0 LUFS, with a ±1.0 LU tolerance where the target is not practically achievable |
+| True peak | Not above −1 dBTP |
+| Meter | Compliant with ITU-R BS.1770, currently BS.1770-5 |
+| Container and codecs, YouTube | MP4 with the moov atom first; H.264 High Profile, closed GOP, 4:2:0; AAC-LC at 48 kHz |
+| Frame rate, YouTube | Uploaded at the rate it was shot — 24, 25, 30, 48, 50 or 60 |
+| Bitrate, YouTube 1080p SDR | 8 Mbps at 24–30 fps, 12 Mbps at 48–60 fps |
+| Vertical frame, TikTok ads spec | 9:16 at 540 × 960 or larger; .mp4, .mov, .mpeg, .3gp or .avi; under 500 MB; at least 516 kbps; up to 10 minutes |
+| Vertical frame, Douyin upload API | Under 128 MB and under 15 minutes; mp4 or webm recommended; 720p (1280 × 720) or better, vertical |
+
+Source: EBU R 128 v5.0 — <https://tech.ebu.ch/publications/r128>\
+Source: ITU-R BS.1770 — <https://www.itu.int/rec/R-REC-BS.1770>\
+Source: YouTube, Recommended upload encoding settings — <https://support.google.com/youtube/answer/1722171>\
+Source: TikTok Ads Manager, Video Ads Specifications — <https://ads.tiktok.com/help/article/video-ads-specifications>\
+Source: Douyin open platform, upload-video API documentation — <https://open.douyin.com/platform/resource/docs/openapi/video-management/douyin/create/upload/>
+
 ## Before class
 
 Bring the three shots that cleared the quality gate together with any

@@ -493,6 +493,31 @@
    document that runs one: sections announced by a ruled bar rather than by
    a display heading, and the detail in tables under them. */
 
+/* A call sheet is a dense document: the tables carry the detail, so they run
+   a step tighter than body prose and take the mono face for the numerals,
+   which is where most of the detail actually is. The theme's own table styles
+   (the filled header row, the stripes, the .at-table-wrap scroller a phone
+   needs for the four-column ones) do the rest. */
+
+.at-main[data-phase="episode"] table {
+  font-size: var(--at-font-size-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.at-main[data-phase="episode"] :is(th, td) {
+  padding: var(--at-spacing-sm) var(--at-spacing-md);
+}
+
+/* The source line under a delivery table, in the same "Source: <short title>
+   --- <url>" form the decks use. It is the paragraph immediately after a
+   table, which on these three pages is only ever a citation. */
+.at-main[data-phase="episode"] > .at-table-wrap + p {
+  margin-block-start: var(--at-spacing-sm);
+  font-size: var(--at-font-size-sm);
+  line-height: 1.5;
+  color: var(--at-text-secondary);
+}
+
 .at-main[data-phase="episode"] > h2,
 .at-main[data-phase="episode"] > section > h2 {
   font-size: clamp(1.25rem, 1.1rem + 0.5vw, 1.6rem);

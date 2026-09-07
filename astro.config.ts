@@ -1,5 +1,6 @@
 import { defineConfig } from "astro/config";
 import courseGraph from "astro-course-university";
+import react from "@astrojs/react";
 import universityTheme from "astro-theme-university";
 import { astromotion, deckRemarkPlugins } from "astromotion";
 import { courseMeta } from "./src/course-config.ts";
@@ -47,5 +48,10 @@ export default defineConfig({
       theme: "./src/decks/theme.css",
       fontVariables: ["--font-public-sans"],
     }),
+    // React is here for one page: the Studio's lineage canvas, which is a
+    // React Flow graph. Every other page on the site is static Astro and
+    // stays that way — the island is loaded `client:visible` so the React
+    // runtime never reaches a reader who doesn't scroll to the canvas.
+    react(),
   ],
 });

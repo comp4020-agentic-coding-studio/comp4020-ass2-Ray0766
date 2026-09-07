@@ -10,6 +10,8 @@ import { courseMeta } from "../../course-config";
 import type { CutLibrary, ReferenceEpisode } from "../../data/studio.schema";
 import { studioAssetUrl, type ClientTier, type ClientWeek } from "../studio-client";
 import { layoutBoard, placeBoard, type LayoutItem } from "./layout";
+import { planLine, productionLine as productionLineOf } from "./lines";
+import { normaliseWhitespace } from "./resolve";
 import type { Board, CanvasBundle, CanvasDoc, Edge, InputNode, Node, NodeMeta, TakeNode } from "./types";
 
 /** The Cut and the reference episode are taught in these weeks; the boards
@@ -67,24 +69,21 @@ function fileName(url: string): string {
   return url.split("/").pop() ?? url;
 }
 
-/** One line of the production log, the same fields the Studio's downloadable
- *  log carries, in the order the log states them. This is what "Copy
- *  production line" puts on the clipboard. */
+/** The production line for a tier, in the manifests' own vocabulary. The
+ *  joining itself lives in ./lines, which has no imports — see that file. */
 export function productionLine(week: ClientWeek, tier: ClientTier, takeId: string): string {
-  return [
+  return productionLineOf({
     takeId,
-    week.model,
-    week.mode,
-    week.resolution,
-    `${tier.tier} — ${tier.label}`,
-    fileName(tier.output.file),
-    "recorded",
-  ].join(" · ");
+    model: week.model,
+    mode: week.mode,
+    resolution: week.resolution,
+    tier: tier.tier,
+    label: tier.label,
+    file: tier.output.file,
+  });
 }
 
-export function planLine(takeId: string, model: string, mode: string, resolution: string): string {
-  return `Replayed ${takeId} · ${model} · ${mode} · ${resolution}`;
-}
+export { planLine } from "./lines";
 
 /** What the desk compares a typed prompt against: the tier's real recorded
  *  input, whitespace-normalised so a re-wrapped paste still matches. */
@@ -94,9 +93,7 @@ export function recordedInputOf(tier: ClientTier): string {
   return "";
 }
 
-export function normaliseWhitespace(text: string): string {
-  return text.replace(/\s+/g, " ").trim();
-}
+export { normaliseWhitespace } from "./resolve";
 
 function inputLabel(tier: ClientTier): string {
   const kind = tier.input.kind;

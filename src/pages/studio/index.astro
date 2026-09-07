@@ -91,10 +91,11 @@ const referenceSection = boardSection("reference");
 
   <p>
     Every clip and still here is a real recorded result from the course's own
-    production rig, not a live model call. The canvas lays the whole rig out
-    as boards — one per week, plus the Cut and the reference episode — with an
-    edge from each input to the take it produced. The desk on the right takes
-    references off the canvas and replays what the rig recorded for them. {CREDIT_LINE}
+    production rig, not a live model call. On a wide screen the canvas lays
+    the whole rig out as boards — one per week, plus the Cut and the reference
+    episode — with an edge from each input to the take it produced, and a desk
+    that replays what the rig recorded for whatever you put on it. On a phone
+    the desk is a form and the results are the list below. {CREDIT_LINE}
   </p>
 
   <nav class="studio-index" aria-label="Everything in the Studio">
@@ -121,6 +122,58 @@ const referenceSection = boardSection("reference");
 
   <section class="studio-canvas" data-studio-canvas hidden aria-label="Lineage canvas">
     <StudioCanvas client:visible />
+  </section>
+
+  {/* The desk at phone size, where there is no canvas to take references off
+      — same manifests, same resolver, same recorded backend, a few kilobytes
+      of plain DOM instead of the React island. */}
+  <section class="studio-form" data-studio-form hidden aria-label="Desk">
+    <h2>Desk</h2>
+    <p>
+      Pick a recorded run and the rig replays it. The prompt below is the one the rig was actually
+      given; change it and the rig will say so rather than make something up.
+    </p>
+
+    <div class="studio-form__pickers">
+      <label class="studio-form__label">
+        Week
+        <select class="studio-form__select" data-form-week></select>
+      </label>
+      <label class="studio-form__label">
+        Tier
+        <select class="studio-form__select" data-form-tier></select>
+      </label>
+    </div>
+
+    <p class="studio-form__kind" data-form-kind></p>
+
+    <label class="studio-form__label">
+      Prompt
+      <textarea class="studio-form__prompt" data-form-prompt rows="8"></textarea>
+    </label>
+
+    <div class="studio-form__run">
+      <button type="button" class="at-button" data-form-generate>Generate</button>
+      <button type="button" class="at-button at-button--outline" data-form-restore hidden>
+        Use the recorded input
+      </button>
+    </div>
+
+    <p class="studio-form__status" role="status" data-form-status></p>
+    <pre class="studio-form__recorded" data-form-recorded hidden></pre>
+    <progress class="studio-form__progress" data-form-progress max="100" value="0"></progress>
+
+    <figure class="studio-form__result" data-form-result hidden>
+      <video class="studio-form__media" data-form-video hidden controls playsinline preload="metadata"></video>
+      <img class="studio-form__media" data-form-image hidden alt="" />
+      <figcaption data-form-caption></figcaption>
+    </figure>
+
+    <p class="studio-form__line" data-form-line></p>
+
+    <button type="button" class="at-button at-button--outline" data-form-download hidden>
+      Download production log
+    </button>
   </section>
 
   <section class="studio-gallery" aria-label="Every recorded result, in order">
@@ -256,9 +309,12 @@ const referenceSection = boardSection("reference");
   </section>
 
   <script is:inline>
-    // See site.css: hold the canvas's space open during parsing so revealing
-    // it on a slow connection doesn't shove the gallery down. Inline, so a
-    // JS-off reader gets neither a reservation nor an empty hole.
+    // See site.css: hold each section's space open during parsing so
+    // revealing it on a slow connection doesn't shove the gallery down.
+    // Inline, so a JS-off reader gets neither a reservation nor an empty hole.
     document.querySelector("[data-studio-canvas]")?.setAttribute("data-reserve", "studio-canvas");
+    document.querySelector("[data-studio-form]")?.setAttribute("data-reserve", "studio-form");
   </script>
+
+  <script src="../../scripts/studio/desk-form.ts"></script>
 </ContentLayout>

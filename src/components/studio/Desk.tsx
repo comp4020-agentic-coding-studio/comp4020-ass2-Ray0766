@@ -9,7 +9,7 @@
 // reference and the production line underneath.
 
 import { useCallback, useMemo, useRef, useState } from "react";
-import { planLine } from "../../lib/canvas/doc";
+import { planLine } from "../../lib/canvas/lines";
 import { beginDeskGeneration, completeDeskGeneration } from "../../lib/canvas/engine";
 import { DESK_MESSAGES, resolveDeskRequest, tierIdOfNode, type DeskResolution } from "../../lib/canvas/resolve";
 import type { CanvasDoc, ID, Node, NodeMeta, TakeNode } from "../../lib/canvas/types";
@@ -269,10 +269,13 @@ export interface DeskProps {
   desk: DeskState;
   readOnly: boolean;
   onFocusNode(nodeId: ID): void;
+  /** Between 641 and 899 the desk sits under the canvas rather than beside
+   *  it, and starts collapsed so the canvas is what the page opens on. */
+  startOpen: boolean;
 }
 
-export function Desk({ desk, readOnly, onFocusNode }: DeskProps) {
-  const [open, setOpen] = useState(true);
+export function Desk({ desk, readOnly, onFocusNode, startOpen }: DeskProps) {
+  const [open, setOpen] = useState(startOpen);
   const list = useRef<HTMLUListElement>(null);
   const generateButton = useRef<HTMLButtonElement>(null);
 

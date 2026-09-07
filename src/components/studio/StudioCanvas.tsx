@@ -31,7 +31,7 @@ import {
 } from "../../lib/canvas/engine";
 import { RF_TYPE, toRfEdges, toRfNodes, type StudioRfNode } from "../../lib/canvas/rf";
 import { clearDoc, mergeStoredDoc, readStoredDoc, writeDoc } from "../../lib/canvas/storage";
-import { planLine, productionLine } from "../../lib/canvas/doc";
+import { planLine, productionLine } from "../../lib/canvas/lines";
 import type { CanvasBundle, CanvasDoc, NodeMeta } from "../../lib/canvas/types";
 import type { ClientWeek } from "../../lib/studio-client";
 import { BoardNode } from "./BoardNode";
@@ -97,6 +97,7 @@ function StudioCanvasInner({ bundle, weeks, assetPrefix }: CanvasPayload) {
   const [readOnly, setReadOnly] = useState(false);
   const [progressMeta, setProgressMeta] = useState<Record<string, NodeMeta>>({});
   const resetButton = useRef<HTMLButtonElement>(null);
+  const confirmButton = useRef<HTMLButtonElement>(null);
   const desk = useRef<HTMLDivElement>(null);
 
   const docRef = useRef(doc);
@@ -146,7 +147,15 @@ function StudioCanvasInner({ bundle, weeks, assetPrefix }: CanvasPayload) {
         resolution: entry.week.resolution,
         note: entry.tier.note,
         takeId: node.takeId,
-        productionLine: productionLine(entry.week, entry.tier, node.takeId),
+        productionLine: productionLine({
+          takeId: node.takeId,
+          model: entry.week.model,
+          mode: entry.week.mode,
+          resolution: entry.week.resolution,
+          tier: entry.tier.tier,
+          label: entry.tier.label,
+          file: entry.tier.output.file,
+        }),
         planLine: planLine(node.takeId, entry.week.model, entry.week.mode, entry.week.resolution),
         openHref: recorded.openHref,
         openLabel: recorded.openLabel,
@@ -200,6 +209,11 @@ function StudioCanvasInner({ bundle, weeks, assetPrefix }: CanvasPayload) {
   );
 
   const deskRef = useRef<DeskState | undefined>(undefined);
+  // Refs rather than dependencies: the stage's keydown listener is registered
+  // once, and must not be torn down and rebuilt on every document change.
+  const cardOrderRef = useRef<string[]>([]);
+  const cursorRef = useRef<string | undefined>(undefined);
+  const focusCardRef = useRef<((nodeId: string) => void) | undefined>(undefined);
 
   const setProgress = useCallback((nodeId: string, progress: NodeMeta | undefined) => {
     setProgressMeta((current) => {
@@ -298,6 +312,16 @@ function StudioCanvasInner({ bundle, weeks, assetPrefix }: CanvasPayload) {
     [setDoc, rfNodes, setNodes],
   );
 
+  // Reading order for the arrow keys: board by board, and within a board the
+  // order layoutBoard placed them in — which is tier by tier, input then take.
+  const cardOrder = useMemo(() => {
+    const boardOrder = new Map(doc.boards.map((board, index) => [board.id, board.order ?? index]));
+    return doc.nodes
+      .map((node, index) => ({ id: node.id, board: boardOrder.get(node.boardId) ?? 0, index }))
+      .sort((a, b) => a.board - b.board || a.index - b.index)
+      .map((entry) => entry.id);
+  }, [doc]);
+
   const fitAll = useCallback(() => {
     void flow.fitView({ duration: reducedMotion ? 0 : 400, padding: 0.08 });
   }, [flow, reducedMotion]);
@@ -360,22 +384,44 @@ function StudioCanvasInner({ bundle, weeks, assetPrefix }: CanvasPayload) {
         event.preventDefault();
         zoomHundred();
       }
-      // Enter on a focused card adds it to the desk. The check is on the node
-      // wrapper itself, so Enter inside a board's rename field still commits
-      // the rename rather than quietly filling a reference slot.
-      if (event.key === "Enter") {
-        const target = event.target as HTMLElement | null;
-        if (!target?.classList.contains("react-flow__node")) return;
-        const nodeId = target.dataset.id;
-        if (!nodeId || !docRef.current.nodes.some((node) => node.id === nodeId)) return;
+      // The stage itself is the tab stop; the arrow keys walk the cards
+      // inside it. React Flow's own per-node focus was 214 tab stops before
+      // the desk — reachable, but nobody is pressing Tab that many times.
+      if (event.target !== element) return;
+
+      const cards = cardOrderRef.current;
+      const current = cursorRef.current ? cards.indexOf(cursorRef.current) : -1;
+
+      if (event.key === "ArrowRight" || event.key === "ArrowDown") {
         event.preventDefault();
-        deskRef.current?.addReference(nodeId);
+        const next = cards[Math.min(cards.length - 1, current + 1)];
+        if (next) focusCardRef.current?.(next);
+      }
+      if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
+        event.preventDefault();
+        const previous = cards[Math.max(0, current <= 0 ? 0 : current - 1)];
+        if (previous) focusCardRef.current?.(previous);
+      }
+      // Enter on the card the arrows landed on adds it to the desk.
+      if (event.key === "Enter" && cursorRef.current) {
+        event.preventDefault();
+        deskRef.current?.addReference(cursorRef.current);
+      }
+      if (event.key === "Escape") {
+        cursorRef.current = undefined;
+        setNodes((all) => all.map((node) => ({ ...node, selected: false })));
       }
     }
 
     element.addEventListener("keydown", onKeyDown);
     return () => element.removeEventListener("keydown", onKeyDown);
-  }, [fitAll, zoomHundred]);
+  }, [fitAll, zoomHundred, setNodes]);
+
+  cardOrderRef.current = cardOrder;
+  focusCardRef.current = (nodeId: string) => {
+    cursorRef.current = nodeId;
+    focusNode(nodeId);
+  };
 
   const resetCanvas = useCallback(() => {
     clearDoc();
@@ -401,7 +447,18 @@ function StudioCanvasInner({ bundle, weeks, assetPrefix }: CanvasPayload) {
       <BoardRenameProvider value={rename}>
         <PlaybackProvider value={{ playingId, setPlayingId }}>
           <div className="studio-canvas__layout">
-            <div className="studio-canvas__stage" ref={stage}>
+            <div
+              className="studio-canvas__stage"
+              ref={stage}
+              tabIndex={0}
+              role="group"
+              aria-label="Lineage canvas"
+              aria-describedby="studio-canvas-keys"
+            >
+              <p className="studio-canvas__keys" id="studio-canvas-keys">
+                Arrow keys move between cards, Enter adds the current card to the desk, Escape clears the
+                selection. Shift+1 fits every board, Shift+0 returns to 100%.
+              </p>
               <ReactFlow<StudioRfNode>
                 nodes={nodes}
                 edges={rfEdges}
@@ -419,6 +476,8 @@ function StudioCanvasInner({ bundle, weeks, assetPrefix }: CanvasPayload) {
                 panOnDrag={readOnly ? true : [1, 2]}
                 panActivationKeyCode="Space"
                 nodesConnectable={false}
+                nodesFocusable={false}
+                edgesFocusable={false}
                 elementsSelectable
                 nodesDraggable={!readOnly}
                 deleteKeyCode={readOnly ? null : ["Delete", "Backspace"]}
@@ -455,7 +514,7 @@ function StudioCanvasInner({ bundle, weeks, assetPrefix }: CanvasPayload) {
                     </button>
                     {confirmingReset ? (
                       <>
-                        <button type="button" className="at-button" onClick={resetCanvas}>
+                        <button ref={confirmButton} type="button" className="at-button" onClick={resetCanvas}>
                           Reset, discarding my boards
                         </button>
                         <button
@@ -474,7 +533,13 @@ function StudioCanvasInner({ bundle, weeks, assetPrefix }: CanvasPayload) {
                         ref={resetButton}
                         type="button"
                         className="at-button at-button--outline"
-                        onClick={() => setConfirmingReset(true)}
+                        onClick={() => {
+                          setConfirmingReset(true);
+                          // The two confirm buttons replace this one, so focus
+                          // would otherwise fall to <body> the moment it is
+                          // pressed. Put it on the choice that now matters.
+                          window.requestAnimationFrame(() => confirmButton.current?.focus());
+                        }}
                       >
                         Reset canvas
                       </button>
@@ -484,7 +549,7 @@ function StudioCanvasInner({ bundle, weeks, assetPrefix }: CanvasPayload) {
               </ReactFlow>
             </div>
             <div className="studio-desk__column" ref={desk}>
-              <Desk desk={deskState} readOnly={readOnly} onFocusNode={focusNode} />
+              <Desk desk={deskState} readOnly={readOnly} onFocusNode={focusNode} startOpen={!readOnly} />
             </div>
           </div>
         </PlaybackProvider>

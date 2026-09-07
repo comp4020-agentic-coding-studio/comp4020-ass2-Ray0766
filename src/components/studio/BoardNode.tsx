@@ -52,15 +52,15 @@ export function BoardNode({ id, data, selected }: NodeProps<RfBoardNode>) {
               event.stopPropagation();
             }}
           />
-        ) : (
+        ) : canRename ? (
           <button
             ref={title}
             type="button"
             className="studio-board__title"
-            aria-describedby={canRename ? `${id}-rename-hint` : undefined}
-            onDoubleClick={() => canRename && setEditing(true)}
+            aria-describedby={`${id}-rename-hint`}
+            onDoubleClick={() => setEditing(true)}
             onKeyDown={(event) => {
-              if (canRename && (event.key === "F2" || event.key === "Enter")) {
+              if (event.key === "F2" || event.key === "Enter") {
                 event.preventDefault();
                 setEditing(true);
               }
@@ -68,6 +68,10 @@ export function BoardNode({ id, data, selected }: NodeProps<RfBoardNode>) {
           >
             {data.title}
           </button>
+        ) : (
+          // A recorded board keeps its manifest title, so there is nothing to
+          // press here. As a button it was ten tab stops that did nothing.
+          <span className="studio-board__title">{data.title}</span>
         )}
         {data.week ? <span className="studio-board__week">Week {data.week}</span> : null}
       </div>

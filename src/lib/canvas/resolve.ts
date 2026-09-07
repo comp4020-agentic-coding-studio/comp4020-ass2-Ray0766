@@ -6,8 +6,14 @@
 // — every tier's own input resolving back to that tier, and a changed prompt
 // resolving to nothing — is checked without a browser.
 
-import { normaliseWhitespace } from "./doc";
 import type { ID, Node } from "./types";
+
+/** Kept here rather than imported from ./doc: that module pulls in the course
+ *  record and its zod schema, and this one is loaded by the phone's plain
+ *  form, where the whole point is a few kilobytes. */
+export function normaliseWhitespace(text: string): string {
+  return text.replace(/\s+/g, " ").trim();
+}
 
 export interface TierRef {
   week: number;

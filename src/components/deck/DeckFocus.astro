@@ -1,0 +1,11 @@
+---
+/**
+ * Confines the tab order to the slide on screen. Renders nothing --- it exists
+ * so a deck can pull in the script, because astromotion owns the deck route's
+ * `<head>` and offers no hook to inject one (its options are theme,
+ * injectRoutes, routePrefix, checkStructure, shikiConfig; "Head assets" is
+ * favicon and ogImage only). Import it at the top of every `.deck.mdx`.
+ */
+---
+
+<script src="../../scripts/deck-focus.ts"></script>

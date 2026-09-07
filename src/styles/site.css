@@ -1238,3 +1238,13 @@ p {
 .lecture-slides-link {
   margin-block: 0 2rem;
 }
+
+/* The one line under the phase cards that says the decks exist. The cards
+   themselves go to the lectures index, so this is the only route from the
+   home page into /decks/ — the nav can't take a seventh item without the
+   fixed 864px .at-nav-inner wrapping. Sits tight under the grid, which
+   already carries its own 2rem block margin. */
+.phase-cards__footer {
+  margin-block: -0.5rem 2.5rem;
+  color: var(--at-text-secondary);
+}

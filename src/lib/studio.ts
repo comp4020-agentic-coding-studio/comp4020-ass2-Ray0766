@@ -51,7 +51,12 @@ function withPromptText(tier: Tier): Tier & { promptText?: string; negText?: str
   };
 }
 
-function loadWeek(fileName: string): WeekManifest & { tiers: ReturnType<typeof withPromptText>[] } {
+// `Omit<…, "tiers">` rather than a plain intersection: intersecting
+// `WeekManifest` with a second `tiers` array leaves `tiers[number]` resolving
+// to the schema's tier alone, so the prompt text this function just attached
+// is invisible to every consumer that indexes it (studio-client.ts models the
+// same shape the same way).
+function loadWeek(fileName: string): Omit<WeekManifest, "tiers"> & { tiers: ReturnType<typeof withPromptText>[] } {
   const parsed = weekManifestSchema.parse(readJson(fileName));
   return { ...parsed, tiers: parsed.tiers.map(withPromptText) };
 }

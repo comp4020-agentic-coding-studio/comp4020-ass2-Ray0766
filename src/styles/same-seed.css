@@ -1,0 +1,68 @@
+/* Week 2's SameSeed. One take, two addresses; the switch is the only part the
+   script adds, so everything here has to read with it missing. */
+
+.same-seed {
+  margin-block: var(--at-spacing-lg);
+  margin-inline: 0;
+}
+
+.same-seed__pairs {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  gap: var(--at-spacing-lg);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.same-seed__pair {
+  display: flex;
+  flex-direction: column;
+  gap: var(--at-spacing-sm);
+}
+
+.same-seed__switch {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--at-spacing-sm);
+}
+
+/* The class's own `display` beats the UA stylesheet's [hidden] rule at equal
+   specificity, so the hidden attribute needs its own rule to survive it. */
+.same-seed__switch[hidden] {
+  display: none;
+}
+
+.same-seed__address {
+  font-family: var(--at-font-mono);
+  font-size: var(--at-font-size-xs);
+}
+
+.same-seed__address[aria-pressed="true"] {
+  background: var(--at-accent);
+  color: var(--at-on-accent);
+}
+
+.same-seed__video {
+  display: block;
+  width: 100%;
+  max-height: 22rem;
+  border-radius: var(--at-border-radius);
+  background: var(--at-bg-alt);
+}
+
+.same-seed__paths {
+  margin: 0;
+  font-size: var(--at-font-size-sm);
+  color: var(--at-text-secondary);
+}
+
+.same-seed__paths code {
+  overflow-wrap: anywhere;
+}
+
+.same-seed__caption {
+  margin-block-start: var(--at-spacing-md);
+  font-size: var(--at-font-size-sm);
+  color: var(--at-text-secondary);
+}

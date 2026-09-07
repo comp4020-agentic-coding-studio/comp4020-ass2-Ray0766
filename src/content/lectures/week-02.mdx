@@ -16,6 +16,7 @@ draft: false
 
 import CompareSet from "../../components/widgets/CompareSet.astro";
 import ProductionLog from "../../components/lecture/ProductionLog.astro";
+import SameSeed from "../../components/widgets/SameSeed.astro";
 import SpecSheet from "../../components/lecture/SpecSheet.astro";
 import SpecRow from "../../components/lecture/SpecRow.astro";
 
@@ -59,6 +60,8 @@ one parameter and keep the seed, and a specific variable is being tested
 in isolation; change the seed and a different roll has been generated
 regardless of what else stayed the same. Log both, every time, or the
 roll that looked right yesterday is unfindable tomorrow.
+
+<SameSeed />
 
 ## The production log
 

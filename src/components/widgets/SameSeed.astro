@@ -1,0 +1,114 @@
+---
+// Week 2's teaching point is that a seed is an address, not a style knob: the
+// same seed with the same parameters returns to the same result. The course's
+// own recorded library is the proof — two rungs of two later ladders are not
+// *like* two of this week's rolls, they are the same recording, and the
+// manifests say so with `sameAs`.
+//
+// So the widget is a switch between the two addresses of one take. Nothing
+// visibly happens, which is the demonstration: the address changes and the
+// picture does not.
+//
+// Every pair is found in the manifests rather than listed here, and the three
+// claims the caption makes — same seed, same prompt file, two addresses — are
+// checked at build time. A pair whose seeds or prompts stopped matching fails
+// the build instead of shipping a sentence that is no longer true.
+import { withBase } from "astro-theme-university/url";
+import { studioWeeks } from "../../lib/studio";
+import "../../styles/same-seed.css";
+
+type Week = (typeof studioWeeks)[number];
+type Tier = Week["tiers"][number];
+
+function seedOf(week: Week, tier: Tier): number {
+  const input = tier.input as { kind: string; value?: unknown };
+  if (typeof input.value === "number") return input.value;
+  if (typeof week.seed === "number") return week.seed;
+  throw new Error(`SameSeed: no single seed for ${tier.id}`);
+}
+
+function findTier(id: string): { week: Week; tier: Tier } {
+  for (const week of studioWeeks) {
+    const tier = week.tiers.find((entry) => entry.id === id);
+    if (tier) return { week, tier };
+  }
+  throw new Error(`SameSeed: no tier "${id}" in any manifest`);
+}
+
+const pairs = studioWeeks
+  .flatMap((week) => week.tiers.map((tier) => ({ week, tier })))
+  .filter(({ tier }) => tier.sameAs)
+  .map(({ week, tier }) => {
+    const source = findTier(tier.sameAs!);
+    const seed = seedOf(source.week, source.tier);
+    const echoSeed = seedOf(week, tier);
+    if (seed !== echoSeed) {
+      throw new Error(`SameSeed: ${tier.id} claims to be ${source.tier.id} but the seeds differ (${echoSeed} vs ${seed})`);
+    }
+    if (!source.tier.promptText || source.tier.promptText !== tier.promptText) {
+      throw new Error(`SameSeed: ${tier.id} and ${source.tier.id} do not share one prompt`);
+    }
+    if (source.tier.output.file === tier.output.file) {
+      throw new Error(`SameSeed: ${tier.id} and ${source.tier.id} are already one address, so there is nothing to switch between`);
+    }
+    return {
+      seed,
+      addresses: [source.tier.output.file, tier.output.file],
+      poster: source.tier.output.poster,
+    };
+  })
+  .sort((a, b) => a.seed - b.seed);
+
+if (pairs.length === 0) throw new Error("SameSeed: no manifest declares a sameAs pair");
+---
+
+<figure class="same-seed" data-same-seed>
+  <ol class="same-seed__pairs">
+    {
+      pairs.map((pair) => (
+        <li class="same-seed__pair" data-same-seed-pair>
+          <div class="same-seed__switch" data-switch role="group" aria-label={`Address for the seed ${pair.seed} take`} hidden>
+            {pair.addresses.map((file, index) => (
+              <button
+                type="button"
+                class="at-button at-button--outline same-seed__address"
+                data-address={withBase(`/studio/${file}`)}
+                aria-pressed={index === 0 ? "true" : "false"}
+              >
+                {file}
+              </button>
+            ))}
+          </div>
+
+          <video
+            class="same-seed__video"
+            data-video
+            src={withBase(`/studio/${pair.addresses[0]}`)}
+            poster={pair.poster ? withBase(`/studio/${pair.poster}`) : undefined}
+            controls
+            preload="none"
+          />
+
+          <p class="same-seed__paths">
+            Seed {pair.seed}, served at{" "}
+            {pair.addresses.map((file, index) => (
+              <>
+                {index > 0 && " and "}
+                <code>/studio/{file}</code>
+              </>
+            ))}.
+          </p>
+        </li>
+      ))
+    }
+  </ol>
+
+  <figcaption class="same-seed__caption">
+    Two rungs of two later ladders are not like these rolls; they are these
+    rolls. Same seed, same first frame, same prompt file, so the same take —
+    and the library keeps one recording and answers at both addresses.
+    Switching changes the address, not the picture.
+  </figcaption>
+</figure>
+
+<script src="../../scripts/same-seed.ts"></script>

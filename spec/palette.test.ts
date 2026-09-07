@@ -163,6 +163,62 @@ describe("the theme's outline button takes the brand ink", () => {
   });
 });
 
+// The other half of the same rule: a phase colour is a fill too, and a fill
+// needs an ink chosen against it rather than assumed. The four straddle the
+// switch — white is fine on three of them and 3.49:1 on the rig gold — which
+// is why phase-colours.css derives each one's ink from its own lightness with
+// the recipe tokens.css uses for --at-on-primary.
+//
+// Seen red by pinning every phase ink to white
+// (`--phase-rig-ink: var(--at-white)`):
+//   AssertionError: --phase-rig-ink must be derived from --phase-rig:
+//   expected '/* The four phase colours, in one fil…' to contain
+//   '--phase-rig-ink: oklch(from var(--pha…'
+// then reverted.
+describe("every phase colour carries an ink that clears AA on it", () => {
+  const PHASE_CSS = read("src/styles/phase-colours.css");
+
+  /** The four fills, resolved: three are pinned brand hexes, the fourth is the
+   *  relative-colour step the stylesheet writes. */
+  const gold = srgbToOklch(hexToRgb(BRAND.primary));
+  const episode = oklchToSrgb(gold.l - 0.22, gold.c * 0.85, gold.hue);
+
+  const fills: Record<string, Rgb> = {
+    "--phase-rig": hexToRgb(BRAND.primary),
+    "--phase-generators": hexToRgb(BRAND.secondary),
+    "--phase-holding": hexToRgb(brandHex("--at-tertiary")),
+    "--phase-episode": episode,
+  };
+
+  /** tokens.css's switch: near-black above 0.58 lightness, white below. */
+  function derivedInk(fill: Rgb): Rgb {
+    const { l, hue } = srgbToOklch(fill);
+    const lightness = Math.min(1, Math.max(0.16, (0.58 - l) * 1000));
+    return oklchToSrgb(lightness, 0, hue);
+  }
+
+  for (const [name, fill] of Object.entries(fills)) {
+    it(`${name} has an ink derived from it, not assumed`, () => {
+      expect(PHASE_CSS, `${name}-ink must be derived from ${name}`).toContain(
+        `${name}-ink: oklch(from var(${name})`,
+      );
+      expect(
+        contrastRatio(derivedInk(fill), fill),
+        `the ink derived from ${name} has to clear AA body text on it`,
+      ).toBeGreaterThanOrEqual(AA_BODY_TEXT);
+    });
+  }
+
+  it("white alone would not have done, which is the whole reason for the switch", () => {
+    const white: Rgb = [1, 1, 1];
+    expect(
+      contrastRatio(white, fills["--phase-rig"]),
+      "white on --phase-rig is 3.49:1, which is why the ink is derived from the fill rather than assumed",
+    ).toBeLessThan(AA_BODY_TEXT);
+    expect(contrastRatio(white, fills["--phase-episode"])).toBeGreaterThanOrEqual(AA_BODY_TEXT);
+  });
+});
+
 // The project's own stylesheets follow the same rule: gold fills, ink is the
 // token. Anything that paints the accent as text or as a line is a light-theme
 // contrast bug waiting to be found in a screenshot.

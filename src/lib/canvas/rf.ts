@@ -3,6 +3,7 @@
 // it works in CanvasDoc terms, everything below it is the engine's business.
 
 import type { Edge as RfEdge, Node as RfNode } from "@xyflow/react";
+import { boardPhase, ladderRungs } from "./ladder";
 import type { CanvasDoc, Edge, Node, NodeMeta } from "./types";
 
 export interface BoardData extends Record<string, unknown> {
@@ -12,11 +13,16 @@ export interface BoardData extends Record<string, unknown> {
   /** How many takes are on it, so the title bar knows whether there is
    *  anything to compare. */
   takes: number;
+  /** The teaching phase of the week the board's cards came from, when they
+   *  all came from one. The title bar fills with it. */
+  phase?: string;
 }
 
 export interface CardData extends Record<string, unknown> {
   node: Node;
   meta: NodeMeta;
+  /** `t1` … `t5`, and only on a board that is one week's ladder. */
+  rung?: string;
 }
 
 /** React Flow ships built-in node types called `input`, `output`, `default`
@@ -46,6 +52,7 @@ export function toRfNodes(doc: CanvasDoc, meta: Record<string, NodeMeta>, readOn
       kind: board.kind,
       week: board.week,
       takes: doc.nodes.filter((node) => node.boardId === board.id && node.type === "take").length,
+      phase: boardPhase(doc, board.id),
     },
     width: board.w,
     height: board.h,
@@ -59,12 +66,18 @@ export function toRfNodes(doc: CanvasDoc, meta: Record<string, NodeMeta>, readOn
     className: `studio-board studio-board--${board.kind}`,
   }));
 
+  // Worked out once per board rather than once per card: a card cannot tell
+  // whether the board it sits on is a single week's ladder, and asking for
+  // every card would be the same scan forty times.
+  const rungs = new Map<string, string>();
+  for (const board of doc.boards) for (const [id, rung] of ladderRungs(doc, board.id)) rungs.set(id, rung);
+
   const cards: StudioRfNode[] = doc.nodes.map((node) => ({
     id: node.id,
     type: RF_TYPE[node.type],
     parentId: node.boardId,
     position: { x: node.x, y: node.y },
-    data: { node, meta: meta[node.id] ?? {} },
+    data: { node, meta: meta[node.id] ?? {}, rung: rungs.get(node.id) },
     width: node.w,
     height: node.h,
     // extent: "parent" is deliberately not set — it would make dragging a

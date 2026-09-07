@@ -38,7 +38,7 @@ export function BoardNode({ id, data, selected }: NodeProps<RfBoardNode>) {
 
   return (
     <div className="studio-board__frame" data-selected={selected ? "true" : undefined}>
-      <div className="studio-board__bar">
+      <div className="studio-board__bar" data-phase={data.phase}>
         {editing ? (
           <input
             ref={input}

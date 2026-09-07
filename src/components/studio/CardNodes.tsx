@@ -156,6 +156,10 @@ export function TakeCard({ id, data, selected }: NodeProps<RfCardNode>) {
         )}
       </div>
       <div className="studio-card__foot">
+        {/* The rung, and only on a board that is one week's ladder — see
+            src/lib/canvas/ladder.ts. A board of cards from three weeks has no
+            progression to number. */}
+        {data.rung ? <p className="studio-card__rung">{data.rung}</p> : null}
         <p className="studio-card__badge">Recorded</p>
         <p className="studio-card__address">{node.takeId}</p>
         {meta.counterExample ? <p className="studio-card__counter">Counter-example</p> : null}
@@ -181,7 +185,11 @@ export function InputCard({ data }: NodeProps<RfCardNode>) {
     <div className="studio-card studio-card--input">
       <EdgeAnchors />
       <CardToolbar data={data} isVideo={false} playing={false} onTogglePlay={() => undefined} />
-      <p className="studio-card__kind">{node.label}</p>
+      <p className="studio-card__kind">
+        {/* The same rung its take carries: one step of the ladder, seen from
+            the input end. */}
+        {data.rung ? <span className="studio-card__rung">{data.rung}</span> : null} {node.label}
+      </p>
       {pictures.length ? (
         <div className="studio-card__strip" data-count={pictures.length}>
           {pictures.map((file) => (

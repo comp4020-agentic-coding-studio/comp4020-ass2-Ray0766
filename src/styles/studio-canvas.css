@@ -122,6 +122,56 @@
   white-space: nowrap;
 }
 
+/* A board that holds one week's cards wears that week's phase colour, so two
+   non-adjacent weeks are two different-looking boards before a word is read.
+   Fill only: the ink is the fill's own, picked by its lightness in
+   phase-colours.css, and everything in the bar inherits it rather than keeping
+   a token that was chosen against the board's surface. */
+.studio-board__bar[data-phase] {
+  border-block-end-color: transparent;
+  border-start-start-radius: calc(var(--at-border-radius) - 1px);
+  border-start-end-radius: calc(var(--at-border-radius) - 1px);
+}
+
+.studio-board__bar[data-phase="rig"] {
+  background: var(--phase-rig);
+  color: var(--phase-rig-ink);
+}
+
+.studio-board__bar[data-phase="generators"] {
+  background: var(--phase-generators);
+  color: var(--phase-generators-ink);
+}
+
+.studio-board__bar[data-phase="holding"] {
+  background: var(--phase-holding);
+  color: var(--phase-holding-ink);
+}
+
+.studio-board__bar[data-phase="episode"] {
+  background: var(--phase-episode);
+  color: var(--phase-episode-ink);
+}
+
+.studio-board__bar[data-phase] .studio-board__title,
+.studio-board__bar[data-phase] .studio-board__week,
+.studio-board__bar[data-phase] .studio-board__compare {
+  color: inherit;
+  border-color: currentcolor;
+}
+
+/* The rung, in the card's foot beside the address. */
+.studio-card__rung {
+  margin: 0;
+  padding-inline: 0.4em;
+  border: 1px solid var(--at-border);
+  border-radius: var(--at-border-radius);
+  font-size: var(--at-font-size-xs);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--at-text);
+}
+
 .studio-board__hint {
   position: absolute;
   inline-size: 1px;

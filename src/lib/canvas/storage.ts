@@ -11,7 +11,7 @@
 import type { CanvasDoc, Edge, ID, Node } from "./types";
 import { CANVAS_VERSION, STORAGE_KEY } from "./types";
 
-interface StoredShape {
+export interface StoredShape {
   version: number;
   boards?: unknown[];
   nodes?: unknown[];

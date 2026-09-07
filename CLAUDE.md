@@ -105,11 +105,23 @@ find the real one or state the technique generically.
   scoped to page content (`.at-main > h1/h2/h3`, never bare elements), and a
   theme component is restyled only through its own class.
 
-## 5. Visual direction (hero reversed 2026-09-07)
+## 5. Visual direction (hero reversed 2026-09-07, phase shapes 2026-09-07)
 
 - Apple product-page layout grammar — full-bleed hero, oversized type, sticky
   sections — in the Slop palette. One signature scroll moment only: the home
-  hero. Everything else is typography and spacing.
+  hero, which stays the only scroll signature on the site.
+- One page shape per teaching phase, held for every week inside it: the rig
+  weeks are a spec sheet, the generator weeks a bench, the holding weeks a
+  board, the episode weeks a call sheet (`data-phase` on the lecture page's
+  `<main>`, styled in `src/styles/lecture-phases.css`). This replaces
+  "everything else is typography and spacing", which produced twelve lectures
+  built from one template: a marker reads two *non-adjacent* weeks, and one
+  template makes those two look like the same page with the words swapped,
+  however different the words are. Four shapes is the smallest number that
+  makes any two weeks a marker samples land in different-looking pages while
+  still leaving each phase internally consistent. The teaching skeleton
+  (Before class / The ladder / This week's exercise) and the register do not
+  vary with the shape.
 - The hero's thesis is that the show fills the screen and the words sit on
   top of it. At rest the 9:16 loop is sized to the full stage height with a
   blurred, darkened copy of its own poster covering the rest; scrolling

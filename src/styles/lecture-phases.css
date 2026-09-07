@@ -1,0 +1,124 @@
+/* One page shape per teaching phase, set by `data-phase` on the lecture
+ * page's own `<main>` (src/pages/lectures/[slug].astro, from
+ * src/lib/phases.ts).
+ *
+ * Why the shapes exist: the marker reads two non-adjacent weeks. Twelve
+ * lectures built from one template read as the same page with the words
+ * swapped, however good the words are, because nothing about the layout
+ * says which part of the semester you are standing in. So each phase gets a
+ * page shape of its own and holds it for every week inside the phase:
+ *
+ *   rig         weeks 1-2    a spec sheet   --- two-column definition tables
+ *   generators  weeks 3-6    a bench        --- the ladder as a sticky rail
+ *   holding     weeks 7-9    a board        --- narrow measure, pinned grids
+ *   episode     weeks 10-12  a call sheet   --- ruled section bars, tables
+ *
+ * What does not change: the teaching skeleton (Before class / The ladder /
+ * This week's exercise), the register, and the H1, so the pages still read
+ * as one course rather than four microsites.
+ *
+ * Unlayered on purpose, like site.css: the theme wraps its rules in
+ * `@layer at.base / at.components`, and an unlayered declaration beats every
+ * layered one regardless of specificity. Colour comes from the four
+ * `--phase-*` tokens (src/styles/phase-colours.css, imported by site.css,
+ * which every lecture page also loads) and the theme's `--at-*` tokens; this
+ * file introduces no colour of its own. */
+
+.at-main[data-phase="rig"] {
+  --phase-color: var(--phase-rig);
+}
+
+.at-main[data-phase="generators"] {
+  --phase-color: var(--phase-generators);
+}
+
+.at-main[data-phase="holding"] {
+  --phase-color: var(--phase-holding);
+}
+
+.at-main[data-phase="episode"] {
+  --phase-color: var(--phase-episode);
+}
+
+/* ----------------------------------------------------------------------
+   rig --- the spec sheet
+   ----------------------------------------------------------------------
+   A datasheet, so the section headings are labels rather than display
+   type: mono, small, letterspaced, under a hairline rule. The weight on
+   the page belongs to the tables, not to the headings over them. */
+
+/* Both the MDX body's own headings and the one piece of page furniture that
+   carries an H2 of its own (TeachingTeam), so the whole page arrives in one
+   shape rather than a phase-shaped body under a site-shaped heading. */
+.at-main[data-phase="rig"] > h2,
+.at-main[data-phase="rig"] > section > h2 {
+  font-family: var(--at-font-mono);
+  font-size: var(--at-font-size-h4);
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--at-text-secondary);
+  border-block-start: 1px solid var(--at-divider);
+  padding-block-start: 0.9em;
+  margin-block: 2.6em 0.9em;
+}
+
+/* ----------------------------------------------------------------------
+   generators --- the bench
+   ----------------------------------------------------------------------
+   The four generator weeks are all one move: run the same thing five times
+   up a ladder and choose. The headings keep the display scale, because on
+   this bench the prose is the work and the ladder is the reference sitting
+   beside it. */
+
+.at-main[data-phase="generators"] > h2,
+.at-main[data-phase="generators"] > section > h2 {
+  text-wrap: balance;
+}
+
+/* ----------------------------------------------------------------------
+   holding --- the board
+   ----------------------------------------------------------------------
+   Three weeks of documents that hold a production together (a graph, a
+   model sheet, a storyboard), so the page reads like the board they get
+   pinned to: a narrower measure than the rest of the site, and every
+   heading pinned with a square in the phase colour. Only text is narrowed;
+   the pinned grids below keep the full column. */
+
+.at-main[data-phase="holding"] > :is(p, ul, ol, dl, blockquote, h2, h3, h4) {
+  max-width: 60ch;
+}
+
+.at-main[data-phase="holding"] > h2,
+.at-main[data-phase="holding"] > section > h2 {
+  font-size: clamp(1.6rem, 1.35rem + 1vw, 2.25rem);
+  display: flex;
+  align-items: baseline;
+  gap: 0.5em;
+}
+
+.at-main[data-phase="holding"] > h2::before,
+.at-main[data-phase="holding"] > section > h2::before {
+  content: "";
+  flex: none;
+  width: 0.45em;
+  height: 0.45em;
+  background: var(--phase-color);
+}
+
+/* ----------------------------------------------------------------------
+   episode --- the call sheet
+   ----------------------------------------------------------------------
+   Three weeks of running a production to a deadline, laid out like the
+   document that runs one: sections announced by a ruled bar rather than by
+   a display heading, and the detail in tables under them. */
+
+.at-main[data-phase="episode"] > h2,
+.at-main[data-phase="episode"] > section > h2 {
+  font-size: clamp(1.25rem, 1.1rem + 0.5vw, 1.6rem);
+  letter-spacing: -0.005em;
+  background: color-mix(in oklab, var(--phase-color) 14%, transparent);
+  border-inline-start: 4px solid var(--phase-color);
+  padding: 0.45em 0.7em;
+  margin-block: 2.4em 0.9em;
+}

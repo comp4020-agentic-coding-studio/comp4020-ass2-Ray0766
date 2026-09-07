@@ -9,8 +9,10 @@ import TeachingTeam from "../../components/TeachingTeam.astro";
 import WeekPager from "../../components/WeekPager.astro";
 import WeekStrip from "../../components/WeekStrip.astro";
 import { formatCourseDate } from "../../lib/dates";
+import { phaseForWeek } from "../../lib/phases";
 import { graphCollections, siteConfig } from "../../site-config";
 import "../../styles/site.css";
+import "../../styles/lecture-phases.css";
 
 export async function getStaticPaths() {
   const lectures = await getPublishedCollection("lectures");
@@ -20,9 +22,20 @@ export async function getStaticPaths() {
 const { lecture } = Astro.props;
 const { Content } = await render(lecture);
 const title = `Week ${lecture.data.week}: ${lecture.data.title}`;
+// The phase decides the shape of the page, not just a colour --- see
+// src/styles/lecture-phases.css. It goes on `<main>` itself through the
+// theme's `mainAttrs` rather than on a wrapper div, because the type scale in
+// site.css is scoped to `.at-main > h1/h2/h3` and any wrapper would put the
+// MDX body one level too deep for it.
+const phase = phaseForWeek(lecture.data.week);
 ---
 
-<ContentLayout title={title} description={lecture.data.description} {...siteConfig}>
+<ContentLayout
+  title={title}
+  description={lecture.data.description}
+  mainAttrs={{ "data-phase": phase.key }}
+  {...siteConfig}
+>
   <DefaultDarkTheme slot="head" />
   <p><strong>{formatCourseDate(lecture.data.date)}</strong></p>
   <WeekStrip week={lecture.data.week} highlight="lectures" />

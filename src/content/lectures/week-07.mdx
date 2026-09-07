@@ -15,6 +15,7 @@ draft: false
 ---
 
 import CompareSet from "../../components/widgets/CompareSet.astro";
+import GraphReader from "../../components/widgets/GraphReader.astro";
 
 Every exercise in Phase 2 ran on a graph this course supplied. That
 graph was never a black box — it was a specific arrangement of loaders,
@@ -39,6 +40,8 @@ sampler is a fix pass — upscaling, a face restoration step, a colour
 correction — cleaning up what the sampler handed back. Recognising which
 of the four a node belongs to makes an unfamiliar graph readable in
 minutes instead of hours.
+
+<GraphReader week={7} />
 
 ## Editing versus rebuilding
 

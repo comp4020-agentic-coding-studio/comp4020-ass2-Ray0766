@@ -149,3 +149,40 @@ describe("week 3's BlindRung: a screening, and the labelled ladder underneath it
     expect(widget()).not.toMatch(/\sstyle="/);
   });
 });
+
+// Seen red before the widget existed, all four assertions failing against the
+// built week 7 page:
+//   expected '<!DOCTYPE html><html lang="en"><head>…' to contain
+//   'data-graph-reader'
+//   no element carries data-graph-reader: expected -1 to be greater than -1  (x3)
+describe("week 7's GraphReader: the four kinds of node, on the real graphs", () => {
+  const html = page("week-07");
+  const widget = () => widgetMarkup(html, "data-graph-reader");
+
+  it("is on the week 7 lecture page", () => {
+    expect(html).toContain("data-graph-reader");
+  });
+
+  it("draws every tier's graph and lists every node with JS off", () => {
+    const markup = widget();
+    for (const tier of ["t1", "t2", "t3", "t4"]) {
+      expect(markup, `tier ${tier} should have a map in the markup`).toContain(`data-tier="${tier}"`);
+    }
+    // The upscale tier is a three-tool pipeline, the others are node graphs.
+    expect(markup).toContain("SamplerCustomAdvanced");
+    expect(markup).toContain("realesrgan-ncnn-vulkan");
+    // Every node is in a table, not only in the picture.
+    expect(markup).toMatch(/<table[^>]*class="graph-reader__table"/);
+  });
+
+  it("colours by the course's four kinds, and says so", () => {
+    const markup = widget();
+    for (const kind of ["loader", "conditioning", "sampler", "fix", "other"]) {
+      expect(markup, `the legend should name the ${kind} kind`).toContain(`data-kind="${kind}"`);
+    }
+  });
+
+  it("carries no inline style attribute", () => {
+    expect(widget()).not.toMatch(/\sstyle="/);
+  });
+});

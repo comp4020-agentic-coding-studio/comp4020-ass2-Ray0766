@@ -1,0 +1,198 @@
+---
+// Week 7's graph reader. The lecture's claim is that a generation graph
+// reduces to four recurring jobs however many nodes it contains, and that
+// recognising which job a node is doing makes an unfamiliar graph readable in
+// minutes. This is that claim applied to the four graphs that actually
+// produced the week's takes: the same shot, laid out left to right in the
+// order the data flows, coloured by job.
+//
+// It also shows where the reading runs out. Three of the nodes carry a number
+// or a string into the graph and do none of the four jobs; they are drawn as
+// "other" rather than pushed into a kind they do not belong to.
+//
+// Everything is rendered here, at build time: the map, the per-tier table of
+// every node, and the tier switch, which is a radio group and needs no script.
+// The script adds one thing — the panel that names a node's inputs when you
+// point at it or focus it.
+import { BOX, graphView, kindOf, KIND_INITIALS, KIND_LABELS, KIND_ORDER, type NodeKind } from "../../lib/graph-reader";
+import { studioWeeks } from "../../lib/studio";
+import "../../styles/graph-reader.css";
+
+interface Props {
+  week: number;
+}
+
+const { week: weekNumber } = Astro.props;
+const week = studioWeeks.find((entry) => entry.week === weekNumber);
+if (!week) throw new Error(`GraphReader: no studio manifest for week ${weekNumber}`);
+
+const graphFileOf = (tier: (typeof week.tiers)[number]): string => {
+  const file = (tier.input as { file?: string }).file;
+  if (!file || !file.endsWith(".graph.json")) {
+    throw new Error(`GraphReader: week ${weekNumber} tier ${tier.tier} has no graph to read (${file ?? "none"})`);
+  }
+  return file;
+};
+
+const baseline = graphFileOf(week.tiers[0]);
+
+const tiers = week.tiers.map((tier) => {
+  const view = graphView(tier.tier, graphFileOf(tier), baseline);
+  const counts = KIND_ORDER.map((kind) => ({
+    kind,
+    count: view.nodes.filter((node) => node.kind === kind).length,
+  })).filter((entry) => entry.count > 0);
+  return { tier: tier.tier, label: tier.label, view, counts };
+});
+
+const legend: NodeKind[] = KIND_ORDER;
+const defaultTier = tiers[0].tier;
+// The kinds are this course's reading of a graph, not ComfyUI's own
+// categories; the source of that reading is the lecture above.
+const kindOfDemo = kindOf("VAEDecode");
+if (kindOfDemo !== "fix") throw new Error("GraphReader: the kind table no longer reads VAEDecode as a fix pass");
+---
+
+<figure class="graph-reader" data-graph-reader>
+  <div class="graph-reader__tabs" role="group" aria-label="Ladder tier">
+    {
+      tiers.map((entry) => (
+        <>
+          <input
+            class="graph-reader__radio"
+            type="radio"
+            name="graph-reader-tier"
+            id={`graph-reader-${entry.tier}`}
+            value={entry.tier}
+            checked={entry.tier === defaultTier}
+          />
+          <label class="graph-reader__tab" for={`graph-reader-${entry.tier}`}>
+            {entry.tier} · {entry.label}
+          </label>
+        </>
+      ))
+    }
+  </div>
+
+  <ul class="graph-reader__legend">
+    {
+      legend.map((kind) => (
+        <li class="graph-reader__key" data-kind={kind}>
+          <span class="graph-reader__swatch" aria-hidden="true">{KIND_INITIALS[kind]}</span>
+          {KIND_LABELS[kind]}
+        </li>
+      ))
+    }
+  </ul>
+
+  {
+    tiers.map((entry) => (
+      <div class="graph-reader__tier" data-tier={entry.tier}>
+        <p class="graph-reader__summary">
+          {entry.view.nodes.length} nodes —{" "}
+          {entry.counts.map((count, index) => (
+            <>
+              {index > 0 && ", "}
+              {count.count} {KIND_LABELS[count.kind].toLowerCase()}
+            </>
+          ))}
+          .{" "}
+          {entry.view.newClasses.length > 0
+            ? `Outlined: the node classes the bare graph never had — ${entry.view.newClasses.join(", ")}.`
+            : "This is the graph the other tiers are read against."}
+        </p>
+
+        <div class="graph-reader__map">
+          <svg
+            class="graph-reader__svg"
+            width={entry.view.width}
+            height={entry.view.height}
+            viewBox={`0 0 ${entry.view.width} ${entry.view.height}`}
+            role="img"
+            aria-label={`The ${entry.label} graph: ${entry.view.nodes.length} nodes, laid out left to right in the order the data flows. Every node is listed in the table below.`}
+            data-map
+          >
+            {entry.view.edges.map((edge) => (
+              <path class="graph-reader__edge" d={edge.path} />
+            ))}
+            {entry.view.nodes.map((node) => (
+              <g
+                class="graph-reader__node"
+                data-node
+                data-kind={node.kind}
+                data-node-id={node.id}
+                data-class-type={node.classType}
+                data-kind-label={KIND_LABELS[node.kind]}
+                data-inputs={node.inputs.map((input) => `${input.name}: ${input.value}`).join("\n")}
+                data-new={node.isNew ? "" : undefined}
+              >
+                <title>{node.classType} — {KIND_LABELS[node.kind]}</title>
+                <rect
+                  class="graph-reader__box"
+                  x={node.x}
+                  y={node.y}
+                  width={BOX.width}
+                  height={BOX.height}
+                  rx="6"
+                />
+                <text class="graph-reader__node-kind" x={node.x + 11} y={node.y + 19}>
+                  {KIND_INITIALS[node.kind]}
+                </text>
+                <text class="graph-reader__node-label" x={node.x + 30} y={node.y + 19}>
+                  {node.lines.map((line, index) => (
+                    <tspan x={node.x + 30} dy={index === 0 ? 0 : 12}>
+                      {line}
+                    </tspan>
+                  ))}
+                </text>
+              </g>
+            ))}
+          </svg>
+        </div>
+
+        <div class="graph-reader__panel" data-panel hidden>
+          <p class="graph-reader__panel-head">
+            <span class="graph-reader__panel-class" data-panel-class></span>
+            <span class="graph-reader__panel-kind" data-panel-kind></span>
+          </p>
+          <pre class="graph-reader__panel-inputs" data-panel-inputs></pre>
+        </div>
+
+        <details class="graph-reader__details">
+          <summary>Every node in this graph</summary>
+          <div class="at-table-wrap">
+            <table class="graph-reader__table">
+              <thead>
+                <tr>
+                  <th scope="col">Node</th>
+                  <th scope="col">class_type</th>
+                  <th scope="col">Kind</th>
+                </tr>
+              </thead>
+              <tbody>
+                {entry.view.nodes.map((node) => (
+                  <tr>
+                    <td>{node.id}</td>
+                    <td>{node.classType}</td>
+                    <td>{KIND_LABELS[node.kind]}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </details>
+      </div>
+    ))
+  }
+
+  <figcaption class="graph-reader__caption">
+    The four kinds are this course's reading of a graph, not the categories the
+    software itself uses — and they do not cover everything: the nodes that
+    carry a duration or a prompt string into the graph are doing none of the
+    four jobs, so they are drawn as "other" rather than filed under a kind they
+    do not belong to. Tier t3 generates nothing at all; it is three tool
+    invocations, and by this reading the whole of it is a fix pass.
+  </figcaption>
+</figure>
+
+<script src="../../scripts/graph-reader.ts"></script>

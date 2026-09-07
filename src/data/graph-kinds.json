@@ -1,0 +1,23 @@
+{
+  "note": "This course's four-trades reading of a generation graph, from the week 7 lecture 'The four kinds of node' — loaders bring a model, a checkpoint or a reference image into the graph; conditioning turns a prompt or a control signal into something the sampler can read; the sampler runs the denoising steps; everything after the sampler is a fix pass. It is a way to make an unfamiliar graph readable in minutes, NOT ComfyUI's own node categories, which group nodes by the data they carry rather than by the job they do. A class_type that is not listed here is drawn as 'other' rather than pushed into a kind it does not belong to: the value nodes that carry a number or a string into a graph really do none of the four jobs, and saying so is more use to a student than a tidy diagram.",
+  "kinds": {
+    "CLIPLoader": "loader",
+    "LoadImage": "loader",
+    "UNETLoader": "loader",
+    "VAELoader": "loader",
+
+    "BasicGuider": "conditioning",
+    "MiniMaxH3ImageToVideo": "conditioning",
+    "MiniMaxH3ReferenceToVideo": "conditioning",
+
+    "BasicScheduler": "sampler",
+    "KSamplerSelect": "sampler",
+    "RandomNoise": "sampler",
+    "SamplerCustomAdvanced": "sampler",
+
+    "CreateVideo": "fix",
+    "SaveVideo": "fix",
+    "VAEDecode": "fix",
+    "VAEDecodeAudio": "fix"
+  }
+}

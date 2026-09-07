@@ -1,0 +1,236 @@
+/* Week 7's GraphReader. The tier switch is a radio group and the maps and
+   tables are rendered at build time, so everything here works with no script;
+   the panel is the one part that waits for one. */
+
+.graph-reader {
+  margin-block: var(--at-spacing-lg);
+  margin-inline: 0;
+}
+
+.graph-reader__tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--at-spacing-sm);
+  margin-block-end: var(--at-spacing-md);
+}
+
+.graph-reader__radio {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.graph-reader__tab {
+  display: inline-block;
+  border: 1px solid var(--at-border);
+  border-radius: var(--at-border-radius);
+  padding: var(--at-spacing-xs) var(--at-spacing-sm);
+  cursor: pointer;
+  font-size: var(--at-font-size-sm);
+}
+
+.graph-reader__radio:checked + .graph-reader__tab {
+  background: var(--at-accent);
+  color: var(--at-on-accent);
+}
+
+.graph-reader__radio:focus-visible + .graph-reader__tab {
+  outline: 2px solid var(--at-accent);
+  outline-offset: 2px;
+}
+
+/* One tier at a time, chosen by the radio group — the same :has() switch the
+   ladder's own CompareSet uses, and the same reason: this is display state
+   with nothing worth a script behind it. */
+.graph-reader__tier {
+  display: none;
+}
+
+.graph-reader:has(.graph-reader__radio[value="t1"]:checked) .graph-reader__tier[data-tier="t1"],
+.graph-reader:has(.graph-reader__radio[value="t2"]:checked) .graph-reader__tier[data-tier="t2"],
+.graph-reader:has(.graph-reader__radio[value="t3"]:checked) .graph-reader__tier[data-tier="t3"],
+.graph-reader:has(.graph-reader__radio[value="t4"]:checked) .graph-reader__tier[data-tier="t4"],
+.graph-reader:has(.graph-reader__radio[value="t5"]:checked) .graph-reader__tier[data-tier="t5"] {
+  display: block;
+}
+
+/* The four jobs, plus the nodes that do none of them. Colour is never the only
+   carrier: every node's kind is in its title, its label, the panel and the
+   table under the map. */
+.graph-reader__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--at-spacing-md);
+  margin-block: 0 var(--at-spacing-md);
+  padding: 0;
+  list-style: none;
+  font-size: var(--at-font-size-sm);
+  color: var(--at-text-secondary);
+}
+
+.graph-reader__key {
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+}
+
+.graph-reader__swatch {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.4em;
+  height: 1.4em;
+  border: 1px solid var(--node-ink);
+  border-radius: 2px;
+  background: color-mix(in oklab, var(--node-ink) 22%, var(--at-bg));
+  color: var(--at-text);
+  font-family: var(--at-font-mono);
+  font-weight: 700;
+  font-size: 0.8em;
+}
+
+[data-kind="loader"] {
+  --node-ink: var(--phase-rig);
+}
+
+[data-kind="conditioning"] {
+  --node-ink: var(--phase-generators);
+}
+
+[data-kind="sampler"] {
+  --node-ink: var(--phase-episode);
+}
+
+[data-kind="fix"] {
+  --node-ink: var(--phase-holding);
+}
+
+[data-kind="other"] {
+  --node-ink: var(--at-divider);
+}
+
+.graph-reader__summary {
+  margin-block: 0 var(--at-spacing-sm);
+  font-size: var(--at-font-size-sm);
+  color: var(--at-text-secondary);
+}
+
+/* A generation graph is wider than a page column and always was; the map
+   scrolls rather than shrinking its own labels out of legibility. */
+.graph-reader__map {
+  overflow-x: auto;
+  padding-block-end: var(--at-spacing-sm);
+  border: 1px solid var(--at-divider);
+  border-radius: var(--at-border-radius);
+  background: var(--at-bg-alt);
+}
+
+.graph-reader__svg {
+  display: block;
+  /* The theme caps every svg at 100% of its container (base.css); here that
+     would shrink an 1,100-point graph into a phone column and take the labels
+     with it. The map keeps its own size and the box around it scrolls. */
+  max-width: none;
+}
+
+.graph-reader__edge {
+  fill: none;
+  stroke: var(--at-text-secondary);
+  stroke-width: 1.2;
+  opacity: 0.5;
+}
+
+.graph-reader__box {
+  fill: color-mix(in oklab, var(--node-ink) 22%, var(--at-bg));
+  stroke: var(--node-ink);
+  stroke-width: 1.5;
+}
+
+/* A class of node the bare graph never had. */
+.graph-reader__node[data-new] .graph-reader__box {
+  stroke: var(--at-accent);
+  stroke-width: 3;
+  stroke-dasharray: 5 3;
+}
+
+.graph-reader__node-label,
+.graph-reader__node-kind {
+  fill: var(--at-text);
+  font-family: var(--at-font-mono);
+  font-size: 11px;
+}
+
+.graph-reader__node-kind {
+  font-weight: 700;
+}
+
+.graph-reader__node:is(:hover, :focus-visible, .is-selected) .graph-reader__box {
+  fill: color-mix(in oklab, var(--node-ink) 45%, var(--at-bg));
+}
+
+.graph-reader__node:focus-visible {
+  outline: 2px solid var(--at-accent);
+  outline-offset: 2px;
+}
+
+.graph-reader__details {
+  margin-block-start: var(--at-spacing-md);
+  font-size: var(--at-font-size-sm);
+}
+
+.graph-reader__details summary {
+  cursor: pointer;
+  color: var(--at-text-secondary);
+}
+
+.graph-reader__table :is(th, td) {
+  padding: var(--at-spacing-xs) var(--at-spacing-sm);
+  font-family: var(--at-font-mono);
+  font-size: var(--at-font-size-xs);
+}
+
+.graph-reader__panel {
+  margin-block-start: var(--at-spacing-md);
+  border-inline-start: 3px solid var(--at-accent);
+  padding-inline-start: var(--at-spacing-md);
+}
+
+.graph-reader__panel[hidden] {
+  display: none;
+}
+
+.graph-reader__panel-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.6em;
+  margin: 0;
+}
+
+.graph-reader__panel-class {
+  font-family: var(--at-font-mono);
+  font-weight: 600;
+}
+
+.graph-reader__panel-kind {
+  font-size: var(--at-font-size-sm);
+  color: var(--at-text-secondary);
+}
+
+.graph-reader__panel-inputs {
+  margin-block: var(--at-spacing-sm) 0;
+  max-height: 12rem;
+  overflow: auto;
+  font-size: var(--at-font-size-xs);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.graph-reader__caption {
+  margin-block-start: var(--at-spacing-md);
+  font-size: var(--at-font-size-sm);
+  color: var(--at-text-secondary);
+}

@@ -162,3 +162,134 @@
 .reveal .slides section.deck-reading li {
   margin-block-end: 1.5rem;
 }
+
+/* ----------------------------------------------------------------------
+   The title slide's stage
+   ----------------------------------------------------------------------
+   Every deck opens over a frame from its own week's recorded work, and the
+   three lines stack into the bottom-left corner over it rather than floating
+   in the middle of the picture. deck.css centres any slide carrying an h1;
+   this outranks that (three classes against its `:has(h1)`) rather than
+   borrowing the theme's `.hero`, whose own h1 treatment would strip the
+   phase band this file exists to paint.
+
+   The scrim is arithmetic, not taste. The background arrives already at
+   `brightness:0.35`, so the brightest pixel it can put under the text is
+   0.35, and 82% black over that lands at 0.063 --- about 0.005 relative
+   luminance, which white clears many times over. Sized for the worst frame
+   in the set rather than the one on screen. `::after` follows .slide-bg in
+   DOM order at the same z-index so it paints over the picture, and
+   astromotion's base.css already lifts every other child to z-index 1, which
+   puts the text above both. */
+.reveal .slides section.deck-title {
+  place-content: end start;
+}
+
+.reveal .slides section.deck-title:has(.slide-bg)::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background: linear-gradient(to top, rgb(0 0 0 / 82%) 0%, rgb(0 0 0 / 45%) 55%, rgb(0 0 0 / 25%) 100%);
+  pointer-events: none;
+}
+
+/* ----------------------------------------------------------------------
+   The evidence footer
+   ----------------------------------------------------------------------
+   A slide that states a number, a parameter name or a licence clause names
+   where it came from, in small type along the bottom. Small enough to stay
+   out of the way of a claim read from the back of a room --- 0.45em against
+   the slide's own 2.25rem body, so about 16px, the size deck.css already
+   gives an image credit --- and never part of the measure the sentence above
+   it is set on.
+
+   Two placements, because a split slide can't take the first one: its content
+   column scrolls (`overflow: auto`, astromotion's base.css), and an
+   absolutely positioned child of a scroller resolves against .split-layout
+   outside it and gets clipped on the way. Inside the column it takes the
+   leftover space instead, which lands it in the same place without the
+   positioning. */
+.reveal .slides .deck-source {
+  font-size: 0.45em;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  color: var(--at-text-secondary);
+  margin: 0;
+}
+
+.reveal .slides section:not(:has(.split-layout)) .deck-source {
+  position: absolute;
+  inset-block-end: 1.5rem;
+  inset-inline-start: 5rem;
+  inset-inline-end: 5rem;
+}
+
+.reveal .slides .split-content .deck-source {
+  margin-block-start: auto;
+  padding-block-start: 1.5rem;
+}
+
+/* ----------------------------------------------------------------------
+   The figure slide
+   ----------------------------------------------------------------------
+   One published number, at a size that carries to the back of the room, with
+   its unit beside it rather than after it: the unit is what makes the number
+   a fact, and it should not be read as more digits. Baseline alignment keeps
+   the two on one line however long the number runs, and the wrap is for the
+   one case where it can't. */
+.reveal .slides .deck-figure {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 0.3em;
+  font-size: 7rem;
+  font-weight: 600;
+  line-height: 1.05;
+  color: var(--at-primary);
+  margin-block-end: 1.5rem;
+}
+
+.reveal .slides .deck-figure__unit {
+  font-size: 0.3em;
+  font-weight: 400;
+  line-height: 1.2;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--at-text-secondary);
+}
+
+/* A spec table is two or three short columns, and deck.css sizes every table
+   to the full slide, so a two-column one ends up with a gulf down the middle.
+   Let it size to its own contents, with a floor so it still reads as a table
+   and not as a pair of stacked words. */
+.reveal .slides section.deck-spec table {
+  inline-size: auto;
+  min-inline-size: 70%;
+}
+
+/* ----------------------------------------------------------------------
+   The pairing slide
+   ----------------------------------------------------------------------
+   An evidence slide sets the recorded output as the split image and the
+   input that produced it in the column beside it. Where that input is
+   itself a picture --- a sketch, a first and last frame --- it renders
+   inline at the column's own width, side by side with the result. */
+.reveal .slides .deck-input {
+  display: flex;
+  gap: 1rem;
+  margin: 0 0 1.5rem;
+}
+
+.reveal .slides .deck-input img {
+  display: block;
+  inline-size: 100%;
+  block-size: auto;
+  border-radius: var(--at-border-radius);
+}
+
+.reveal .slides .deck-input figcaption {
+  font-size: 1.1rem;
+  line-height: 1.4;
+  color: var(--at-text-secondary);
+}

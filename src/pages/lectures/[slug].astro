@@ -9,6 +9,7 @@ import TeachingTeam from "../../components/TeachingTeam.astro";
 import WeekPager from "../../components/WeekPager.astro";
 import WeekStrip from "../../components/WeekStrip.astro";
 import { formatCourseDate } from "../../lib/dates";
+import { deckForRoute } from "../../lib/decks";
 import { graphCollections, siteConfig } from "../../site-config";
 import "../../styles/site.css";
 
@@ -20,13 +21,30 @@ export async function getStaticPaths() {
 const { lecture } = Astro.props;
 const { Content } = await render(lecture);
 const title = `Week ${lecture.data.week}: ${lecture.data.title}`;
+
+// The deck this lecture is delivered from, so the button can say how much is
+// behind it rather than only that something is. A `slides:` route with no
+// deck behind it fails the build rather than quietly rendering a page with
+// no way into its own slides — the failure this button exists to fix.
+const deck = deckForRoute(lecture.data.slides);
+if (lecture.data.slides && !deck) {
+  throw new Error(`${lecture.id}: slides: ${lecture.data.slides} matches no deck in src/decks/`);
+}
 ---
 
 <ContentLayout title={title} description={lecture.data.description} {...siteConfig}>
   <DefaultDarkTheme slot="head" />
   <p><strong>{formatCourseDate(lecture.data.date)}</strong></p>
   <WeekStrip week={lecture.data.week} highlight="lectures" />
-  {lecture.data.slides && <p><a href={withBase(lecture.data.slides)}>Open the slides</a></p>}
+  {
+    deck && (
+      <p class="lecture-slides-link">
+        <a class="at-button at-button--outline" href={withBase(deck.route)}>
+          Open the {deck.slideCount} slides
+        </a>
+      </p>
+    )
+  }
   <Content />
   <TeachingTeam teachers={lecture.data.teachers} />
   <RelatedContent entry={lecture} collections={graphCollections} />

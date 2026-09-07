@@ -1181,3 +1181,60 @@ p {
     font-size: var(--at-font-size-xs);
   }
 }
+
+/* ----------------------------------------------------------------------
+   Lecture cards — two destinations on one card
+   ----------------------------------------------------------------------
+   The card links to the lecture and carries a second link to that week's
+   deck, so it cannot be an anchor itself (see LecturesGrid.astro). The
+   title's link is stretched over the whole card to put the clickable
+   surface back, and the deck link is raised above that overlay so it stays
+   independently clickable, tabbable and hoverable.
+
+   `.at-card` is already `position: relative` in the theme, so the overlay
+   resolves against the card. The deck link needs no z-index: it comes after
+   the title in DOM order, so `position: relative` alone paints it above an
+   overlay that also sits at `z-index: auto`.
+   ---------------------------------------------------------------------- */
+
+.lecture-card__link {
+  /* The card is the link; the title should not also read as one. */
+  color: inherit;
+  text-decoration: none;
+}
+
+.lecture-card__link::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+}
+
+/* The theme's own card hover is `a.at-card:hover`, which no longer matches
+   now that the card is a div. Restate it against the title link instead, so
+   hovering anywhere on the card still lights it up, and add the keyboard
+   half the theme's rule never had. */
+.lecture-card:has(.lecture-card__link:hover),
+.lecture-card:has(.lecture-card__link:focus-visible) {
+  background-color: var(--at-accent-soft);
+  box-shadow: var(--at-shadow-sm);
+}
+
+.lecture-card__actions {
+  position: relative;
+  margin-block-end: 0;
+}
+
+.lecture-card__slides {
+  display: inline-block;
+  font-size: 0.9rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+/* ----------------------------------------------------------------------
+   The lecture page's deck button, directly under the week strip
+   ---------------------------------------------------------------------- */
+
+.lecture-slides-link {
+  margin-block: 0 2rem;
+}

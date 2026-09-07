@@ -9,8 +9,10 @@ import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { canvasBundle } from "../src/lib/canvas/build";
+import { createBoardFor, deleteObjects, reparentNodes, worldRect } from "../src/lib/canvas/engine";
 import { layoutBoard, placeBoard, wrapNodes, type PlaceAnchor } from "../src/lib/canvas/layout";
-import type { TakeNode } from "../src/lib/canvas/types";
+import { mergeStoredDoc } from "../src/lib/canvas/storage";
+import type { CanvasDoc, TakeNode } from "../src/lib/canvas/types";
 
 const FIXTURE_DIR = "src/lib/canvas/fixtures";
 const DATA_DIR = "src/data/studio";
@@ -237,4 +239,128 @@ describe("every take on the canvas is a file that shipped", () => {
       }
     });
   }
+});
+
+// ---------------------------------------------------------------------------
+// Moving things around: the document mutations behind drag-out, reparent and
+// delete. These are what the browser's pointer events end up calling.
+// ---------------------------------------------------------------------------
+
+function clone(): CanvasDoc {
+  return structuredClone(doc);
+}
+
+// Seen red: had reparentNodes keep the node's board-local x/y instead of
+// recomputing them against the new board's origin. Failed with "expected
+// { x: 3472, y: 200, w: 320, h: 569 } to deeply equal { x: 1936, y: 200,
+// w: 320, h: 569 }" — the node jumped a board's width from where it landed.
+describe("a node dropped into another board stays where it was let go of", () => {
+  it("keeps its place on screen and joins the new board", () => {
+    const before = clone();
+    const node = before.nodes.find((candidate) => candidate.id === "week02-t1-take")!;
+    const target = before.boards.find((board) => board.id === "week-03")!;
+
+    // Put it where the pointer left it: inside Week 3's board.
+    const dropped = { x: target.x + 400, y: target.y + 200 };
+    before.nodes = before.nodes.map((candidate) =>
+      candidate.id === node.id ? { ...candidate, x: dropped.x - before.boards[0].x, y: dropped.y - before.boards[0].y } : candidate,
+    );
+
+    const after = reparentNodes(before, [node.id], "week-03");
+    const moved = after.nodes.find((candidate) => candidate.id === node.id)!;
+    expect(moved.boardId).toBe("week-03");
+    expect(worldRect(after, moved)).toEqual({ x: dropped.x, y: dropped.y, w: node.w, h: node.h });
+  });
+});
+
+// Seen red: made createBoardFor place the board with placeBoard's "row"
+// anchor instead of "at", so a drag-out flew off to the right of every board
+// instead of staying under the pointer. Failed with "expected 13640 to be
+// 1968".
+describe("a node dropped outside every board gets a board of its own", () => {
+  it("wraps it with the board padding and calls it Board 1", () => {
+    const before = clone();
+    const node = before.nodes.find((candidate) => candidate.id === "week02-t1-take")!;
+
+    const { doc: after, boardId } = createBoardFor(before, [node.id], { x: 2000, y: 2000 });
+    expect(boardId).toBeDefined();
+
+    const board = after.boards.find((candidate) => candidate.id === boardId)!;
+    expect(board.kind).toBe("user");
+    expect(board.title).toBe("Board 1");
+    expect(board.x).toBe(1968);
+    expect(board.y).toBe(1932);
+    expect(board.w).toBe(320 + 64);
+
+    const moved = after.nodes.find((candidate) => candidate.id === node.id)!;
+    expect(moved.boardId).toBe(boardId);
+    expect({ x: moved.x, y: moved.y }).toEqual({ x: 32, y: 68 });
+  });
+
+  it("sends the recorded node home again when its board is deleted", () => {
+    const before = clone();
+    const { doc: dragged, boardId } = createBoardFor(before, ["week02-t1-take"], { x: 2000, y: 2000 });
+    const after = deleteObjects(dragged, [], [boardId!]);
+
+    expect(after.boards.find((board) => board.id === boardId)).toBeUndefined();
+    const returned = after.nodes.find((node) => node.id === "week02-t1-take")!;
+    expect(returned.boardId).toBe("week-02");
+    expect(after.nodes.filter((node) => node.boardId === "week-02").length).toBe(10);
+  });
+});
+
+// Seen red: had mergeStoredDoc take the stored node wholesale rather than
+// only its position, so a stored copy of week05-t3 could point anywhere.
+// Failed with "expected 'https://example.invalid/evil.mp4' to be
+// '/studio/week05-t3.mp4'".
+describe("storage remembers where things sit, never what a take is", () => {
+  const assetPrefix = (doc.nodes.find((node): node is TakeNode => node.type === "take")!.file.match(/^.*\/studio\//) ??
+    ["/studio/"])[0];
+
+  it("takes positions from storage and identity from the build", () => {
+    const built = clone();
+    const original = built.nodes.find((node): node is TakeNode => node.id === "week05-t3-take")!;
+    const merged = mergeStoredDoc(
+      built,
+      {
+        version: 1,
+        nodes: [{ id: "week05-t3-take", boardId: "week-05", x: 999, y: 111, file: "https://example.invalid/evil.mp4" }],
+      },
+      { assetPrefix },
+    );
+
+    const node = merged.nodes.find((candidate): candidate is TakeNode => candidate.id === "week05-t3-take")!;
+    expect({ x: node.x, y: node.y }).toEqual({ x: 999, y: 111 });
+    expect(node.file).toBe(original.file);
+  });
+
+  it("refuses a stored take pointing outside the studio's own assets", () => {
+    const built = clone();
+    const merged = mergeStoredDoc(
+      built,
+      {
+        version: 1,
+        boards: [{ id: "board-x", title: "Board 1", x: 0, y: 3000, w: 384, h: 669, kind: "user", order: 99 }],
+        nodes: [
+          {
+            id: "desk-evil",
+            boardId: "board-x",
+            type: "take",
+            file: "https://example.invalid/evil.mp4",
+            origin: { kind: "desk", refNodeIds: [], prompt: "", at: "" },
+          },
+        ],
+      },
+      { assetPrefix },
+    );
+
+    expect(merged.boards.find((board) => board.id === "board-x")).toBeDefined();
+    expect(merged.nodes.find((node) => node.id === "desk-evil")).toBeUndefined();
+  });
+
+  it("ignores a stored document written by an older version", () => {
+    const built = clone();
+    const merged = mergeStoredDoc(built, { version: 0, nodes: [] }, { assetPrefix });
+    expect(merged.nodes.length).toBe(built.nodes.length);
+  });
 });

@@ -14,8 +14,25 @@ export const GAP = 24;
 export const BOARD_PADDING = 32;
 export const TITLE_BAR = 36;
 /** Boards never touch: this is the clearance between them, in every direction
- *  a board is placed and the step a collision is resolved by. */
+ *  a board is placed and the step a collision is resolved by. It is also the
+ *  gap between the two rows of recorded boards. */
 export const BOARD_GAP = 120;
+
+/**
+ * The recorded strip breaks after five boards. Ten of them in one row is
+ * about 15,000 world units, and "Fit all" on a 1920 viewport bottoms out at
+ * the zoom floor with every card a stamp --- the overview stops being an
+ * overview. Two rows of five halve the width, so the whole rig fits at a zoom
+ * where a card is still a card. Five is where the split falls naturally:
+ * weeks 2--6 are the generator ladder, and weeks 7--9 with The Cut and the
+ * reference episode are the episode being assembled.
+ */
+export const RECORDED_ROW_LENGTH = 5;
+
+/** Which row of the recorded strip a board's `order` puts it in. */
+export function recordedRow(order: number): number {
+  return Math.floor(order / RECORDED_ROW_LENGTH);
+}
 
 export interface LayoutItem {
   id: ID;
@@ -111,8 +128,9 @@ function overlaps(a: Rect, b: Rect): boolean {
 }
 
 export type PlaceAnchor =
-  /** The next recorded board in the row: past everything, tops aligned. */
-  | { kind: "row" }
+  /** A recorded board, by its position in the strip: along its own row with
+   *  tops aligned, or opening a new row under the one before it. */
+  | { kind: "row"; index: number }
   /** A desk generation, under the one board that holds all its references. */
   | { kind: "below"; boardId: ID }
   /** A desk generation whose references span boards: past the rightmost one. */
@@ -141,17 +159,33 @@ function anchorPoint(doc: DocBoards, anchor: PlaceAnchor): { x: number; y: numbe
     return { x: source.x, y: source.y + source.h + BOARD_GAP };
   }
 
-  const last = rightmost(boards);
-  if (!last) return { x: 0, y: 0 };
-
   if (anchor.kind === "right-of-all") {
+    const last = rightmost(boards);
+    if (!last) return { x: 0, y: 0 };
     return { x: last.x + last.w + BOARD_GAP, y: last.y };
   }
 
-  // "row": recorded boards run left to right with their tops aligned to the
-  // first board placed, not to whichever one happens to be furthest right.
-  const top = boards.reduce((min, board) => Math.min(min, board.y), boards[0].y);
-  return { x: last.x + last.w + BOARD_GAP, y: top };
+  // "row": recorded boards run left to right inside their own row, tops
+  // aligned to the first board of that row rather than to whichever board is
+  // furthest right on the canvas.
+  const row = recordedRow(anchor.index);
+  const recorded = boards.filter((board) => board.kind === "recorded");
+  const inRow = recorded.filter((board) => recordedRow(board.order) === row);
+
+  if (inRow.length > 0) {
+    const last = rightmost(inRow) as Board;
+    const top = inRow.reduce((min, board) => Math.min(min, board.y), inRow[0].y);
+    return { x: last.x + last.w + BOARD_GAP, y: top };
+  }
+
+  // First board of a row. Row 0 starts the canvas; every later row starts
+  // under the deepest board of the row above, left edges aligned, so the two
+  // rows read as one strip folded rather than as two unrelated clusters.
+  const above = recorded.filter((board) => recordedRow(board.order) === row - 1);
+  if (above.length === 0) return { x: 0, y: 0 };
+  const left = above.reduce((min, board) => Math.min(min, board.x), above[0].x);
+  const bottom = above.reduce((max, board) => Math.max(max, board.y + board.h), above[0].y + above[0].h);
+  return { x: left, y: bottom + BOARD_GAP };
 }
 
 /** Resolves where a new board goes, then walks it right in BOARD_GAP steps

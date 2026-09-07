@@ -1,0 +1,15 @@
+{
+  "name": "the sixth recorded board opens a second row under the first, left edges aligned",
+  "call": "placeBoard",
+  "note": "Week 7 is the sixth board of the strip, so it starts a row rather than continuing one. It goes 120 under the deepest board of the row above — Week 2's 1855, not Week 6's shorter box — and back at the first row's left edge, so the two rows read as one strip folded.",
+  "boards": [
+    { "id": "week-02", "title": "Week 2", "x": 0, "y": 0, "w": 1416, "h": 1855, "kind": "recorded", "order": 0 },
+    { "id": "week-03", "title": "Week 3", "x": 1536, "y": 0, "w": 1416, "h": 1828, "kind": "recorded", "order": 1 },
+    { "id": "week-04", "title": "Week 4", "x": 3072, "y": 0, "w": 1416, "h": 1828, "kind": "recorded", "order": 2 },
+    { "id": "week-05", "title": "Week 5", "x": 4608, "y": 0, "w": 1416, "h": 1855, "kind": "recorded", "order": 3 },
+    { "id": "week-06", "title": "Week 6", "x": 6144, "y": 0, "w": 1416, "h": 1855, "kind": "recorded", "order": 4 }
+  ],
+  "board": { "w": 1072, "h": 1855 },
+  "anchor": { "kind": "row", "index": 5 },
+  "expected": { "x": 0, "y": 1975 }
+}

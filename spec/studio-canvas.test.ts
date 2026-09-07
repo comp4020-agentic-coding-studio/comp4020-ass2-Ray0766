@@ -11,7 +11,7 @@ import { describe, expect, it } from "vitest";
 import { weekManifestSchema } from "../src/data/studio.schema";
 import { canvasBundle } from "../src/lib/canvas/build";
 import { recordedInputOf } from "../src/lib/canvas/doc";
-import { createBoardFor, deleteObjects, reparentNodes, worldRect } from "../src/lib/canvas/engine";
+import { createBoardFor, deleteObjects, MIN_ZOOM, reparentNodes, worldRect } from "../src/lib/canvas/engine";
 import { layoutBoard, placeBoard, wrapNodes, type PlaceAnchor } from "../src/lib/canvas/layout";
 import { RF_TYPE, toRfEdges } from "../src/lib/canvas/rf";
 import { DESK_MESSAGES, resolveDeskRequest, tierIdOfNode } from "../src/lib/canvas/resolve";
@@ -72,7 +72,12 @@ describe("layoutBoard places a board's nodes to the unit", () => {
 // its height with no BOARD_GAP. Failed with "expected { x: 0, y: 669 } to
 // deeply equal { x: 0, y: 789 }".
 describe("placeBoard resolves an anchor and clears every board it lands on", () => {
-  for (const file of ["place-desk-below-source.json", "place-collision-shift.json"]) {
+  for (const file of [
+    "place-desk-below-source.json",
+    "place-collision-shift.json",
+    "place-recorded-second-row.json",
+    "place-recorded-along-row.json",
+  ]) {
     const spec = fixture<PlaceFixture>(file);
     it(spec.name, () => {
       expect(placeBoard({ boards: spec.boards }, spec.board, spec.anchor)).toEqual(spec.expected);
@@ -169,14 +174,71 @@ describe("every tier in every manifest reaches the canvas", () => {
     expect(doc.boards.every((board) => board.kind === "recorded")).toBe(true);
   });
 
-  it("the recorded boards run left to right, 120 apart, tops aligned", () => {
+  // Seen red by putting the ten boards back in one row --- hard-coding
+  // `index: 0` in doc.ts's placeBoard call --- then
+  // `npx vitest run spec/studio-canvas.test.ts` (output verbatim):
+  //   AssertionError: week-08 starts 120 past week-07: expected 8760 to be
+  //   8872
+  //   AssertionError: the recorded strip is 13072 x 1855 (7.05:1); a
+  //   landscape stage fits that by its width and Fit all bottoms out at the
+  //   0.1 zoom floor: expected 7.046900269541779 to be less than or equal to
+  //   2.5
+  // then reverted. The row-membership check stayed green under that
+  // injection, which is right: the boards keep their order, it is only their
+  // coordinates that stop folding.
+  it("the recorded boards run as two rows of five, 120 apart, tops aligned in each row", () => {
     const boards = [...doc.boards].sort((a, b) => a.order - b.order);
-    for (let i = 1; i < boards.length; i += 1) {
-      expect(boards[i].x, `${boards[i].id} starts 120 past ${boards[i - 1].id}`).toBe(
-        boards[i - 1].x + boards[i - 1].w + 120,
-      );
-      expect(boards[i].y).toBe(boards[0].y);
+    const rows = [boards.filter((b) => b.order < 5), boards.filter((b) => b.order >= 5)];
+
+    expect(rows[0].map((b) => b.id), "the first row of the recorded strip").toEqual([
+      "week-02",
+      "week-03",
+      "week-04",
+      "week-05",
+      "week-06",
+    ]);
+    expect(rows[1].map((b) => b.id), "the second row of the recorded strip").toEqual([
+      "week-07",
+      "week-08",
+      "week-09",
+      "cut",
+      "reference",
+    ]);
+
+    for (const row of rows) {
+      for (let i = 1; i < row.length; i += 1) {
+        expect(row[i].x, `${row[i].id} starts 120 past ${row[i - 1].id}`).toBe(row[i - 1].x + row[i - 1].w + 120);
+        expect(row[i].y, `${row[i].id} is not top-aligned with ${row[0].id}`).toBe(row[0].y);
+      }
     }
+
+    const firstRowBottom = Math.max(...rows[0].map((b) => b.y + b.h));
+    expect(rows[1][0].x, "the second row is not left-aligned with the first").toBe(rows[0][0].x);
+    expect(rows[1][0].y, "the second row does not clear the first by 120").toBe(firstRowBottom + 120);
+  });
+
+  // The reason the strip folds at all. This asserts the shape of the world,
+  // not ReactFlow's fit arithmetic --- restating that here would be a second
+  // implementation of it, wrong the first time the library changes. The
+  // canvas stage measures 1414 x 790 in Chrome at 1920x1080, so a strip much
+  // wider than it is tall is governed by its width and the zoom collapses.
+  //
+  // Measured in Chrome, not modelled: one row of ten is 13,072 x 1,855
+  // (7.05:1), Fit all lands at zoom 0.1002 --- on the 0.1 floor --- and a
+  // 320-unit card renders 32px across, a stamp. Folded into two rows it is
+  // 7,560 x 3,830 (1.97:1), Fit all lands at 0.173, and the same card is
+  // 55px.
+  const MAX_STRIP_ASPECT = 2.5;
+
+  it(`the folded strip is no wider than ${MAX_STRIP_ASPECT}:1, so Fit all has something to fit`, () => {
+    const boards = doc.boards;
+    const extentW = Math.max(...boards.map((b) => b.x + b.w)) - Math.min(...boards.map((b) => b.x));
+    const extentH = Math.max(...boards.map((b) => b.y + b.h)) - Math.min(...boards.map((b) => b.y));
+    const aspect = extentW / extentH;
+    expect(
+      aspect,
+      `the recorded strip is ${extentW} x ${extentH} (${aspect.toFixed(2)}:1); a landscape stage fits that by its width and Fit all bottoms out at the ${MIN_ZOOM} zoom floor`,
+    ).toBeLessThanOrEqual(MAX_STRIP_ASPECT);
   });
 
   it("the Cut board carries the master and its four windows", () => {
@@ -514,21 +576,27 @@ describe("a node dropped into another board stays where it was let go of", () =>
 
 // Seen red: made createBoardFor place the board with placeBoard's "row"
 // anchor instead of "at", so a drag-out flew off to the right of every board
-// instead of staying under the pointer. Failed with "expected 13640 to be
-// 1968".
+// instead of staying under the pointer.
+//
+// The drop point is (2000, 4200), which is empty canvas under both rows of
+// the recorded strip. It used to be (2000, 2000), empty only while the strip
+// was one row; folding it into two put Week 8 there, and placeBoard did
+// exactly what it says it does and walked the new board clear of it. A drop
+// on a board reparents into that board rather than reaching this path at
+// all, so the coordinate was wrong for what the test is about.
 describe("a node dropped outside every board gets a board of its own", () => {
   it("wraps it with the board padding and calls it Board 1", () => {
     const before = clone();
     const node = before.nodes.find((candidate) => candidate.id === "week02-t1-take")!;
 
-    const { doc: after, boardId } = createBoardFor(before, [node.id], { x: 2000, y: 2000 });
+    const { doc: after, boardId } = createBoardFor(before, [node.id], { x: 2000, y: 4200 });
     expect(boardId).toBeDefined();
 
     const board = after.boards.find((candidate) => candidate.id === boardId)!;
     expect(board.kind).toBe("user");
     expect(board.title).toBe("Board 1");
     expect(board.x).toBe(1968);
-    expect(board.y).toBe(1932);
+    expect(board.y).toBe(4132);
     expect(board.w).toBe(320 + 64);
 
     const moved = after.nodes.find((candidate) => candidate.id === node.id)!;

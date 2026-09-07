@@ -344,11 +344,12 @@ function StudioCanvasInner({ bundle, weeks, assetPrefix }: CanvasPayload) {
     [flow, reducedMotion, setNodes],
   );
 
-  // Ten boards in a row is roughly 15,000 world units, so "Fit all" bottoms
-  // out at the 10% floor and every card becomes a 32px stamp. That is the
-  // right overview and the wrong first impression, so the canvas opens on the
-  // first board at a size you can read, and Fit all is a control you reach
-  // for rather than the landing state.
+  // The recorded strip folds into two rows of five so that "Fit all" is worth
+  // pressing at all (see RECORDED_ROW_LENGTH), but even folded it is the
+  // whole rig at 63px a card: the right overview and the wrong first
+  // impression. The canvas opens on the first board --- Week 2 --- at a size
+  // you can read, and Fit all stays a control you reach for rather than the
+  // landing state.
   const showFirstBoard = useCallback(() => {
     const board = [...docRef.current.boards].sort((a, b) => a.order - b.order)[0];
     if (!board) return;

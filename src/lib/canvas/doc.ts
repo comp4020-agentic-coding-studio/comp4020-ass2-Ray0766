@@ -400,7 +400,8 @@ function referenceBoardDraft(
 }
 
 /** Builds the whole canvas: ten recorded boards in manifest order, laid out
- *  in a row with their tops aligned, and the lineage between them. */
+ *  as two rows of five with their tops aligned inside each row, and the
+ *  lineage between them. */
 export function buildCanvasBundle(source: CanvasSourceInput): CanvasBundle {
   const meta: Record<string, NodeMeta> = {};
 
@@ -414,7 +415,7 @@ export function buildCanvasBundle(source: CanvasSourceInput): CanvasBundle {
 
   drafts.forEach((draft, order) => {
     const layout = layoutBoard(draft.nodes.map((node) => node.item));
-    const { x, y } = placeBoard(doc, layout, { kind: "row" });
+    const { x, y } = placeBoard(doc, layout, { kind: "row", index: order });
 
     doc.boards.push({
       id: draft.id,

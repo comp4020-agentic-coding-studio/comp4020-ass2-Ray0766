@@ -1,0 +1,13 @@
+{
+  "name": "the seventh recorded board continues the second row, tops aligned to it",
+  "call": "placeBoard",
+  "note": "Week 8 follows Week 7 along the second row, 120 past its right edge and level with it — not level with Week 2, and not past the rightmost board on the canvas, which is Week 6 up on the first row.",
+  "boards": [
+    { "id": "week-02", "title": "Week 2", "x": 0, "y": 0, "w": 1416, "h": 1855, "kind": "recorded", "order": 0 },
+    { "id": "week-06", "title": "Week 6", "x": 6144, "y": 0, "w": 1416, "h": 1855, "kind": "recorded", "order": 4 },
+    { "id": "week-07", "title": "Week 7", "x": 0, "y": 1975, "w": 1072, "h": 1855, "kind": "recorded", "order": 5 }
+  ],
+  "board": { "w": 1072, "h": 1855 },
+  "anchor": { "kind": "row", "index": 6 },
+  "expected": { "x": 1192, "y": 1975 }
+}

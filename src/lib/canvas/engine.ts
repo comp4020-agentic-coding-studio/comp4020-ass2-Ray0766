@@ -56,10 +56,31 @@ export function worldRect(doc: CanvasDoc, node: Node): Rect {
   return { x: (board?.x ?? 0) + node.x, y: (board?.y ?? 0) + node.y, w: node.w, h: node.h };
 }
 
-export function boardAt(doc: CanvasDoc, x: number, y: number): Board | undefined {
-  // Later boards win: a user board dropped over a recorded one is the one on
-  // top, and the one a node dropped there should join.
-  return [...doc.boards].reverse().find((board) => x >= board.x && x <= board.x + board.w && y >= board.y && y <= board.y + board.h);
+/** Which board a dropped card belongs to: the one it covers most of, or none
+ *  if it is clear of every board.
+ *
+ *  This is deliberately an overlap test rather than a test on the card's
+ *  centre. With the centre test, a card let go of half over a board counted as
+ *  outside it, so it got a board of its own — a board whose rectangle then
+ *  overlapped the one the card was sitting on, which §3's "shift right by 120
+ *  until it does not" walked past all ten recorded boards. Measured in Chrome:
+ *  a drop at world x 500 put Board 1 at x 11229. Deciding by overlap means a
+ *  card that touches a board joins it, and a card that touches nothing gets a
+ *  board that collides with nothing. */
+export function boardUnder(doc: CanvasDoc, rect: Rect): Board | undefined {
+  let best: { board: Board; area: number } | undefined;
+
+  for (const board of doc.boards) {
+    const width = Math.min(rect.x + rect.w, board.x + board.w) - Math.max(rect.x, board.x);
+    const height = Math.min(rect.y + rect.h, board.y + board.h) - Math.max(rect.y, board.y);
+    if (width <= 0 || height <= 0) continue;
+    const area = width * height;
+    // >= so that a user board dropped over a recorded one, which is later in
+    // the list, wins a tie: it is the one on top.
+    if (!best || area >= best.area) best = { board, area };
+  }
+
+  return best?.board;
 }
 
 /** Moves nodes inside their own board, growing the board to keep them in it. */
@@ -140,15 +161,30 @@ export function createBoardFor(doc: CanvasDoc, nodeIds: ID[], at?: { x: number; 
   const anchored = at
     ? dropped.map((item) => ({ ...item, x: at.x + (item.x - dropped[0].x), y: at.y + (item.y - dropped[0].y) }))
     : dropped;
-  const wrapped = wrapNodes(anchored);
-  const placed = placeBoard(doc, wrapped, { kind: "at", x: wrapped.x, y: wrapped.y });
+
+  // The collision walk is run against what the visitor actually dropped, not
+  // against the board that will be wrapped around it. The wrap adds 68 above
+  // the card for the padding and the title bar, so a card let go of 40 below
+  // a board still clips it — and with ten recorded boards in a row, "shift
+  // right by 120 until it does not" then walks the new board past all ten,
+  // roughly 11,000 units from where the pointer was. Measured, in Chrome:
+  // Board 1 landed at x 11229 for a drop at x 500.
+  const bounds = {
+    x: Math.min(...anchored.map((item) => item.x)),
+    y: Math.min(...anchored.map((item) => item.y)),
+    w: Math.max(...anchored.map((item) => item.x + item.w)) - Math.min(...anchored.map((item) => item.x)),
+    h: Math.max(...anchored.map((item) => item.y + item.h)) - Math.min(...anchored.map((item) => item.y)),
+  };
+  const cleared = placeBoard(doc, bounds, { kind: "at", x: bounds.x, y: bounds.y });
+  const shift = cleared.x - bounds.x;
+  const wrapped = wrapNodes(anchored.map((item) => ({ ...item, x: item.x + shift })));
 
   const boardId = `board-${doc.boards.length + 1}-${Date.now().toString(36)}`;
   const board: Board = {
     id: boardId,
     title: nextUserBoardTitle(doc.boards),
-    x: placed.x,
-    y: placed.y,
+    x: wrapped.x,
+    y: wrapped.y,
     w: wrapped.w,
     h: wrapped.h,
     kind: "user",

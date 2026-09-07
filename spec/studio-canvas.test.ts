@@ -11,6 +11,7 @@ import { describe, expect, it } from "vitest";
 import { canvasBundle } from "../src/lib/canvas/build";
 import { createBoardFor, deleteObjects, reparentNodes, worldRect } from "../src/lib/canvas/engine";
 import { layoutBoard, placeBoard, wrapNodes, type PlaceAnchor } from "../src/lib/canvas/layout";
+import { RF_TYPE, toRfEdges } from "../src/lib/canvas/rf";
 import { mergeStoredDoc } from "../src/lib/canvas/storage";
 import type { CanvasDoc, TakeNode } from "../src/lib/canvas/types";
 
@@ -239,6 +240,120 @@ describe("every take on the canvas is a file that shipped", () => {
       }
     });
   }
+});
+
+// React Flow renders no edge at all — no error, no warning — when the handle
+// id an edge names does not exist on the node with that type. Six of the
+// forty-seven were missing in Chrome before every side of a card carried both
+// a source and a target handle, and all six were edges running right to left.
+//
+// Seen red: put handlesFor's right-to-left branch back to `sourceHandle:
+// "s-right"`. Failed with "same-file-week06-t4 runs right to left: expected
+// 's-right' to be 's-left'".
+describe("every edge names a handle that its cards actually carry", () => {
+  const ANCHORS = ["left", "right", "top", "bottom"];
+  const rfEdges = toRfEdges(doc, true);
+
+  it("emits one React Flow edge per document edge", () => {
+    expect(rfEdges.length).toBe(doc.edges.length);
+  });
+
+  it("only ever names s-<side> for a source and t-<side> for a target", () => {
+    for (const edge of rfEdges) {
+      expect(ANCHORS.map((side) => `s-${side}`)).toContain(edge.sourceHandle);
+      expect(ANCHORS.map((side) => `t-${side}`)).toContain(edge.targetHandle);
+    }
+  });
+
+  it("leaves from whichever side actually faces the other card", () => {
+    const worldX = (id: string) => {
+      const node = doc.nodes.find((candidate) => candidate.id === id)!;
+      const board = doc.boards.find((candidate) => candidate.id === node.boardId)!;
+      return board.x + node.x;
+    };
+    for (const edge of doc.edges) {
+      if (edge.kind === "desk") continue;
+      const rf = rfEdges.find((candidate) => candidate.id === edge.id)!;
+      const backwards = worldX(edge.from) > worldX(edge.to);
+      expect(rf.sourceHandle, `${edge.id} runs ${backwards ? "right to left" : "left to right"}`).toBe(
+        backwards ? "s-left" : "s-right",
+      );
+    }
+  });
+});
+
+// Two things the browser does silently, both found by looking at the rendered
+// page rather than by any check, and both invisible to every other check here.
+// These guard the fixes, because the failure they cause is a canvas that
+// looks finished and is missing something.
+describe("the two React Flow collisions with the theme stay fixed", () => {
+  const canvasCss = readFileSync(resolve("src/styles/studio-canvas.css"), "utf8");
+  const themeCss = readFileSync(resolve("node_modules/astro-theme-university/styles/base.css"), "utf8");
+
+  // Seen red: deleted the override block from studio-canvas.css. Failed with
+  // "the theme still resets svg max-width, so the edge layer still needs the
+  // override: expected false to be true".
+  it("the edge layer opts out of the theme's svg max-width reset", () => {
+    const themeResets = /img,\s*picture,\s*video,\s*svg\s*\{[^}]*max-width:\s*100%/.test(themeCss);
+    if (!themeResets) return; // The reset is gone; the override can go with it.
+    const override = /\.react-flow__edges svg\s*\{[^}]*max-width:\s*none/.test(canvasCss);
+    expect(override, "the theme still resets svg max-width, so the edge layer still needs the override").toBe(true);
+  });
+
+  // Seen red: set RF_TYPE.input back to "input". Failed with "input must not
+  // collide with a React Flow built-in node type: expected [ 'default',
+  // 'input', 'output', …(1) ] to not include 'input'".
+  it("no node type collides with a React Flow built-in", () => {
+    const builtIns = ["default", "input", "output", "group"];
+    for (const type of Object.values(RF_TYPE)) {
+      expect(builtIns, `${type} must not collide with a React Flow built-in node type`).not.toContain(type);
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The page with JS off. `pnpm test` builds first, so this reads what actually
+// shipped, and it reads it with the island's serialised props stripped out —
+// otherwise the props would satisfy every check below without a single one of
+// these facts being visible to a reader.
+// ---------------------------------------------------------------------------
+
+const studioHtml = readFileSync(resolve("dist/studio/index.html"), "utf8").replace(/<astro-island[^>]*>/g, "");
+const base = "/comp4020-ass2-Ray0766";
+
+// Seen red: dropped the takeId line from the gallery's tier markup. Thirty-
+// seven of the forty-three take checks failed with "expected false to be
+// true"; the six that stayed green are the Cut's and the episode's, which the
+// two boardSection blocks render separately.
+describe("with JS off the page still states every take and answers every anchor", () => {
+  const takes = doc.nodes.filter((node): node is TakeNode => node.type === "take");
+
+  for (const take of takes) {
+    it(`${take.takeId} is stated in the page with JS off`, () => {
+      expect(studioHtml.includes(take.takeId)).toBe(true);
+    });
+  }
+
+  for (const file of WEEK_FILES) {
+    const manifest = readManifest(file);
+    it(`week ${manifest.week}'s tiers all carry their #week-NN:tier anchor`, () => {
+      for (const tier of manifest.tiers) {
+        const anchor = `week-${pad2(manifest.week)}:${tier.tier}`;
+        expect(studioHtml.includes(`id="${anchor}"`), `no element with id ${anchor}`).toBe(true);
+      }
+    });
+  }
+
+  // Seen red: put a bare `src="/studio/week02-t1.avif"` in the gallery's meta
+  // line — a link that works on localhost and 404s on Pages, and one the
+  // theme's own link checker let through. Failed with "expected
+  // [ '/studio/week02-t1.avif', …(9) ] to deeply equal []".
+  it("has no root-absolute link that skips the base path", () => {
+    const offenders = [...studioHtml.matchAll(/(?:href|src)="(\/[^"]*)"/g)]
+      .map((match) => match[1])
+      .filter((url) => !url.startsWith(`${base}/`) && url !== base);
+    expect(offenders).toEqual([]);
+  });
 });
 
 // ---------------------------------------------------------------------------

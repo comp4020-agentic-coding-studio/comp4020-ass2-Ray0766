@@ -206,9 +206,12 @@ function weekBoardDraft(week: ClientWeek, meta: Record<string, NodeMeta>): Board
       counterExample: tier.counterExample,
       openHref: withBase(`/lectures/week-${pad2(week.week)}/#ladder`),
       openLabel: `Week ${week.week} lecture`,
-      promptText: tier.input.promptText,
-      negText: tier.input.negText,
-      recordedInput: recordedInputOf(tier),
+      // The prompt and negative prompt are deliberately not copied here.
+      // The island already has the manifests (the recorded backend needs
+      // them), and a tier's prompt written into both nodes' meta, alongside
+      // its whitespace-normalised twin, is the same text six times: it took
+      // the page's inline payload from 125 kB to 372 kB before this was
+      // noticed. Cards look their tier up by id instead.
     };
 
     meta[inputId] = { ...shared };

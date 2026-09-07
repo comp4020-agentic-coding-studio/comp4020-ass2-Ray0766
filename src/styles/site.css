@@ -104,8 +104,8 @@ p {
   min-height: 50rem;
 }
 
-[data-reserve="studio-console"][hidden] {
-  min-height: 80rem;
+[data-reserve="studio-canvas"][hidden] {
+  min-height: 46rem;
 }
 
 @media (max-width: 640px) {
@@ -113,8 +113,8 @@ p {
     min-height: 86rem;
   }
 
-  [data-reserve="studio-console"][hidden] {
-    min-height: 132rem;
+  [data-reserve="studio-canvas"][hidden] {
+    min-height: 0;
   }
 }
 

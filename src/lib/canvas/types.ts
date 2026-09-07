@@ -115,6 +115,10 @@ export interface NodeMeta {
   resolution?: string;
   seed?: string;
   counterExample?: boolean;
+  /** Only on a placeholder, and only while it is running: the backend's own
+   *  RunProgress, mirrored onto the card. */
+  progressPhase?: "queued" | "loading" | "done";
+  progressPercent?: number;
 }
 
 export interface CanvasBundle {

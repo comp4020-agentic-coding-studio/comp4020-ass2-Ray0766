@@ -34,7 +34,7 @@ export function readStoredDoc(storage?: Pick<Storage, "getItem">): StoredShape |
     if (!raw) return undefined;
     const parsed: unknown = JSON.parse(raw);
     if (!isRecord(parsed) || parsed.version !== CANVAS_VERSION) return undefined;
-    return parsed as StoredShape;
+    return parsed as unknown as StoredShape;
   } catch {
     // Private browsing, a full quota, a storage the browser refuses to hand
     // over: an unsaved but working canvas is the right outcome, not an error.

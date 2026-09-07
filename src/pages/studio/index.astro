@@ -2,17 +2,23 @@
 import { withBase } from "astro-theme-university/url";
 import ContentLayout from "astro-theme-university/layouts/ContentLayout.astro";
 import DefaultDarkTheme from "../../components/DefaultDarkTheme.astro";
+import StudioCanvas from "../../components/studio/StudioCanvas";
+import { canvasBundle } from "../../lib/canvas/build";
 import { studioWeeks } from "../../lib/studio";
 import { toClientWeek, type ClientTier } from "../../lib/studio-client";
 import { siteConfig } from "../../site-config";
 import "../../styles/site.css";
 import "../../styles/studio.css";
+import "@xyflow/react/dist/style.css";
+import "../../styles/studio-canvas.css";
 
 const weeks = studioWeeks.map(toClientWeek);
-// Escaped so a literal "</script" inside a real prompt/negative-prompt file
-// (none currently, but nothing guarantees it never will) can't close this
-// tag early — the browser only ever sees valid JSON text either way.
-const payload = JSON.stringify(weeks).replace(/<\/script/gi, "<\\/script");
+const assetPrefix = withBase("/studio/");
+
+// Escaped so a literal "</script" inside a real prompt file (none currently,
+// but nothing guarantees it never will) can't close this tag early — the
+// browser only ever sees valid JSON text either way.
+const payload = JSON.stringify({ bundle: canvasBundle, weeks, assetPrefix }).replace(/<\/script/gi, "<\\/script");
 
 const CREDIT_LINE =
   "Recorded on the convener's rig with MiniMax H3 (local weights), keyframes with NoobAI-XL, reference stills for The Ninth Head with ChatGPT's image generator. Nothing is generated in the browser.";
@@ -40,23 +46,55 @@ function weekAnchor(weekNumber: number): string {
   return `week-${String(weekNumber).padStart(2, "0")}`;
 }
 
+// The Dailies link `/studio/#week-05:t1`. The canvas answers that anchor by
+// panning to the take; with JS off the same anchor has to land on the same
+// take in the gallery, so the id is the anchor itself, colon and all.
 function tierAnchor(weekNumber: number, tier: ClientTier): string {
-  return `${weekAnchor(weekNumber)}-${tier.tier}`;
+  return `${weekAnchor(weekNumber)}:${tier.tier}`;
 }
+
+const takeIdByTier = new Map(
+  canvasBundle.doc.nodes.flatMap((node) =>
+    node.type === "take" ? [[node.tierId, node.takeId] as const] : [],
+  ),
+);
+
+// The Cut and the reference episode are boards on the canvas too, so with JS
+// off they have to be in the gallery as well — read straight off the same
+// document the canvas draws, rather than restated here from the manifests.
+function boardSection(boardId: string) {
+  const board = canvasBundle.doc.boards.find((candidate) => candidate.id === boardId);
+  const nodes = canvasBundle.doc.nodes.filter((node) => node.boardId === boardId);
+  return {
+    id: boardId,
+    title: board?.title ?? boardId,
+    week: board?.week,
+    takes: nodes.flatMap((node) =>
+      node.type === "take" ? [{ node, meta: canvasBundle.meta[node.id] ?? {} }] : [],
+    ),
+    inputs: nodes.flatMap((node) =>
+      node.type === "input" ? [{ node, meta: canvasBundle.meta[node.id] ?? {} }] : [],
+    ),
+  };
+}
+
+const cutSection = boardSection("cut");
+const referenceSection = boardSection("reference");
 ---
 
 <ContentLayout
   title="Studio"
-  description="Replay the real recorded results from every week's ladder: pick a week, pick a tier, generate. Nothing here is produced in the browser — every result is the exact file the rig recorded."
+  description="The whole rig as one canvas: every recorded input, every take it produced, and the line between them. Nothing here is produced in the browser — every result is the exact file the rig recorded."
   {...siteConfig}
 >
   <DefaultDarkTheme slot="head" />
 
   <p>
-    Every clip and still below is a real recorded result from the course's
-    own production rig, not a live model call. Picking an input and pressing
-    Generate looks a real workflow up in that recording and plays it back,
-    labelled as recorded throughout. {CREDIT_LINE}
+    Every clip and still here is a real recorded result from the course's own
+    production rig, not a live model call. The canvas lays the whole rig out
+    as boards — one per week, plus the Cut and the reference episode — with an
+    edge from each input to the take it produced. The desk on the right takes
+    references off the canvas and replays what the rig recorded for them. {CREDIT_LINE}
   </p>
 
   <nav class="studio-index" aria-label="Everything in the Studio">
@@ -79,85 +117,20 @@ function tierAnchor(weekNumber: number, tier: ClientTier): string {
     </ul>
   </nav>
 
-  <script type="application/json" is:inline data-studio-payload set:html={payload} />
+  <script type="application/json" is:inline data-studio-canvas-payload set:html={payload} />
 
-  <section class="studio-console" data-studio-console hidden aria-label="Studio console">
-    <h2>Console</h2>
-
-    <div class="studio-console__pickers">
-      <div class="studio-console__picker-buttons">
-        <nav class="studio-console__week-list" data-week-list aria-label="Week"></nav>
-        <div class="studio-console__tier-list" data-tier-list role="group" aria-label="Tier"></div>
-      </div>
-      <div class="studio-console__picker-selects">
-        <label class="studio-console__select-label">
-          Week
-          <select class="studio-console__select" data-week-select></select>
-        </label>
-        <label class="studio-console__select-label">
-          Tier
-          <select class="studio-console__select" data-tier-select></select>
-        </label>
-      </div>
-    </div>
-
-    <div class="studio-console__layout">
-      <div class="studio-console__panel" data-input-panel aria-label="Input"></div>
-
-      <div class="studio-console__run">
-        <button type="button" class="at-button studio-console__generate" data-generate>Generate</button>
-
-        <div class="studio-console__run-panel">
-          <p class="studio-console__run-status" data-run-status>Idle</p>
-          <progress class="studio-console__progress" data-run-progress max="100" value="0"></progress>
-        </div>
-
-        <figure class="studio-console__result phone-frame" data-result hidden>
-          <video class="studio-console__result-media" data-result-video hidden controls></video>
-          <img class="studio-console__result-media" data-result-image hidden alt="" />
-          <figcaption data-result-caption></figcaption>
-        </figure>
-
-        <dl class="studio-console__resolved" data-resolved></dl>
-
-        <button type="button" class="at-button at-button--outline" data-download disabled>
-          Download production log
-        </button>
-      </div>
-    </div>
-
-    <div class="studio-console__extra">
-      <div class="studio-console__history-block">
-        <p class="studio-console__history-label">History</p>
-        <div class="studio-console__history" data-history></div>
-      </div>
-
-      <div class="studio-console__compare-block">
-        <button
-          type="button"
-          class="at-button at-button--outline"
-          data-compare-toggle
-          aria-expanded="false"
-        >
-          Compare all
-        </button>
-        <div class="studio-console__compare-grid" data-compare-grid hidden></div>
-      </div>
-
-      <label class="studio-console__custom-label">
-        Custom prompt (live backend not available in this build)
-        <textarea class="studio-console__custom-input" data-custom-input disabled rows="2"></textarea>
-      </label>
-    </div>
+  <section class="studio-canvas" data-studio-canvas hidden aria-label="Lineage canvas">
+    <StudioCanvas client:visible />
   </section>
 
   <section class="studio-gallery" aria-label="Every recorded result, in order">
+    <h2 class="studio-gallery__heading">Every recorded result, in order</h2>
     {
       weeks.map((week) => (
         <div class="studio-gallery__week" id={weekAnchor(week.week)}>
-          <h2>
+          <h3>
             Week {week.week} — {week.instrument}
-          </h2>
+          </h3>
           <p class="studio-gallery__meta">
             {week.model} · {week.mode} · {week.resolution}
             {formatSeed(week.seed) ? ` · seed ${formatSeed(week.seed)}` : ""}
@@ -165,9 +138,10 @@ function tierAnchor(weekNumber: number, tier: ClientTier): string {
           <ol class="studio-gallery__tiers">
             {week.tiers.map((tier) => (
               <li class="studio-gallery__tier" id={tierAnchor(week.week, tier)}>
-                <h3>
+                <h4>
                   {tier.tier} — {tier.label}
-                </h3>
+                </h4>
+                <p class="studio-gallery__address">{takeIdByTier.get(tier.id)}</p>
                 <div class="studio-gallery__grid">
                   <div class="studio-gallery__input">
                     <p class="studio-gallery__kind">{inputKindLabel(tier.input.kind)}</p>
@@ -239,14 +213,52 @@ function tierAnchor(weekNumber: number, tier: ClientTier): string {
         </div>
       ))
     }
+
+    {
+      [cutSection, referenceSection].map((section) => (
+        <div class="studio-gallery__week" id={section.id}>
+          <h3>{section.title}</h3>
+          <p class="studio-gallery__meta">
+            Taught in week {section.week}
+          </p>
+          <ol class="studio-gallery__tiers">
+            {section.inputs.map((entry) => (
+              <li class="studio-gallery__tier">
+                <h4>{entry.node.type === "input" ? entry.node.label : ""}</h4>
+                {entry.meta.promptText ? <pre class="studio-gallery__text">{entry.meta.promptText}</pre> : null}
+                {entry.meta.note ? <p class="studio-gallery__note">{entry.meta.note}</p> : null}
+              </li>
+            ))}
+            {section.takes.map((entry) => (
+              <li class="studio-gallery__tier">
+                <h4>{entry.meta.tier ?? "Take"}</h4>
+                <p class="studio-gallery__address">{entry.node.type === "take" ? entry.node.takeId : ""}</p>
+                <div class="studio-gallery__output">
+                  {entry.node.type === "take" && entry.node.media === "video" ? (
+                    <video
+                      class="studio-gallery__media"
+                      src={entry.node.file}
+                      poster={entry.node.poster}
+                      controls
+                      preload="metadata"
+                    />
+                  ) : entry.node.type === "take" ? (
+                    <img class="studio-gallery__media" src={entry.node.file} alt="" loading="lazy" />
+                  ) : null}
+                </div>
+                {entry.meta.note ? <p class="studio-gallery__note">{entry.meta.note}</p> : null}
+              </li>
+            ))}
+          </ol>
+        </div>
+      ))
+    }
   </section>
 
   <script is:inline>
-    // See the Cut page and site.css: reserve the console's space during
-    // parsing so revealing it on a slow connection doesn't shove the gallery
-    // down. Inline, so JS-off readers get no reservation and no empty hole.
-    document.querySelector("[data-studio-console]")?.setAttribute("data-reserve", "studio-console");
+    // See site.css: hold the canvas's space open during parsing so revealing
+    // it on a slow connection doesn't shove the gallery down. Inline, so a
+    // JS-off reader gets neither a reservation nor an empty hole.
+    document.querySelector("[data-studio-canvas]")?.setAttribute("data-reserve", "studio-canvas");
   </script>
-
-  <script src="../../scripts/studio/console.ts"></script>
 </ContentLayout>

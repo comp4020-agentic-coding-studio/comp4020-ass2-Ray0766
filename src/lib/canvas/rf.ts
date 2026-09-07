@@ -109,6 +109,21 @@ function handlesFor(doc: CanvasDoc, edge: Edge): { sourceHandle: string; targetH
     : { sourceHandle: "s-right", targetHandle: "t-left" };
 }
 
+/**
+ * Edge labels stop being drawn below half zoom.
+ *
+ * The label is 11px in world units, so at 40% it is four pixels of text with a
+ * three-pixel halo around it — not small, illegible: a grey smudge on the line
+ * it is meant to name, and forty-seven of them at once. Above half zoom it is
+ * readable and worth having. The threshold is a predicate rather than a CSS
+ * media-ish rule so the spec can check it without React Flow.
+ */
+export const EDGE_LABEL_MIN_ZOOM = 0.5;
+
+export function edgeLabelsVisible(zoom: number): boolean {
+  return zoom >= EDGE_LABEL_MIN_ZOOM;
+}
+
 export function toRfEdges(doc: CanvasDoc, showSources: boolean): RfEdge[] {
   if (!showSources) return [];
 

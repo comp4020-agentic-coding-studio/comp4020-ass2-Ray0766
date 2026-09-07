@@ -17,6 +17,7 @@ import {
   SelectionMode,
   useNodesState,
   useReactFlow,
+  useStore,
   type NodeChange,
   type NodeTypes,
   type OnSelectionChangeParams,
@@ -35,7 +36,8 @@ import {
   worldRect,
 } from "../../lib/canvas/engine";
 import { boardTakes, canCompare, comparePanels as compareTakes } from "../../lib/canvas/compare";
-import { RF_TYPE, toRfEdges, toRfNodes, type StudioRfNode } from "../../lib/canvas/rf";
+import { buildCanvasExport, productionLogLines, productionLogText } from "../../lib/canvas/export";
+import { edgeLabelsVisible, RF_TYPE, toRfEdges, toRfNodes, type StudioRfNode } from "../../lib/canvas/rf";
 import {
   addRigBoard,
   derivedEdges,
@@ -61,6 +63,9 @@ import {
 } from "./canvas-context";
 import { CompareLightbox } from "./CompareLightbox";
 import { Desk, NODE_DRAG_TYPE, useDesk, type DeskState } from "./Desk";
+
+/** §4: 300ms, and only when the visitor is not holding something. */
+const CAMERA_EASE_MS = 300;
 
 const NODE_TYPES: NodeTypes = {
   [RF_TYPE.board]: BoardNode,
@@ -106,6 +111,9 @@ function StudioCanvasInner({ bundle, weeks, assetPrefix }: CanvasPayload) {
   const clearButton = useRef<HTMLButtonElement>(null);
   const confirmButton = useRef<HTMLButtonElement>(null);
   const desk = useRef<HTMLDivElement>(null);
+  // Moving the world under a pointer that is holding something is the one time
+  // an automatic camera is wrong, so the generation's ease checks this first.
+  const dragging = useRef(false);
 
   const docRef = useRef(doc);
   docRef.current = doc;
@@ -173,6 +181,11 @@ function StudioCanvasInner({ bundle, weeks, assetPrefix }: CanvasPayload) {
     return { ...bundle.meta, ...derived, ...progressMeta };
   }, [doc.nodes, bundle.meta, tierIndex, progressMeta]);
 
+  // Subscribing to the zoom rather than to the whole viewport: this re-renders
+  // only when the answer to "are the labels readable" changes, not on every
+  // frame of a pan.
+  const labelsReadable = useStore((state) => edgeLabelsVisible(state.transform[2]));
+
   const rfNodes = useMemo(() => toRfNodes(doc, effectiveMeta, readOnly), [doc, effectiveMeta, readOnly]);
   const rfEdges = useMemo(() => toRfEdges(doc, showSources), [doc, showSources]);
   const [nodes, setNodes, onNodesChangeInternal] = useNodesState<StudioRfNode>(rfNodes);
@@ -225,6 +238,9 @@ function StudioCanvasInner({ bundle, weeks, assetPrefix }: CanvasPayload) {
   );
 
   const deskRef = useRef<DeskState | undefined>(undefined);
+  // The desk is built before the camera helper below it, and the helper needs
+  // the document the desk is about to change; a ref is the seam.
+  const easeToNodeRef = useRef<((nodeId: string) => void) | undefined>(undefined);
   // Refs rather than dependencies: the stage's keydown listener is registered
   // once, and must not be torn down and rebuilt on every document change.
   const cardOrderRef = useRef<string[]>([]);
@@ -249,11 +265,17 @@ function StudioCanvasInner({ bundle, weeks, assetPrefix }: CanvasPayload) {
     meta: effectiveMeta,
     tierIndex,
     setProgress,
+    onResolved: (nodeId) => easeToNodeRef.current?.(nodeId),
   });
   deskRef.current = deskState;
 
+  const onNodeDragStart = useCallback(() => {
+    dragging.current = true;
+  }, []);
+
   const onNodeDragStop = useCallback(
     (event: MouseEvent | TouchEvent, dragged: StudioRfNode, group: StudioRfNode[]) => {
+      dragging.current = false;
       const current = docRef.current;
 
       // Let go of a card over the desk and it becomes a reference rather than
@@ -360,6 +382,24 @@ function StudioCanvasInner({ bundle, weeks, assetPrefix }: CanvasPayload) {
     return () => window.cancelAnimationFrame(frame);
   }, [fitPending, nodes, fitAll]);
 
+  // §4: after a generation resolves the camera eases to what arrived, unless
+  // the visitor is mid-drag — moving the world under a pointer that is holding
+  // something is the one time an automatic camera is wrong — and not at all
+  // for a reader who asked for less motion.
+  const easeToNode = useCallback(
+    (nodeId: string) => {
+      if (dragging.current) return;
+      const node = docRef.current.nodes.find((candidate) => candidate.id === nodeId);
+      if (!node) return;
+      const rect = worldRect(docRef.current, node);
+      void flow.setCenter(rect.x + rect.w / 2, rect.y + rect.h / 2, {
+        zoom: flow.getZoom(),
+        duration: reducedMotion ? 0 : CAMERA_EASE_MS,
+      });
+    },
+    [flow, reducedMotion],
+  );
+
   const focusNode = useCallback(
     (nodeId: string) => {
       const node = docRef.current.nodes.find((candidate) => candidate.id === nodeId);
@@ -373,6 +413,8 @@ function StudioCanvasInner({ bundle, weeks, assetPrefix }: CanvasPayload) {
     },
     [flow, reducedMotion, setNodes],
   );
+
+  easeToNodeRef.current = easeToNode;
 
   const loadRig = useCallback(() => {
     setDoc(loadWholeRig(docRef.current, bundle.doc));
@@ -522,6 +564,42 @@ function StudioCanvasInner({ bundle, weeks, assetPrefix }: CanvasPayload) {
   const compareSelection = useCallback(() => setComparing(selection.nodes), [selection.nodes]);
   const compareBoard = useCallback((boardId: string) => setComparing(boardTakes(docRef.current, boardId)), []);
 
+  // Two files, no server: the canvas as it stands plus the thread that made
+  // it, and the production log of every run in the order it was asked for.
+  const [offeringDownload, setOfferingDownload] = useState(false);
+  const downloadButton = useRef<HTMLButtonElement>(null);
+  const firstDownload = useRef<HTMLButtonElement>(null);
+
+  const save = useCallback((name: string, body: string, type: string) => {
+    const url = URL.createObjectURL(new Blob([body], { type }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = name;
+    link.click();
+    URL.revokeObjectURL(url);
+    setOfferingDownload(false);
+    window.requestAnimationFrame(() => downloadButton.current?.focus());
+  }, []);
+
+  const downloadCanvas = useCallback(() => {
+    const stamp = new Date();
+    save(
+      `studio-canvas-${stamp.toISOString().slice(0, 10)}.json`,
+      JSON.stringify(buildCanvasExport(docRef.current, deskRef.current?.thread ?? { version: 1, messages: [] }, stamp), null, 2),
+      "application/json",
+    );
+  }, [save]);
+
+  const downloadLog = useCallback(() => {
+    const stamp = new Date();
+    const lines = productionLogLines(
+      deskRef.current?.thread ?? { version: 1, messages: [] },
+      docRef.current,
+      effectiveMeta,
+    );
+    save(`studio-production-log-${stamp.toISOString().slice(0, 10)}.txt`, productionLogText(lines, stamp), "text/plain");
+  }, [save, effectiveMeta]);
+
   const rename = useCallback((boardId: string, title: string) => setDoc(renameBoard(docRef.current, boardId, title)), [setDoc]);
 
   const fitSelectedBoard = useCallback(() => {
@@ -540,6 +618,7 @@ function StudioCanvasInner({ bundle, weeks, assetPrefix }: CanvasPayload) {
           <div className="studio-canvas__layout">
             <div
               className="studio-canvas__stage"
+              data-edge-labels={labelsReadable ? "on" : "off"}
               ref={stage}
               onDragOver={onCanvasDragOver}
               onDrop={onCanvasDrop}
@@ -558,6 +637,7 @@ function StudioCanvasInner({ bundle, weeks, assetPrefix }: CanvasPayload) {
                 edges={rfEdges}
                 nodeTypes={NODE_TYPES}
                 onNodesChange={onNodesChange}
+                onNodeDragStart={onNodeDragStart}
                 onNodeDragStop={onNodeDragStop}
                 onSelectionChange={onSelectionChange}
                 minZoom={MIN_ZOOM}
@@ -617,6 +697,40 @@ function StudioCanvasInner({ bundle, weeks, assetPrefix }: CanvasPayload) {
                     <button type="button" className="at-button at-button--outline" onClick={loadRig}>
                       Load the whole rig
                     </button>
+                    {offeringDownload ? (
+                      <>
+                        <button ref={firstDownload} type="button" className="at-button" onClick={downloadCanvas}>
+                          The canvas as JSON
+                        </button>
+                        <button type="button" className="at-button" onClick={downloadLog}>
+                          The production log
+                        </button>
+                        <button
+                          type="button"
+                          className="at-button at-button--outline"
+                          onClick={() => {
+                            setOfferingDownload(false);
+                            window.requestAnimationFrame(() => downloadButton.current?.focus());
+                          }}
+                        >
+                          Neither
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        ref={downloadButton}
+                        type="button"
+                        className="at-button at-button--outline"
+                        onClick={() => {
+                          setOfferingDownload(true);
+                          // Same rule as the clear confirm: the button that was
+                          // pressed is replaced, so focus goes to the choice.
+                          window.requestAnimationFrame(() => firstDownload.current?.focus());
+                        }}
+                      >
+                        Download
+                      </button>
+                    )}
                     {confirmingClear ? (
                       <>
                         <button ref={confirmButton} type="button" className="at-button" onClick={clearCanvas}>

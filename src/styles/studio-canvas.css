@@ -348,12 +348,18 @@
   stroke-width: 1.5;
 }
 
+/* Three kinds, three lines. Lineage is the ordinary case and stays solid;
+   same-file is dashed because it is a claim about two cards being one file,
+   not a step in a process; a desk edge is dotted because it is what the
+   visitor asked for rather than what the rig recorded. */
 .studio-edge--same-file .react-flow__edge-path {
   stroke-dasharray: 6 4;
   stroke: var(--at-brand-ink);
 }
 
 .studio-edge--desk .react-flow__edge-path {
+  stroke-dasharray: 1 5;
+  stroke-linecap: round;
   stroke: var(--at-brand-ink);
 }
 
@@ -370,6 +376,14 @@
   stroke: var(--at-bg-alt);
   stroke-width: 3px;
   stroke-linejoin: round;
+}
+
+/* Below half zoom the 11px label is four pixels of text with a three-pixel
+   halo — a smudge on the line it names, forty-seven times over. The threshold
+   is decided in JS (edgeLabelsVisible in src/lib/canvas/rf.ts, so the spec can
+   check it without React Flow) and applied here. */
+.studio-canvas__stage[data-edge-labels="off"] .react-flow__edge-text {
+  display: none;
 }
 
 /* --------------------------------------------------------------- chrome */

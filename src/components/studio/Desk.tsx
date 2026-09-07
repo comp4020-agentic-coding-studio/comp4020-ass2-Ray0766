@@ -87,6 +87,9 @@ export interface UseDeskOptions {
   meta: Record<ID, NodeMeta>;
   tierIndex: Map<string, TierEntry>;
   setProgress(nodeId: ID, progress: NodeMeta | undefined): void;
+  /** Called once a run has resolved, with the node that arrived — the canvas
+   *  uses it to ease the camera onto it (v3 §4). */
+  onResolved?(nodeId: ID): void;
 }
 
 /** What the rig was actually given for a tier: its prompt, or its seed. The
@@ -95,7 +98,16 @@ export function recordedInputOfTier(tier: ClientTier): string {
   return tier.input.promptText ?? (typeof tier.input.value === "number" ? String(tier.input.value) : "");
 }
 
-export function useDesk({ getDoc, setDoc, built, weeks, meta, tierIndex, setProgress }: UseDeskOptions): DeskState {
+export function useDesk({
+  getDoc,
+  setDoc,
+  built,
+  weeks,
+  meta,
+  tierIndex,
+  setProgress,
+  onResolved,
+}: UseDeskOptions): DeskState {
   const [week, setWeek] = useState(weeks[0]?.week ?? 2);
   const [tierId, setTierId] = useState(weeks[0]?.tiers[0]?.id ?? "");
   const [references, setReferences] = useState<ID[]>([]);
@@ -345,6 +357,7 @@ export function useDesk({ getDoc, setDoc, built, weeks, meta, tierIndex, setProg
         planLine: plan,
       };
       say(rigTurn);
+      onResolved?.(started.nodeId);
     } catch {
       setLastPlan(undefined);
     } finally {
@@ -364,6 +377,7 @@ export function useDesk({ getDoc, setDoc, built, weeks, meta, tierIndex, setProg
     say,
     selectedTier,
     week,
+    onResolved,
   ]);
 
   const downloadLog = useCallback(() => {

@@ -208,6 +208,15 @@ find the real one or state the technique generically.
 - A regression sentinel counts only once it has been seen red under the bug it
   guards against. Inject the bug, watch it fail for the right reason, then
   fix.
+- A check that matches a bare substring of source — a tag name, an attribute
+  name — is fed by the file's own comments and by the `querySelector` string
+  that looks for the thing, so it stays green after the thing is gone. Anchor
+  the assertion to a line start or to a structure instead (`/^\s*<dialog\b/m`,
+  `/<div[^>]*\sdata-studio-fallback[\s>]/`, a parsed section rather than
+  `includes`). Cost so far: `data-studio-fallback` renamed in the page and the
+  check stayed green because the status bar's own module names it; `<dialog>`
+  swapped for a `<div>` and the check stayed green because the module's opening
+  comment says the word.
 - When a check fails, read its output before you change anything. Never make
   a check pass by weakening it or by rewording honest copy; widen the check.
 - The phone viewport is not a smaller desktop: a scroll choreography gets its

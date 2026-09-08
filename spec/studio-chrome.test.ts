@@ -348,3 +348,92 @@ describe("the status bar is one line under the stage", () => {
     expect(uses.length, "the stage no longer sizes itself against the bar").toBeGreaterThanOrEqual(2);
   });
 });
+
+// ---------------------------------------------------------------------------
+// 5. One filled thing in the desk column, and it is Generate.
+//
+// The desk had five: a gold heading, three gold step discs, a gold chip on the
+// selected week, a gold frame on the selected input, and Generate. When
+// everything is emphasised nothing is, and the one control that actually does
+// something was competing with the furniture around it.
+//
+// The rule the column now follows: gold is a fill, it fills Generate, and the
+// only other gold on the column is a 3px rule marking a selection — which is
+// still a fill (a pseudo-element's background, never a border) but is not an
+// area. Anything else that wants attention uses size, weight or opacity.
+//
+// Seen red first, three ways, each bug injected into the real files and
+// reverted:
+//   - the week chip put back (`background: var(--at-accent)` on
+//     `.studio-desk__segment input:checked + span`):
+//     "the desk paints gold as an area fill outside Generate; gold fills
+//      Generate and 3px selection rules, nothing else: expected [ Array(1) ]
+//      to deeply equal []" — the array holds the offending selector and
+//      declaration, which is what the failure needs to name
+//   - the selection rule widened from 3px to 8px:
+//     "a gold pseudo-element in the desk is not a 3px rule: expected
+//      [ Array(1) ] to deeply equal []"
+//   - Download production log given the solid button class in Desk.tsx:
+//     "the desk column has more than one gold-filled button: expected 2 to be 1"
+// ---------------------------------------------------------------------------
+
+describe("the desk column has exactly one gold-filled thing in it", () => {
+  const css = source("src/styles/studio-canvas.css");
+  const desk = source("src/components/studio/Desk.tsx");
+
+  const rules = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)].map((match) => ({
+    selector: match[1].replace(/\/\*[\s\S]*?\*\//g, "").trim(),
+    body: match[2],
+  }));
+
+  // Everything the desk column draws: the composer, and the message thread
+  // that sits above it.
+  const inDesk = (selector: string) => /\.studio-desk|\.studio-turn/.test(selector);
+  // Gold, by either of its names — --at-accent is the fill, --at-brand-ink is
+  // the same colour in the dark theme.
+  const GOLD_FILL = /(?:^|;)\s*background(?:-color)?\s*:[^;]*var\(--at-(?:accent|brand-ink)\)[^;]*/g;
+  const isPseudo = (selector: string) => /::(?:before|after)\b/.test(selector);
+
+  it("paints gold as an area fill nowhere in the column", () => {
+    const offenders = rules
+      .filter((rule) => inDesk(rule.selector) && !isPseudo(rule.selector))
+      .flatMap((rule) =>
+        [...rule.body.matchAll(GOLD_FILL)].map((m) => `${rule.selector} {${m[0].replace(/^;/, "").trim()} }`),
+      );
+    expect(
+      offenders,
+      "the desk paints gold as an area fill outside Generate; gold fills Generate and 3px selection rules, nothing else",
+    ).toEqual([]);
+  });
+
+  it("keeps every gold pseudo-element down to a 3px rule", () => {
+    const tooBig = rules
+      .filter((rule) => inDesk(rule.selector) && isPseudo(rule.selector))
+      .filter((rule) => GOLD_FILL.test(rule.body) || /var\(--at-(?:accent|brand-ink)\)/.test(rule.body))
+      .filter((rule) => !/(?:inline|block)-size:\s*3px/.test(rule.body))
+      .map((rule) => rule.selector);
+    expect(tooBig, "a gold pseudo-element in the desk is not a 3px rule").toEqual([]);
+  });
+
+  it("gives the solid button class to Generate and to nothing else", () => {
+    // The theme's `.at-button` is the filled one; `.at-button--outline` is not.
+    // Counted on the attribute, so a class list that merely mentions the word
+    // in a comment cannot pass for one.
+    const solid = [...desk.matchAll(/className="at-button"/g)];
+    expect(solid.length, "the desk column has more than one gold-filled button").toBe(1);
+    // And it is the one that runs the rig: the class sits inside the element
+    // whose handler is desk.generate().
+    const at = desk.indexOf('className="at-button"');
+    const around = desk.slice(at, at + 400);
+    expect(/desk\.generate\(\)/.test(around), "the one filled button is not Generate").toBe(true);
+  });
+
+  it("still marks a selection with something that is not colour", () => {
+    const week = rules.find((r) => r.selector === ".studio-desk__segment input:checked + span");
+    const tier = rules.find((r) => r.selector === ".studio-desk__tier:has(input:checked) .studio-desk__tier-label");
+    expect(week, "the checked week has no rule of its own").toBeDefined();
+    expect(tier, "the checked input has no rule of its own").toBeDefined();
+    expect(/font-weight:/.test(week!.body), "the checked week is told apart by colour alone").toBe(true);
+    expect(/font-weight:/.test(tier!.body), "the checked input is told apart by colour alone").toBe(true);
+  });
+});

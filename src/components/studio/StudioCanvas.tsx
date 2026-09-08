@@ -9,7 +9,6 @@
 // lands whole; "Clear canvas" is the way back to nothing.
 
 import {
-  Controls,
   MiniMap,
   Panel,
   ReactFlow,
@@ -22,7 +21,15 @@ import {
   type NodeTypes,
   type OnSelectionChangeParams,
 } from "@xyflow/react";
-import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type DragEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
+} from "react";
 import {
   boardUnder,
   createBoardFor,
@@ -95,6 +102,32 @@ function readPayload(): CanvasPayload | undefined {
   }
 }
 
+/* The zoom pill's glyphs. Sized in em so they track the pill's own font
+   size, stroked in currentColor so both themes come out of one rule, and
+   aria-hidden because every control they sit in carries its own label. */
+function ChromeIcon({ d }: { d: string }) {
+  return (
+    <svg
+      viewBox="0 0 16 16"
+      width="1em"
+      height="1em"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path d={d} />
+    </svg>
+  );
+}
+
+const ICON_MINUS = "M3.5 8h9";
+const ICON_PLUS = "M8 3.5v9M3.5 8h9";
+const ICON_FIT = "M2.5 6V2.5H6M10 2.5h3.5V6M13.5 10v3.5H10M6 13.5H2.5V10";
+
 function StudioCanvasInner({ bundle, weeks, assetPrefix }: CanvasPayload) {
   const flow = useReactFlow();
   const reducedMotion = useReducedMotion();
@@ -110,6 +143,9 @@ function StudioCanvasInner({ bundle, weeks, assetPrefix }: CanvasPayload) {
   const [fitPending, setFitPending] = useState(false);
   const clearButton = useRef<HTMLButtonElement>(null);
   const confirmButton = useRef<HTMLButtonElement>(null);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const moreButton = useRef<HTMLButtonElement>(null);
+  const morePanel = useRef<HTMLDivElement>(null);
   const desk = useRef<HTMLDivElement>(null);
   // Moving the world under a pointer that is holding something is the one time
   // an automatic camera is wrong, so the generation's ease checks this first.
@@ -185,6 +221,11 @@ function StudioCanvasInner({ bundle, weeks, assetPrefix }: CanvasPayload) {
   // only when the answer to "are the labels readable" changes, not on every
   // frame of a pan.
   const labelsReadable = useStore((state) => edgeLabelsVisible(state.transform[2]));
+
+  // The pill's readout. Same reason as the line above: a selector that returns
+  // the zoom alone re-renders when the zoom changes and not on every frame of
+  // a pan, because transform[0] and [1] are not what it reads.
+  const zoomPercent = Math.round(useStore((state) => state.transform[2]) * 100);
 
   const rfNodes = useMemo(() => toRfNodes(doc, effectiveMeta, readOnly), [doc, effectiveMeta, readOnly]);
   const rfEdges = useMemo(() => toRfEdges(doc, showSources), [doc, showSources]);
@@ -368,6 +409,14 @@ function StudioCanvasInner({ bundle, weeks, assetPrefix }: CanvasPayload) {
 
   const zoomHundred = useCallback(() => {
     void flow.zoomTo(1, { duration: reducedMotion ? 0 : 300 });
+  }, [flow, reducedMotion]);
+
+  const zoomIn = useCallback(() => {
+    void flow.zoomIn({ duration: reducedMotion ? 0 : 200 });
+  }, [flow, reducedMotion]);
+
+  const zoomOut = useCallback(() => {
+    void flow.zoomOut({ duration: reducedMotion ? 0 : 200 });
   }, [flow, reducedMotion]);
 
   // React Flow fits what it has already been given, and a document set this
@@ -608,6 +657,74 @@ function StudioCanvasInner({ bundle, weeks, assetPrefix }: CanvasPayload) {
     setDoc(relayoutBoard(docRef.current, boardId));
   }, [selection.boards, setDoc]);
 
+  // --- the More popover -----------------------------------------------------
+  // Four controls that are not wanted on screen all the time. It is a popover
+  // rather than a menu because one of the four is a toggle and two of them
+  // swap themselves for a confirm pair; `role="menuitem"` promises neither.
+
+  const closeMore = useCallback(() => {
+    setMoreOpen(false);
+    // Whatever was pressed is about to be unmounted, so the ring goes back to
+    // the control that opened the panel rather than to <body>.
+    window.requestAnimationFrame(() => moreButton.current?.focus());
+  }, []);
+
+  // Opening puts the keyboard on the first control, which is what makes the
+  // panel reachable without a pointer at all.
+  useEffect(() => {
+    if (!moreOpen) return;
+    const frame = window.requestAnimationFrame(() => {
+      morePanel.current?.querySelector<HTMLElement>("button, a")?.focus();
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [moreOpen]);
+
+  // A press outside closes it. `pointerdown` rather than `click` so the panel
+  // is gone before the thing under it reacts, and no focus is moved: a pointer
+  // user did not ask for the ring to jump back to More.
+  useEffect(() => {
+    if (!moreOpen) return;
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target as Node | null;
+      if (!target) return;
+      if (morePanel.current?.contains(target) || moreButton.current?.contains(target)) return;
+      setMoreOpen(false);
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => document.removeEventListener("pointerdown", onPointerDown);
+  }, [moreOpen]);
+
+  // Escape closes and hands the ring back; the arrows walk the controls that
+  // are actually rendered, which is why the list is read from the DOM each
+  // press rather than written out here — Download and Clear canvas each
+  // replace themselves with a confirm pair while the panel is open.
+  const onMoreKeyDown = useCallback(
+    (event: ReactKeyboardEvent<HTMLDivElement>) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        // The stage's own Escape clears the selection. One press, one effect.
+        event.stopPropagation();
+        closeMore();
+        return;
+      }
+      const walks = ["ArrowDown", "ArrowRight", "ArrowUp", "ArrowLeft", "Home", "End"];
+      if (!walks.includes(event.key)) return;
+      const items = Array.from(morePanel.current?.querySelectorAll<HTMLElement>("button, a") ?? []);
+      if (items.length === 0) return;
+      event.preventDefault();
+      event.stopPropagation();
+      const last = items.length - 1;
+      const current = items.indexOf(document.activeElement as HTMLElement);
+      let next = current;
+      if (event.key === "ArrowDown" || event.key === "ArrowRight") next = current >= last ? 0 : current + 1;
+      if (event.key === "ArrowUp" || event.key === "ArrowLeft") next = current <= 0 ? last : current - 1;
+      if (event.key === "Home") next = 0;
+      if (event.key === "End") next = last;
+      items[next]?.focus();
+    },
+    [closeMore],
+  );
+
   const empty = doc.boards.length === 0;
 
   return (
@@ -660,109 +777,179 @@ function StudioCanvasInner({ bundle, weeks, assetPrefix }: CanvasPayload) {
                 proOptions={{ hideAttribution: true }}
                 aria-label="Lineage canvas"
               >
-                <Controls showInteractive={false} />
                 <MiniMap pannable zoomable nodeClassName={(node) => `studio-minimap__node studio-minimap__node--${node.type}`} />
+
+                {/* Bottom-left, where an infinite canvas keeps its zoom: four
+                    icon-sized controls on one translucent pill, floating over
+                    the stage rather than sitting in a panel that takes height
+                    off it. The keyboard shortcuts the stage already answers —
+                    Shift+1 fits, Shift+0 returns to 100% — are named in each
+                    control's title so the pointer and the keyboard describe
+                    the same two things. */}
+                <Panel position="bottom-left" className="studio-zoom">
+                  <div role="group" aria-label="Zoom" className="studio-zoom__pill">
+                    <button
+                      type="button"
+                      className="studio-chrome__icon"
+                      onClick={zoomOut}
+                      aria-label="Zoom out"
+                      title="Zoom out"
+                    >
+                      <ChromeIcon d={ICON_MINUS} />
+                    </button>
+                    <button
+                      type="button"
+                      className="studio-chrome__zoom"
+                      onClick={zoomHundred}
+                      aria-label={`Zoom is ${zoomPercent} percent. Return to 100%`}
+                      title="Return to 100% (Shift+0)"
+                    >
+                      {zoomPercent}%
+                    </button>
+                    <button
+                      type="button"
+                      className="studio-chrome__icon"
+                      onClick={zoomIn}
+                      aria-label="Zoom in"
+                      title="Zoom in"
+                    >
+                      <ChromeIcon d={ICON_PLUS} />
+                    </button>
+                    <button
+                      type="button"
+                      className="studio-chrome__icon"
+                      onClick={fitAll}
+                      aria-label="Fit every board on screen"
+                      title="Fit every board on screen (Shift+1)"
+                    >
+                      <ChromeIcon d={ICON_FIT} />
+                    </button>
+                  </div>
+                </Panel>
+
+                {/* Top-left, and only what a visitor reaches for: the two that
+                    change what is on the canvas, and one way in to the four
+                    that do not. Nine controls on screen at once was a panel;
+                    this is chrome. */}
                 <Panel position="top-left" className="studio-toolbar">
                   <div role="toolbar" aria-label="Canvas" className="studio-toolbar__group">
-                    <button type="button" className="at-button at-button--outline" onClick={fitAll}>
-                      Fit all
-                    </button>
-                    <button type="button" className="at-button at-button--outline" onClick={zoomHundred}>
-                      100%
+                    <button type="button" className="studio-chrome__button" onClick={loadRig}>
+                      Load the whole rig
                     </button>
                     <button
                       type="button"
-                      className="at-button at-button--outline"
-                      aria-pressed={showSources}
-                      onClick={() => setShowSources((current) => !current)}
-                    >
-                      Show sources
-                    </button>
-                    <button
-                      type="button"
-                      className="at-button at-button--outline"
-                      onClick={fitSelectedBoard}
-                      aria-disabled={selection.boards.length !== 1}
-                    >
-                      Fit board
-                    </button>
-                    <button
-                      type="button"
-                      className="at-button at-button--outline"
+                      className="studio-chrome__button"
                       onClick={compareSelection}
                       aria-disabled={!canCompare(doc, selection.nodes)}
                     >
                       Compare
                     </button>
-                    <button type="button" className="at-button at-button--outline" onClick={loadRig}>
-                      Load the whole rig
-                    </button>
-                    {offeringDownload ? (
-                      <>
-                        <button ref={firstDownload} type="button" className="at-button" onClick={downloadCanvas}>
-                          The canvas as JSON
-                        </button>
-                        <button type="button" className="at-button" onClick={downloadLog}>
-                          The production log
-                        </button>
-                        <button
-                          type="button"
-                          className="at-button at-button--outline"
-                          onClick={() => {
-                            setOfferingDownload(false);
-                            window.requestAnimationFrame(() => downloadButton.current?.focus());
-                          }}
-                        >
-                          Neither
-                        </button>
-                      </>
-                    ) : (
+                    <div className="studio-more" onKeyDown={onMoreKeyDown}>
                       <button
-                        ref={downloadButton}
+                        ref={moreButton}
                         type="button"
-                        className="at-button at-button--outline"
-                        onClick={() => {
-                          setOfferingDownload(true);
-                          // Same rule as the clear confirm: the button that was
-                          // pressed is replaced, so focus goes to the choice.
-                          window.requestAnimationFrame(() => firstDownload.current?.focus());
-                        }}
+                        className="studio-chrome__button"
+                        data-studio-more
+                        aria-expanded={moreOpen}
+                        aria-controls={moreOpen ? "studio-more-panel" : undefined}
+                        onClick={() => setMoreOpen((open) => !open)}
                       >
-                        Download
+                        More
                       </button>
-                    )}
-                    {confirmingClear ? (
-                      <>
-                        <button ref={confirmButton} type="button" className="at-button" onClick={clearCanvas}>
-                          Clear, discarding every board
-                        </button>
-                        <button
-                          type="button"
-                          className="at-button at-button--outline"
-                          onClick={() => {
-                            setConfirmingClear(false);
-                            window.requestAnimationFrame(() => clearButton.current?.focus());
-                          }}
+                      {moreOpen ? (
+                        <div
+                          ref={morePanel}
+                          id="studio-more-panel"
+                          className="studio-more__panel"
+                          role="group"
+                          aria-label="More canvas controls"
+                          data-studio-more-panel
                         >
-                          Keep them
-                        </button>
-                      </>
-                    ) : (
-                      <button
-                        ref={clearButton}
-                        type="button"
-                        className="at-button at-button--outline"
-                        onClick={() => {
-                          setConfirmingClear(true);
-                          // The two confirm buttons replace this one, so focus
-                          // would otherwise fall to <body> the moment it is
-                          // pressed. Put it on the choice that now matters.
-                          window.requestAnimationFrame(() => confirmButton.current?.focus());
-                        }}
-                      >
-                        Clear canvas
-                      </button>
-                    )}
+                          <button
+                            type="button"
+                            className="studio-chrome__button"
+                            aria-pressed={showSources}
+                            onClick={() => setShowSources((current) => !current)}
+                          >
+                            Show sources
+                          </button>
+                          <button
+                            type="button"
+                            className="studio-chrome__button"
+                            onClick={fitSelectedBoard}
+                            aria-disabled={selection.boards.length !== 1}
+                          >
+                            Fit board
+                          </button>
+                          {offeringDownload ? (
+                            <>
+                              <button ref={firstDownload} type="button" className="studio-chrome__button" onClick={downloadCanvas}>
+                                The canvas as JSON
+                              </button>
+                              <button type="button" className="studio-chrome__button" onClick={downloadLog}>
+                                The production log
+                              </button>
+                              <button
+                                type="button"
+                                className="studio-chrome__button"
+                                onClick={() => {
+                                  setOfferingDownload(false);
+                                  window.requestAnimationFrame(() => downloadButton.current?.focus());
+                                }}
+                              >
+                                Neither
+                              </button>
+                            </>
+                          ) : (
+                            <button
+                              ref={downloadButton}
+                              type="button"
+                              className="studio-chrome__button"
+                              onClick={() => {
+                                setOfferingDownload(true);
+                                // Same rule as the clear confirm: the button that was
+                                // pressed is replaced, so focus goes to the choice.
+                                window.requestAnimationFrame(() => firstDownload.current?.focus());
+                              }}
+                            >
+                              Download
+                            </button>
+                          )}
+                          {confirmingClear ? (
+                            <>
+                              <button ref={confirmButton} type="button" className="studio-chrome__button" onClick={clearCanvas}>
+                                Clear, discarding every board
+                              </button>
+                              <button
+                                type="button"
+                                className="studio-chrome__button"
+                                onClick={() => {
+                                  setConfirmingClear(false);
+                                  window.requestAnimationFrame(() => clearButton.current?.focus());
+                                }}
+                              >
+                                Keep them
+                              </button>
+                            </>
+                          ) : (
+                            <button
+                              ref={clearButton}
+                              type="button"
+                              className="studio-chrome__button"
+                              onClick={() => {
+                                setConfirmingClear(true);
+                                // The two confirm buttons replace this one, so focus
+                                // would otherwise fall to <body> the moment it is
+                                // pressed. Put it on the choice that now matters.
+                                window.requestAnimationFrame(() => confirmButton.current?.focus());
+                              }}
+                            >
+                              Clear canvas
+                            </button>
+                          )}
+                        </div>
+                      ) : null}
+                    </div>
                   </div>
                 </Panel>
               </ReactFlow>

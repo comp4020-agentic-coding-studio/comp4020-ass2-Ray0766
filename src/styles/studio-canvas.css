@@ -328,6 +328,17 @@
   box-shadow: 0 0.5rem 1.5rem rgb(0 0 0 / 0.25);
 }
 
+/* Canvas chrome, not page furniture: at the theme's full button size a card's
+   own toolbar was wider than the card. The theme's own focus ring is left
+   alone. (The canvas toolbar used to be in this list; it has its own
+   controls now — see the chrome section.) */
+.studio-node-toolbar .at-button,
+.studio-desk__slot-controls .at-button {
+  padding: 0.3em 0.7em;
+  font-size: var(--at-font-size-xs);
+  line-height: 1.4;
+}
+
 /* ----------------------------------------------------------------- edges */
 
 /* Every edge is its own zero-size <svg> that paints outside itself, which is
@@ -388,52 +399,141 @@
 
 /* --------------------------------------------------------------- chrome */
 
-.studio-toolbar.react-flow__panel {
+/* Two clusters, floating. React Flow's <Panel> is absolutely positioned inside
+   the flow's own viewport wrapper, so neither of these takes a pixel of height
+   off the stage: the black field and the artwork on it are what the space is
+   for, and the chrome sits on top of it.
+
+   Translucent with a blur behind it, so a control that happens to land over a
+   board reads as glass over the work rather than as a hole cut in it. The
+   fill stays at 82% because the text on it has to clear 4.5:1 over whatever
+   the blur picks up — measured on the composite in Chrome, not declared. */
+
+.studio-toolbar.react-flow__panel,
+.studio-zoom.react-flow__panel {
   margin: var(--at-spacing-sm);
 }
 
-.studio-toolbar__group {
+.studio-toolbar__group,
+.studio-zoom__pill,
+.studio-more__panel {
   display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem;
+  border: 1px solid var(--at-border);
+  border-radius: calc(var(--at-border-radius) + 0.3rem);
+  background: color-mix(in srgb, var(--at-bg-elevated) 82%, transparent);
+  -webkit-backdrop-filter: blur(12px) saturate(1.15);
+  backdrop-filter: blur(12px) saturate(1.15);
+  box-shadow: 0 0.25rem 1rem rgb(0 0 0 / 0.22);
+}
+
+.studio-toolbar__group {
   flex-wrap: wrap;
-  gap: var(--at-spacing-xs);
-  padding: var(--at-spacing-xs);
-  border: 1px solid var(--at-border);
-  border-radius: var(--at-border-radius);
-  background: color-mix(in srgb, var(--at-bg-elevated) 92%, transparent);
 }
 
-/* Canvas chrome, not page furniture: at the theme's full button size this
-   row was 660px wide and sat over a whole board title. The theme's own
-   focus ring is left alone. */
-.studio-toolbar__group .at-button,
-.studio-node-toolbar .at-button,
-.studio-desk__slot-controls .at-button {
-  padding: 0.3em 0.7em;
+/* --------------------------------------------------------- the controls */
+
+.studio-chrome__button,
+.studio-chrome__icon,
+.studio-chrome__zoom {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-block-size: 1.8rem;
+  padding: 0.2rem 0.55rem;
+  border: 1px solid transparent;
+  border-radius: var(--at-border-radius);
+  background: none;
+  color: var(--at-text);
+  font: inherit;
   font-size: var(--at-font-size-xs);
-  line-height: 1.4;
+  line-height: 1.3;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 0.15s, border-color 0.15s, color 0.15s;
 }
 
-.react-flow__controls {
-  box-shadow: none;
-  border: 1px solid var(--at-border);
-  border-radius: var(--at-border-radius);
-  overflow: hidden;
+/* The boundary is the hover and focus state, not a permanent box: at rest
+   these are quiet text on glass, which is the whole point of moving them off
+   the stage. The border is declared transparent rather than absent so the
+   control does not change size when it arrives. */
+.studio-chrome__button:hover,
+.studio-chrome__icon:hover,
+.studio-chrome__zoom:hover {
+  border-color: var(--at-brand-ink);
+  color: var(--at-brand-ink);
 }
 
-.react-flow__controls-button {
-  background: var(--at-bg-elevated);
-  border-block-end: 1px solid var(--at-divider);
-  fill: var(--at-text);
+.studio-chrome__button:focus-visible,
+.studio-chrome__icon:focus-visible,
+.studio-chrome__zoom:focus-visible {
+  outline: 2px solid var(--at-brand-ink);
+  outline-offset: 1px;
 }
 
-.react-flow__controls-button:hover {
-  background: var(--at-bg-alt);
+/* Not `disabled`: that blurs the element that was just pressed and drops the
+   ring on <body> (CLAUDE.md §7). Muted rather than faded, so the word stays
+   readable while the control says it has nothing to act on. */
+.studio-chrome__button[aria-disabled="true"] {
+  color: var(--at-text-muted);
+  cursor: default;
 }
+
+.studio-chrome__button[aria-disabled="true"]:hover {
+  border-color: transparent;
+  color: var(--at-text-muted);
+}
+
+.studio-chrome__button[aria-pressed="true"] {
+  border-color: var(--at-brand-ink);
+  color: var(--at-brand-ink);
+}
+
+.studio-chrome__icon {
+  inline-size: 1.8rem;
+  padding-inline: 0;
+  font-size: 1rem;
+}
+
+/* Tabular figures so the readout does not jitter between 90% and 100% while
+   the pointer is on the button. */
+.studio-chrome__zoom {
+  min-inline-size: 3.5rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--at-text-secondary);
+}
+
+/* ------------------------------------------------------------- the popover */
+
+.studio-more {
+  position: relative;
+  display: inline-flex;
+}
+
+.studio-more__panel {
+  position: absolute;
+  inset-block-start: calc(100% + 0.4rem);
+  inset-inline-start: 0;
+  z-index: 12;
+  flex-direction: column;
+  align-items: stretch;
+  min-inline-size: 12.5rem;
+}
+
+.studio-more__panel .studio-chrome__button {
+  justify-content: flex-start;
+}
+
+/* --------------------------------------------------------------- minimap */
 
 .react-flow__minimap {
-  background: var(--at-bg-alt);
+  background: color-mix(in srgb, var(--at-bg-alt) 70%, transparent);
   border: 1px solid var(--at-border);
   border-radius: var(--at-border-radius);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
 }
 
 .studio-minimap__node {

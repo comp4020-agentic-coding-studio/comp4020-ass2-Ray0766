@@ -1052,8 +1052,10 @@
   block-size: 1.5em;
   border-radius: 50%;
   /* An outline, not a filled disc. Three gold coins down the left of the
-     column were three fills competing with the one that does the work. */
-  border: 1px solid color-mix(in srgb, var(--at-text) 35%, transparent);
+     column were three fills competing with the one that does the work. The
+     same edge the rest of this page uses: at 35% it measured 2.92:1 dark and
+     2.21:1 light, which is a circle you cannot quite see. */
+  border: 1px solid color-mix(in srgb, var(--at-text) 50%, transparent);
   color: var(--at-text-secondary);
   font-size: 0.8em;
   font-variant-numeric: tabular-nums;
@@ -1168,9 +1170,14 @@
 /* Picked: a rule at the start of the row and brighter, heavier text. The gold
    frame it used to wear was a fourth gold shape in a column that now has one.
    Three cues, none of them colour on its own — the rule, the weight, and the
-   radio's own `checked`. */
+   radio's own `checked`.
+
+   No fill behind it, and that is a measurement rather than a preference: over
+   --at-bg-alt the gold rule came out at 2.97:1 on the light theme, under the
+   3:1 a non-text indicator needs. On the desk surface it is 3.44:1. The wash
+   was the one cue of the four that was only colour anyway. */
 .studio-desk__tier:has(input:checked) {
-  background: var(--at-bg-alt);
+  background: none;
 }
 
 .studio-desk__tier:has(input:checked)::before {

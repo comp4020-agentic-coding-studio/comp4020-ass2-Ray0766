@@ -602,7 +602,7 @@ export function Desk({ desk, doc, readOnly, onFocusNode, startOpen }: DeskProps)
                 {thumbnail ? <img src={thumbnail} alt="" loading="lazy" /> : null}
                 {typeof tier.input.value === "number" ? <p>Seed {tier.input.value}</p> : null}
                 {tier.input.files?.some((file) => file.endsWith(".graph.json")) ? (
-                  <a className="at-button at-button--outline" href={tier.input.files.find((f) => f.endsWith(".graph.json"))}>
+                  <a className="studio-desk__quiet" href={tier.input.files.find((f) => f.endsWith(".graph.json"))}>
                     Download workflow graph
                   </a>
                 ) : null}
@@ -643,7 +643,7 @@ export function Desk({ desk, doc, readOnly, onFocusNode, startOpen }: DeskProps)
                 Generate
               </button>
               {desk.lastResult ? (
-                <button type="button" className="at-button at-button--outline" onClick={desk.downloadLog}>
+                <button type="button" className="studio-desk__quiet" onClick={desk.downloadLog}>
                   Download production log
                 </button>
               ) : null}
@@ -716,14 +716,14 @@ export function Desk({ desk, doc, readOnly, onFocusNode, startOpen }: DeskProps)
                       <span className="studio-desk__slot-controls">
                         <button
                           type="button"
-                          className="at-button at-button--outline"
+                          className="studio-desk__quiet"
                           onClick={() => onFocusNode(nodeId)}
                         >
                           Show
                         </button>
                         <button
                           type="button"
-                          className="at-button at-button--outline"
+                          className="studio-desk__quiet"
                           onClick={() => desk.removeReference(nodeId)}
                         >
                           Remove
@@ -826,7 +826,7 @@ function RefusalMessage({ turn, onUseRecorded }: { turn: RefusalTurn; onUseRecor
       {turn.recordedInput ? (
         <>
           <p className="studio-turn__recorded">{turn.recordedInput}</p>
-          <button type="button" className="at-button at-button--outline" onClick={onUseRecorded}>
+          <button type="button" className="studio-desk__quiet" onClick={onUseRecorded}>
             Use the recorded input
           </button>
         </>

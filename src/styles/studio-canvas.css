@@ -397,15 +397,6 @@
   font-size: 0.72rem;
 }
 
-/* Canvas chrome, not page furniture: at the theme's full button size a card's
-   own toolbar was wider than the card. The theme's own focus ring is left
-   alone. (The canvas toolbar used to be in this list; it has its own
-   controls now — see the chrome section.) */
-.studio-desk__slot-controls .at-button {
-  padding: 0.3em 0.7em;
-  font-size: var(--at-font-size-xs);
-  line-height: 1.4;
-}
 
 /* ----------------------------------------------------------------- edges */
 
@@ -535,10 +526,19 @@
   line-height: 1.3;
   white-space: nowrap;
   cursor: pointer;
-  /* One of these is an <a> — the card toolbar's "Open" — so the treatment has
-     to say it is not a run of prose. */
+  /* Two of these are anchors — the card toolbar's "Open" and the input card's
+     "Download workflow graph" — so the treatment has to say they are not a run
+     of prose. */
   text-decoration: none;
   transition: background-color 0.15s, border-color 0.15s, color 0.15s;
+}
+
+/* The desk half of the treatment sits in a 25rem column of running text, not
+   in a toolbar row: "Download production log" and "Use the recorded input" are
+   phrases, and nowrap would push them out of the column. */
+.studio-desk__quiet {
+  white-space: normal;
+  text-align: start;
 }
 
 /* The boundary is the hover and focus state, not a permanent box: at rest

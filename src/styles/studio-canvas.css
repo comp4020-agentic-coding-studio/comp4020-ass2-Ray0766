@@ -35,9 +35,12 @@
   outline-offset: -2px;
 }
 
-/* The empty stage. One line, centred, and out of the pointer's way: the
-   canvas underneath is still pannable and the desk is still the thing to
-   read next. */
+/* The empty stage, which is what a first visit is: a field, one line on it,
+   and the desk beside it. The line is a size up from where it was, because on
+   a 1920 screen it was one small grey sentence in the middle of a very large
+   rectangle and read as a caption for something missing rather than as the
+   next thing to do. Centred, and out of the pointer's way: the canvas
+   underneath is still pannable. */
 .studio-canvas__empty {
   position: absolute;
   inset-block-start: 50%;
@@ -47,7 +50,10 @@
   transform: translateY(-50%);
   text-align: center;
   text-wrap: balance;
-  font-size: clamp(1rem, 0.9rem + 0.5vw, 1.3rem);
+  font-size: clamp(1.15rem, 1rem + 0.6vw, 1.6rem);
+  line-height: 1.45;
+  max-inline-size: 34ch;
+  margin-inline: auto;
   color: var(--at-text-secondary);
   pointer-events: none;
 }
@@ -67,7 +73,12 @@
   border: 1px solid var(--at-border);
   border-radius: var(--at-border-radius);
   overflow: hidden;
-  background: var(--at-bg-alt);
+  /* The page's own ground rather than the lifted surface it used to be. There
+     is no grid on this canvas and there never was one; what makes it read as
+     a canvas is that it is the darkest thing in the window under the dark
+     theme and the plainest under the light one, with the boards lifted off it
+     and nothing else painted on it at all. */
+  background: var(--at-bg);
 }
 
 /* ---------------------------------------------------------------- boards */

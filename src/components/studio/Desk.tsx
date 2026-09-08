@@ -853,7 +853,7 @@ function RigMessage({
 
   return (
     <li className="studio-turn studio-turn--rig">
-      <p className="studio-turn__line">{turn.planLine}</p>
+      <p className="studio-turn__line studio-turn__plan">{turn.planLine}</p>
       {target.kind === "removed" ? (
         <p className="studio-turn__removed">Removed from the canvas.</p>
       ) : (
@@ -870,7 +870,7 @@ function RigMessage({
               event.dataTransfer.effectAllowed = "move";
             }}
           />
-          <button type="button" className="at-button at-button--outline" onClick={() => onFocusNode(turn.nodeId)}>
+          <button type="button" className="studio-turn__link" onClick={() => onFocusNode(turn.nodeId)}>
             On board {target.boardWeek ? `Week ${target.boardWeek}` : target.boardTitle}
           </button>
         </div>

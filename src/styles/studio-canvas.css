@@ -943,18 +943,28 @@
   overflow: hidden;
 }
 
-.studio-turn__more {
+/* The two text controls in a turn: the one that unfolds a long prompt, and
+   the one that takes you to the card the rig put on the canvas. Links rather
+   than buttons to look at, because that is what they do — go somewhere, or
+   show more of what is already here — and a bordered button for each was two
+   more boxes in a column of small print. --at-brand-ink is the ink token:
+   5.29:1 on the dark desk surface, 5.71:1 on the light one, measured. */
+.studio-turn__more,
+.studio-turn__link {
   margin-block-start: var(--at-spacing-xs);
   padding: 0;
   border: 0;
   background: none;
   font: inherit;
+  font-size: 0.75rem;
+  text-align: start;
   color: var(--at-brand-ink);
   text-decoration: underline;
   cursor: pointer;
 }
 
-.studio-turn__more:focus-visible {
+.studio-turn__more:focus-visible,
+.studio-turn__link:focus-visible {
   outline: 2px solid var(--at-brand-ink);
   outline-offset: 2px;
 }
@@ -965,6 +975,14 @@
   font-size: 0.72rem;
   color: var(--at-text-secondary);
   overflow-wrap: anywhere;
+}
+
+/* Only the rig's plan line goes faint. The same class carries one of the five
+   refusal answers, which is a sentence somebody has to read — the two happened
+   to share a look, and only one of them is a machine address. */
+.studio-turn__plan {
+  font-size: 0.68rem;
+  color: var(--at-text-muted);
 }
 
 .studio-turn__recorded {
@@ -985,9 +1003,11 @@
   margin-block-start: var(--at-spacing-xs);
 }
 
+/* A size up. It is the only picture in the thread and the thing you drag onto
+   the canvas, and at 3rem beside a line of monospace it read as a bullet. */
 .studio-turn__thumb {
-  inline-size: 3rem;
-  block-size: 3rem;
+  inline-size: 4rem;
+  block-size: 4rem;
   object-fit: cover;
   border-radius: calc(var(--at-border-radius) / 2);
   cursor: grab;

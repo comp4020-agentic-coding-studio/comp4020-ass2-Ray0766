@@ -2,7 +2,8 @@
 title: The Pilot
 description:
   One finished episode — sixty to ninety seconds, vertical, hooked in
-  its first three seconds and held together end to end.
+  its first three seconds and held together end to end, submitted with a
+  production log legible enough to rerun any shot in it.
 week: 11
 due: 2027-05-21T12:00:00+10:00
 weight: 35

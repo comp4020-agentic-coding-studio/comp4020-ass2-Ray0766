@@ -1,8 +1,9 @@
 ---
 title: Dailies Participation
 description:
-  Presence and contribution across all twelve Dailies sessions, judged
-  together rather than week by week.
+  What you bring ready to screen and the notes you give on what the room
+  brought, across all twelve Dailies, judged together rather than week by
+  week.
 week: 12
 due: 2027-05-28T12:00:00+10:00
 weight: 24

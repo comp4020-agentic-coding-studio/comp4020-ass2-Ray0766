@@ -238,8 +238,10 @@ find the real one or state the technique generically.
   and the four phase colours. The Slop gold is 3.43:1 on the light theme's
   background and 5.81:1 on the dark one; `--phase-episode` is 8.60:1 on light
   and 2.32:1 on dark. Neither is readable on both, so neither is ever text or
-  a line: gold fills buttons, badges and the minimap, a phase colour fills a
-  board's title bar, and anything that is ink or a stroke takes
+  a line: gold fills buttons, badges and the minimap, a phase colour fills the
+  3px rule at the start of a board's title line — as a pseudo-element's
+  `background`, never as a `border`, so it stays a fill in the source and not
+  only in the intent — and anything that is ink or a stroke takes
   `--at-brand-ink` (gold in the dark theme, the brand's own copper
   `--at-secondary` in the light, 5.70:1). `spec/palette.test.ts` computes
   every one of those numbers from the token values and fails the build if a

@@ -90,20 +90,31 @@
 }
 
 .studio-board__bar {
+  position: relative;
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
+  align-items: center;
   gap: var(--at-spacing-sm);
   block-size: 36px;
-  padding-inline: var(--at-spacing-sm);
-  border-block-end: 1px solid var(--at-divider);
+  padding-inline-start: 0.7rem;
+  padding-inline-end: var(--at-spacing-sm);
 }
 
+/* The board's name is a line of faint text above its cards, not a filled bar
+   across the top of it. The fill was the loudest thing on the canvas: four
+   boards meant four saturated bands competing with the artwork under them,
+   and on an empty stage they were the only thing on screen.
+
+   The bar keeps its 36px box on purpose. That number is TITLE_BAR in the
+   layout module, the cards are placed under it, and it is also the drag
+   target — the line of text is about 17px tall inside it, which leaves a
+   transparent band of roughly 9px above and below that still moves the
+   board. */
 .studio-board__title,
 .studio-board__rename {
   font: inherit;
+  font-size: var(--at-font-size-xs);
   font-weight: 600;
-  color: var(--at-text);
+  color: var(--at-text-secondary);
   background: none;
   border: 0;
   padding: 0;
@@ -114,50 +125,48 @@
 .studio-board__rename {
   border-block-end: 1px solid var(--at-brand-ink);
   inline-size: 100%;
+  color: var(--at-text);
+}
+
+.studio-board__title:focus-visible {
+  outline: 2px solid var(--at-brand-ink);
+  outline-offset: 2px;
 }
 
 .studio-board__week {
-  color: var(--at-text-muted);
+  color: var(--at-text-secondary);
   font-size: var(--at-font-size-xs);
   white-space: nowrap;
 }
 
-/* A board that holds one week's cards wears that week's phase colour, so two
-   non-adjacent weeks are two different-looking boards before a word is read.
-   Fill only: the ink is the fill's own, picked by its lightness in
-   phase-colours.css, and everything in the bar inherits it rather than keeping
-   a token that was chosen against the board's surface. */
-.studio-board__bar[data-phase] {
-  border-block-end-color: transparent;
-  border-start-start-radius: calc(var(--at-border-radius) - 1px);
-  border-start-end-radius: calc(var(--at-border-radius) - 1px);
+/* The phase, as a 3px rule at the start of the line. Painted as a fill on a
+   pseudo-element rather than as a border, because a phase colour is a fill
+   and never a stroke or ink (CLAUDE.md §7) — and because a board that says
+   "Week 6" beside it does not need the colour to be legible to be read, only
+   to be told apart from the board next to it. */
+.studio-board__bar[data-phase]::before {
+  content: "";
+  position: absolute;
+  inset-block: 0.5rem;
+  inset-inline-start: 0;
+  inline-size: 3px;
+  border-radius: 3px;
 }
 
-.studio-board__bar[data-phase="rig"] {
+.studio-board__bar[data-phase="rig"]::before {
   background: var(--phase-rig);
-  color: var(--phase-rig-ink);
 }
 
-.studio-board__bar[data-phase="generators"] {
+.studio-board__bar[data-phase="generators"]::before {
   background: var(--phase-generators);
-  color: var(--phase-generators-ink);
 }
 
-.studio-board__bar[data-phase="holding"] {
+.studio-board__bar[data-phase="holding"]::before {
   background: var(--phase-holding);
-  color: var(--phase-holding-ink);
 }
 
-.studio-board__bar[data-phase="episode"] {
+.studio-board__bar[data-phase="episode"]::before {
   background: var(--phase-episode);
-  color: var(--phase-episode-ink);
-}
-
-.studio-board__bar[data-phase] .studio-board__title,
-.studio-board__bar[data-phase] .studio-board__week,
-.studio-board__bar[data-phase] .studio-board__compare {
-  color: inherit;
-  border-color: currentcolor;
 }
 
 /* The rung, in the card's foot beside the address. */
@@ -746,11 +755,22 @@
   }
 }
 
-.studio-board__compare {
+/* On a filled bar this needed a border to be found. On a line of faint text
+   it is the third thing on the line, so it stays quiet until it is wanted. */
+.studio-board__compare.at-button {
+  margin-inline-start: auto;
   padding-block: 0;
   padding-inline: var(--at-spacing-xs);
+  border-color: transparent;
+  color: var(--at-text-secondary);
   font-size: var(--at-font-size-xs);
   white-space: nowrap;
+}
+
+.studio-board__compare.at-button:hover,
+.studio-board__compare.at-button:focus-visible {
+  border-color: var(--at-brand-ink);
+  color: var(--at-brand-ink);
 }
 
 /* ------------------------------------------------------------- the thread */

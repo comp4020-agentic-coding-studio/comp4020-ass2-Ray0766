@@ -777,7 +777,12 @@ function StudioCanvasInner({ bundle, weeks, assetPrefix }: CanvasPayload) {
                 proOptions={{ hideAttribution: true }}
                 aria-label="Lineage canvas"
               >
-                <MiniMap pannable zoomable nodeClassName={(node) => `studio-minimap__node studio-minimap__node--${node.type}`} />
+                {/* A minimap of nothing is an empty box in the corner of an
+                    empty stage, which is the one screen this round was for.
+                    It arrives with the first board. */}
+                {empty ? null : (
+                  <MiniMap pannable zoomable nodeClassName={(node) => `studio-minimap__node studio-minimap__node--${node.type}`} />
+                )}
 
                 {/* Bottom-left, where an infinite canvas keeps its zoom: four
                     icon-sized controls on one translucent pill, floating over

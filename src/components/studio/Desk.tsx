@@ -528,7 +528,7 @@ export function Desk({ desk, doc, readOnly, onFocusNode, startOpen }: DeskProps)
         <h3 className="studio-desk__title">Desk</h3>
         <button
           type="button"
-          className="at-button at-button--outline studio-desk__collapse"
+          className="studio-desk__quiet studio-desk__collapse"
           aria-expanded={open}
           onClick={() => setOpen((current) => !current)}
         >

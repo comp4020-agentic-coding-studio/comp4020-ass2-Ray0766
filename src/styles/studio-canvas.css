@@ -515,9 +515,14 @@
 
 /* --------------------------------------------------------- the controls */
 
+/* One treatment, two homes: the canvas chrome above, and the desk's own small
+   controls (src/components/studio/Desk.tsx). Both are quiet text with a border
+   that arrives on hover and on focus rather than a permanent box — which is
+   what lets the desk column keep exactly one filled thing in it. */
 .studio-chrome__button,
 .studio-chrome__icon,
-.studio-chrome__zoom {
+.studio-chrome__zoom,
+.studio-desk__quiet {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -541,14 +546,16 @@
    control does not change size when it arrives. */
 .studio-chrome__button:hover,
 .studio-chrome__icon:hover,
-.studio-chrome__zoom:hover {
+.studio-chrome__zoom:hover,
+.studio-desk__quiet:hover {
   border-color: var(--at-brand-ink);
   color: var(--at-brand-ink);
 }
 
 .studio-chrome__button:focus-visible,
 .studio-chrome__icon:focus-visible,
-.studio-chrome__zoom:focus-visible {
+.studio-chrome__zoom:focus-visible,
+.studio-desk__quiet:focus-visible {
   outline: 2px solid var(--at-brand-ink);
   outline-offset: 1px;
 }
@@ -673,8 +680,19 @@
   gap: var(--at-spacing-sm);
 }
 
+/* The column is self-evident — a week picker, an input list, a prompt and a
+   Generate. It does not need a heading in the theme's h3 size and the brand
+   gold at the top of it, which was the second-loudest thing on the first
+   screen after the button that does the work. Kept rather than deleted
+   because it is the visible name of a region a screen reader announces, and
+   set at the smallest step the page has. */
 .studio-desk__title {
   margin: 0;
+  font-size: var(--at-font-size-xs);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--at-text-secondary);
 }
 
 .studio-desk__body {

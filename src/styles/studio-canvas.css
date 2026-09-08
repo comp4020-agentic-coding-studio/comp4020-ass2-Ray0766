@@ -197,7 +197,10 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  border: 1px solid var(--at-border);
+  /* A hairline, and barely that. At rest a card is the picture the rig made
+     and a line to say where it ends; the border comes up to full strength
+     when the card is the selected one. */
+  border: 1px solid color-mix(in srgb, var(--at-border) 45%, transparent);
   border-radius: var(--at-border-radius);
   background: var(--at-bg);
   color: var(--at-text);
@@ -205,8 +208,57 @@
 
 .react-flow__node.selected > .studio-card,
 .react-flow__node:focus-visible > .studio-card {
+  border-color: var(--at-border);
   outline: 2px solid var(--at-brand-ink);
   outline-offset: 2px;
+}
+
+/* --------------------------------------------- what a card says, and when
+
+   Everything that names a card — the rung, the Recorded badge, the take id,
+   the input's own label — is in the DOM on every card, all the time, and is
+   read out in document order by anything that reads the page. It is off
+   screen until the card is the selected one.
+
+   Forty cards each wearing a caption is a spreadsheet with pictures in it.
+   The point of the canvas is the work, so the work is what is on screen and
+   the naming arrives when a card is picked up.
+
+   The recipe is the theme's own visually-hidden one rather than `display:
+   none` or `visibility: hidden`, both of which would take the take id out of
+   the accessibility tree — which is the thing that must not happen here, and
+   what spec/studio-chrome.test.ts checks. */
+.studio-card__foot,
+.studio-card--input:has(.studio-card__strip, .studio-card__text, .studio-card__link) .studio-card__kind {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.react-flow__node.selected .studio-card__foot,
+.react-flow__node:focus-within .studio-card__foot {
+  position: static;
+  inline-size: auto;
+  block-size: auto;
+  padding: var(--at-spacing-xs) var(--at-spacing-sm);
+  overflow: visible;
+  clip-path: none;
+  white-space: normal;
+}
+
+.react-flow__node.selected .studio-card--input .studio-card__kind,
+.react-flow__node:focus-within .studio-card--input .studio-card__kind {
+  position: static;
+  inline-size: auto;
+  block-size: auto;
+  padding: 0;
+  overflow: visible;
+  clip-path: none;
+  white-space: normal;
 }
 
 .studio-card__media {

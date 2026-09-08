@@ -181,3 +181,102 @@ describe("the zoom pill carries its own labels", () => {
     expect(/event\.shiftKey && event\.key === "\)"/.test(canvas), "Shift+0 no longer returns to 100%").toBe(true);
   });
 });
+
+// ---------------------------------------------------------------------------
+// 3. A card says nothing on screen until it is picked up — and still says all
+//    of it to a screen reader, always.
+//
+// The failure this guards against is the easy one: "hide the caption" written
+// as `display: none`, which is not hiding, it is deleting. The take id is the
+// address of a recorded file and the one thing on the card that cannot be
+// inferred from the picture, so it has to survive being off screen.
+//
+// Seen red first, three ways, each bug injected into the real files and
+// reverted:
+//   - `display: none` added to the hiding rule:
+//     "studio-canvas.css takes .studio-card__foot out of the accessibility
+//      tree; off screen is not the same as gone: expected [ 'display: none;' ]
+//      to deeply equal []"
+//   - the clip-path recipe swapped for `visibility: hidden`: the same message
+//     with 'visibility: hidden;' in it, and
+//     "the caption is not hidden with the visually-hidden recipe: expected
+//      false to be true"
+//   - the take id gated on selection in CardNodes.tsx
+//     (`{selected ? <p …>{node.takeId}</p> : null}`):
+//     "TakeCard renders something only when it is selected: expected true to
+//      be false"
+// ---------------------------------------------------------------------------
+
+describe("a card's naming is hidden from the eye and never from the reader", () => {
+  const cards = source("src/components/studio/CardNodes.tsx");
+  const css = source("src/styles/studio-canvas.css");
+
+  /** The JSX a component returns: from its own top-level `return (` to the
+   *  matching `);`. Anchored to the component body's two-space indent, because
+   *  an effect's `return () => cleanup()` also reads as "return (" and
+   *  matching the first one found the wrong half of the file. */
+  function returned(name: string): string | undefined {
+    const at = cards.indexOf(`export function ${name}(`);
+    if (at === -1) return undefined;
+    const open = cards.indexOf("\n  return (", at);
+    if (open === -1) return undefined;
+    let depth = 0;
+    for (let i = cards.indexOf("(", open); i < cards.length; i += 1) {
+      if (cards[i] === "(") depth += 1;
+      if (cards[i] === ")") {
+        depth -= 1;
+        if (depth === 0) return cards.slice(open, i + 1);
+      }
+    }
+    return undefined;
+  }
+
+  const take = returned("TakeCard");
+  const input = returned("InputCard");
+
+  it("renders the take id and the input's label with no condition on them", () => {
+    expect(take, "TakeCard is gone").toBeDefined();
+    expect(input, "InputCard is gone").toBeDefined();
+    expect(take!.includes("{node.takeId}"), "the take id is no longer on the card").toBe(true);
+    expect(input!.includes("{node.label}"), "the input's label is no longer on the card").toBe(true);
+    // The whole point: nothing in what these return branches on selection, so
+    // there is no state in which the DOM is missing the address.
+    expect(take!.includes("selected"), "TakeCard renders something only when it is selected").toBe(false);
+    expect(input!.includes("selected"), "InputCard renders something only when it is selected").toBe(false);
+  });
+
+  // Rules are split on the brace rather than searched as text, so a comment
+  // that happens to say "display: none" cannot feed this (CLAUDE.md §7).
+  const rules = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)].map((match) => ({
+    selector: match[1].replace(/\/\*[\s\S]*?\*\//g, "").trim(),
+    body: match[2],
+  }));
+
+  const NAMING = [".studio-card__foot", ".studio-card__kind", ".studio-card__address"];
+  const REMOVES = /(?:^|;)\s*(?:display\s*:\s*none|visibility\s*:\s*hidden|content-visibility\s*:\s*hidden)\s*;/g;
+
+  for (const klass of NAMING) {
+    it(`never takes ${klass} out of the accessibility tree`, () => {
+      const offenders = rules
+        .filter((rule) => rule.selector.includes(klass))
+        .flatMap((rule) => [...rule.body.matchAll(REMOVES)].map((match) => match[0].trim().replace(/^;\s*/, "")));
+      expect(
+        offenders,
+        `studio-canvas.css takes ${klass} out of the accessibility tree; off screen is not the same as gone`,
+      ).toEqual([]);
+    });
+  }
+
+  it("hides the caption with the clip recipe, and puts it back on selection", () => {
+    const hide = rules.find((rule) => /^\.studio-card__foot,/m.test(rule.selector));
+    expect(hide, "nothing hides the card's foot any more").toBeDefined();
+    expect(/clip-path:\s*inset\(50%\)/.test(hide!.body), "the caption is not hidden with the visually-hidden recipe").toBe(
+      true,
+    );
+    const show = rules.find(
+      (rule) => rule.selector.includes(".selected") && rule.selector.includes(".studio-card__foot"),
+    );
+    expect(show, "selecting a card no longer shows what it is").toBeDefined();
+    expect(/clip-path:\s*none/.test(show!.body), "the selected card does not un-clip its caption").toBe(true);
+  });
+});

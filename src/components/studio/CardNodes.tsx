@@ -75,21 +75,21 @@ function CardToolbar({ data, isVideo, playing, onTogglePlay }: {
 
   return (
     <NodeToolbar position={Position.Top} offset={12} className="studio-node-toolbar">
-      <button type="button" className="at-button at-button--outline" onClick={() => actions.addToDesk(node.id)}>
+      <button type="button" className="studio-chrome__button" onClick={() => actions.addToDesk(node.id)}>
         Add to desk
       </button>
       {meta.openHref ? (
-        <a className="at-button at-button--outline" href={meta.openHref}>
+        <a className="studio-chrome__button" href={meta.openHref}>
           Open{meta.openLabel ? ` — ${meta.openLabel}` : ""}
         </a>
       ) : null}
       {meta.productionLine ? (
-        <button type="button" className="at-button at-button--outline" onClick={copy}>
+        <button type="button" className="studio-chrome__button" onClick={copy}>
           {copied ? "Production line copied" : "Copy production line"}
         </button>
       ) : null}
       {isVideo ? (
-        <button type="button" className="at-button at-button--outline" onClick={onTogglePlay}>
+        <button type="button" className="studio-chrome__button" onClick={onTogglePlay}>
           {playing ? "Pause" : "Play"}
         </button>
       ) : null}

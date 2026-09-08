@@ -437,3 +437,75 @@ describe("the desk column has exactly one gold-filled thing in it", () => {
     expect(/font-weight:/.test(tier!.body), "the checked input is told apart by colour alone").toBe(true);
   });
 });
+
+// ---------------------------------------------------------------------------
+// 6. The prompt is clamped to four lines and never shortened.
+//
+// This is the one that would be easy to get wrong in a way nothing catches: a
+// prompt "trimmed" in the component reads fine on screen and quietly makes the
+// desk lie about what the rig was handed. The recorded prompt is evidence —
+// the whole point of /studio/ is that what you see is the exact input — so the
+// clamp has to be height and overflow, and the value has to be untouched.
+//
+// Seen red first, three ways, each bug injected into the real files and
+// reverted:
+//   - the value sliced in Desk.tsx (`value={desk.prompt.slice(0, 400)}`):
+//     "the prompt field is handed something other than the whole prompt:
+//      expected false to be true"
+//   - `display: none` added to the .studio-desk__prompt rule:
+//     "studio-canvas.css hides the prompt rather than clamping it: expected
+//      [ 'display: none;' ] to deeply equal []"
+//   - the focus rule deleted, so the clamp never opens:
+//     "focusing the prompt does not show the rest of it: expected undefined to
+//      be defined"
+// (The third injection is also what caught this file matching
+// ".studio-desk__prompt" against ".studio-desk__prompt-field" — the rule it
+// found was the fade, not the height. Matched exactly now.)
+// ---------------------------------------------------------------------------
+
+describe("the prompt is clamped by height, never by content", () => {
+  const css = source("src/styles/studio-canvas.css");
+  const desk = source("src/components/studio/Desk.tsx");
+
+  const rules = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)].map((match) => ({
+    selector: match[1].replace(/\/\*[\s\S]*?\*\//g, "").trim(),
+    body: match[2],
+  }));
+
+  it("hands the field the whole prompt", () => {
+    // Anchored to the attribute, not to the word: `value={desk.prompt}` and
+    // nothing chained onto it.
+    expect(/value=\{desk\.prompt\}/.test(desk), "the prompt field is handed something other than the whole prompt").toBe(
+      true,
+    );
+    for (const cut of [/desk\.prompt\.slice\(/, /desk\.prompt\.substring\(/, /desk\.prompt\.split\(/]) {
+      expect(cut.test(desk), `the prompt is cut up before it reaches the field: ${cut}`).toBe(false);
+    }
+  });
+
+  it("clamps with height and overflow rather than by hiding it", () => {
+    const field = rules.find((r) => r.selector === ".studio-desk__prompt");
+    expect(field, ".studio-desk__prompt is gone").toBeDefined();
+    expect(/block-size:\s*calc\(4 \*/.test(field!.body), "the prompt is no longer clamped to four lines").toBe(true);
+    expect(/overflow:\s*hidden/.test(field!.body), "the clamp does not hide the overflow").toBe(true);
+
+    const REMOVES = /(?:^|;)\s*(?:display\s*:\s*none|visibility\s*:\s*hidden|content-visibility\s*:\s*hidden)\s*;/g;
+    const offenders = rules
+      .filter((r) => r.selector.includes(".studio-desk__prompt"))
+      .flatMap((r) => [...r.body.matchAll(REMOVES)].map((m) => m[0].trim().replace(/^;\s*/, "")));
+    expect(offenders, "studio-canvas.css hides the prompt rather than clamping it").toEqual([]);
+  });
+
+  it("opens to the whole prompt on focus", () => {
+    // Matched exactly: ".studio-desk__prompt" is a substring of
+    // ".studio-desk__prompt-field", so `includes` found the fade rule and
+    // asserted against the wrong thing. Caught by injecting the bug below and
+    // reading which assertion actually fired.
+    const open = rules.find((r) => r.selector === ".studio-desk__prompt-field:focus-within .studio-desk__prompt");
+    expect(open, "focusing the prompt does not show the rest of it").toBeDefined();
+    expect(/block-size:/.test(open!.body), "the focused field is not taller than the clamped one").toBe(true);
+    // And the fade goes with it, or it would sit over the text being read.
+    const fade = rules.find((r) => r.selector === ".studio-desk__prompt-field:focus-within::after");
+    expect(fade, "the fade stays over the prompt while it is being read").toBeDefined();
+  });
+});

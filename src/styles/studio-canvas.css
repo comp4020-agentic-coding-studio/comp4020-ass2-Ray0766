@@ -1334,15 +1334,65 @@
   font-family: ui-monospace, "SFMono-Regular", "Menlo", monospace;
 }
 
+/* The recorded prompt, which on a week-9 script runs to forty lines. It is
+   the longest single thing in the column and it was set at body colour and
+   full height, so it read as the subject of the desk rather than as one of
+   its inputs. Four lines at rest with the last one fading out; the whole of
+   it the moment the field is focused.
+
+   The clamp is height and overflow. The value is never touched: the field
+   holds the entire prompt at every size, which is what
+   spec/studio-chrome.test.ts checks. */
+.studio-desk__prompt-field {
+  position: relative;
+}
+
 .studio-desk__prompt {
+  display: block;
   inline-size: 100%;
   font: inherit;
-  font-size: var(--at-font-size-xs);
-  color: var(--at-text);
+  font-size: 0.72rem;
+  line-height: 1.55;
+  color: var(--at-text-secondary);
   background: var(--at-bg);
-  border: 1px solid var(--at-border);
+  /* --at-border measures 1.39:1 on the light theme's desk surface, and a text
+     field is a control whose edge is what says it can be typed in. Same edge
+     as the canvas chrome: 4.70:1 dark, 3.43:1 light. */
+  border: 1px solid color-mix(in srgb, var(--at-text) 50%, transparent);
   border-radius: var(--at-border-radius);
   padding: var(--at-spacing-xs);
+  block-size: calc(4 * 1.55em + 2 * var(--at-spacing-xs) + 2px);
+  overflow: hidden;
+  resize: none;
+  transition: block-size 0.15s ease;
+}
+
+.studio-desk__prompt-field:focus-within .studio-desk__prompt {
+  block-size: calc(14 * 1.55em + 2 * var(--at-spacing-xs) + 2px);
+  color: var(--at-text);
+  overflow-y: auto;
+  resize: vertical;
+}
+
+/* The fade, on the wrapper because the field cannot paint one. It says the
+   text continues; focusing the field is what shows the rest. Gone the moment
+   the field is focused, and gone for a reader who asked for less motion to
+   have nothing move under them — the height still changes, the fade just
+   never appears mid-transition. */
+.studio-desk__prompt-field::after {
+  content: "";
+  position: absolute;
+  inset-inline: 1px;
+  inset-block-end: 1px;
+  block-size: 2.2em;
+  border-end-start-radius: var(--at-border-radius);
+  border-end-end-radius: var(--at-border-radius);
+  background: linear-gradient(to bottom, transparent, var(--at-bg) 85%);
+  pointer-events: none;
+}
+
+.studio-desk__prompt-field:focus-within::after {
+  content: none;
 }
 
 /* --------------------------------------------------------- the two sizes */
@@ -1478,6 +1528,10 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .studio-desk__prompt {
+    transition: none;
+  }
+
   .react-flow__pane,
   .react-flow__viewport {
     transition: none !important;

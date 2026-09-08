@@ -612,14 +612,20 @@ export function Desk({ desk, doc, readOnly, onFocusNode, startOpen }: DeskProps)
             <label className="studio-desk__label" htmlFor="desk-prompt">
               Prompt
             </label>
-            <textarea
-              id="desk-prompt"
-              className="studio-desk__prompt"
-              rows={6}
-              value={desk.prompt}
-              readOnly={readOnly}
-              onChange={(event) => desk.setPrompt(event.target.value)}
-            />
+            {/* The wrapper exists to carry the fade: a <textarea> is a
+                replaced element and will not paint a ::after of its own. The
+                field holds the whole prompt at every size — the clamp below
+                is height and overflow, never the value. */}
+            <div className="studio-desk__prompt-field">
+              <textarea
+                id="desk-prompt"
+                className="studio-desk__prompt"
+                rows={6}
+                value={desk.prompt}
+                readOnly={readOnly}
+                onChange={(event) => desk.setPrompt(event.target.value)}
+              />
+            </div>
           </fieldset>
 
           <section className="studio-desk__step">

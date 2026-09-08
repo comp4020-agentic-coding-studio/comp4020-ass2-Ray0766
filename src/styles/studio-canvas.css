@@ -702,10 +702,15 @@
   gap: var(--at-spacing-md);
 }
 
+/* "Reference slots" is an <h4> and was taking the theme's heading colour, so
+   it was the one coloured heading in a column whose three step legends are
+   plain text. It reads at 5.29:1 dark and 5.71:1 light, so this is
+   consistency rather than contrast. */
 .studio-desk__label {
   display: block;
   margin: 0 0 var(--at-spacing-xs);
   font-weight: 600;
+  color: var(--at-text);
 }
 
 /* ----------------------------------------------------------------- compare */

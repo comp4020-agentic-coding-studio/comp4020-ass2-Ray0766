@@ -280,3 +280,71 @@ describe("a card's naming is hidden from the eye and never from the reader", () 
     expect(/clip-path:\s*none/.test(show!.body), "the selected card does not un-clip its caption").toBe(true);
   });
 });
+
+// ---------------------------------------------------------------------------
+// 4. The status bar is one line, and stays one line.
+//
+// It is the floor of the stage: --studio-status-height is subtracted from the
+// viewport to size the canvas and again to hold the canvas's space open before
+// the island lands, so the number and the bar have to agree or the page jumps.
+// A bar that is allowed to wrap does not have one height at all.
+//
+// Seen red first, three ways, each bug injected into studio-shell.css and
+// reverted:
+//   - the token put back to 3.5rem:
+//     "the status bar is 3.5rem; one line is 2.5rem at the most: expected 3.5
+//      to be less than or equal to 2.5"
+//   - `flex-wrap: wrap` put back on .studio-status:
+//     "the status bar may wrap onto a second line: expected true to be false"
+//   - the credit's `white-space: nowrap` removed:
+//     "the credit line is not clipped to one line: expected false to be true"
+// ---------------------------------------------------------------------------
+
+describe("the status bar is one line under the stage", () => {
+  const shell = source("src/styles/studio-shell.css");
+
+  const rules = [...shell.matchAll(/([^{}]+)\{([^{}]*)\}/g)].map((match) => ({
+    selector: match[1].replace(/\/\*[\s\S]*?\*\//g, "").trim(),
+    body: match[2],
+  }));
+
+  function rule(selector: string) {
+    return rules.find((candidate) => candidate.selector === selector);
+  }
+
+  const MAX_REM = 2.5;
+
+  it(`is at most ${MAX_REM}rem tall, by the one number three things read`, () => {
+    // Read out of the declaration, not out of the comment above it: the value
+    // is captured from a `--studio-status-height:` at the start of a line.
+    const declared = /^\s*--studio-status-height:\s*([\d.]+)rem\s*;/m.exec(shell);
+    expect(declared, "--studio-status-height is gone, or is no longer in rem").not.toBeNull();
+    const rem = Number(declared![1]);
+    expect(rem, `the status bar is ${rem}rem; one line is ${MAX_REM}rem at the most`).toBeLessThanOrEqual(MAX_REM);
+  });
+
+  it("does not wrap, so the one number is the whole answer", () => {
+    const bar = rule(".studio-status");
+    expect(bar, ".studio-status is gone").toBeDefined();
+    expect(/flex-wrap:\s*wrap/.test(bar!.body), "the status bar may wrap onto a second line").toBe(false);
+    expect(/min-block-size:\s*var\(--studio-status-height\)/.test(bar!.body), "the bar no longer reads the token").toBe(
+      true,
+    );
+  });
+
+  it("clips the credit rather than letting it push the controls down", () => {
+    const credit = rule(".studio-status__credit");
+    expect(credit, ".studio-status__credit is gone").toBeDefined();
+    expect(/white-space:\s*nowrap/.test(credit!.body), "the credit line is not clipped to one line").toBe(true);
+    expect(/text-overflow:\s*ellipsis/.test(credit!.body), "the clipped credit gives no sign it was clipped").toBe(true);
+    // Clipped, never deleted: the sentence about nothing being generated in
+    // the browser is still read out.
+    expect(/display:\s*none/.test(credit!.body), "the credit is removed rather than clipped").toBe(false);
+  });
+
+  it("still hands the stage the height it did not take", () => {
+    const canvasCss = source("src/styles/studio-canvas.css");
+    const uses = canvasCss.match(/var\(--studio-status-height\)/g) ?? [];
+    expect(uses.length, "the stage no longer sizes itself against the bar").toBeGreaterThanOrEqual(2);
+  });
+});

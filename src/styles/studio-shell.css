@@ -9,8 +9,12 @@
 :root {
   /* One number, used three times: the bar's own height, the stage's height,
      and the space held open for the stage before the island lands. Measured
-     in Chrome at 1920x1080 and 390x844 against the bar's actual content. */
-  --studio-status-height: 3.5rem;
+     in Chrome at 1920x1080 and 390x844 against the bar's actual content.
+
+     It is one line now. 3.5rem was what the credit needed when it was allowed
+     to wrap onto a second one, and two lines of small print under a canvas is
+     a paragraph, not a status bar. */
+  --studio-status-height: 2.25rem;
 }
 
 /* base.css draws a 1px accent rule down the page as `body::after`. Against
@@ -40,36 +44,60 @@
   /* Above the canvas and its React Flow panels, below the theme's nav (100). */
   z-index: 90;
   display: flex;
-  flex-wrap: wrap;
+  /* One line, and it stays one line: the credit truncates rather than pushing
+     the controls onto a second row. */
+  flex-wrap: nowrap;
   align-items: center;
-  gap: var(--at-spacing-xs) var(--at-spacing-md);
+  gap: var(--at-spacing-md);
   min-block-size: var(--studio-status-height);
   padding-inline: var(--at-spacing-md);
-  padding-block: var(--at-spacing-xs);
   border-block-start: 1px solid var(--at-divider);
   background: var(--at-bg);
 }
 
+/* The smallest type on the page, and the quietest. It is the whole of the
+   credit and it stays the whole of it in the DOM — the clip is visual, so a
+   screen reader still reads the sentence about nothing being generated in the
+   browser, and the same sentence closes the list's own opening paragraph a
+   screen down. The title attribute is for a pointer that wants the rest of it
+   at 1280 and below, where the line runs out of room. */
 .studio-status__credit {
   margin: 0;
+  flex: 1 1 auto;
   min-inline-size: 0;
-  font-size: 0.78rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.7rem;
   line-height: 1.4;
-  color: var(--at-text-muted);
+  color: var(--at-text-secondary);
 }
 
 .studio-status__controls {
   margin-inline-start: auto;
   display: flex;
+  flex: 0 0 auto;
   align-items: center;
-  gap: var(--at-spacing-sm);
+  gap: var(--at-spacing-xs);
 }
 
+/* The same treatment the canvas chrome got: quiet text with a border that
+   arrives on hover and on focus, rather than a permanent box. Two small
+   controls at the end of a line, not two buttons in a bar. */
 .studio-status__list.at-button {
-  padding-block: 0.35rem;
-  padding-inline: var(--at-spacing-sm);
-  font-size: 0.8rem;
+  min-block-size: 1.5rem;
+  padding-block: 0;
+  padding-inline: var(--at-spacing-xs);
+  border-color: transparent;
+  color: var(--at-text-secondary);
+  font-size: 0.72rem;
   white-space: nowrap;
+}
+
+.studio-status__list.at-button:hover,
+.studio-status__list.at-button:focus-visible {
+  border-color: var(--at-brand-ink);
+  color: var(--at-brand-ink);
 }
 
 /* Deliberately not the theme's `.at-footer-theme-toggle`. That class carries
@@ -82,11 +110,11 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 0.35rem;
-  border: 1px solid var(--at-border);
+  padding: 0.2rem;
+  border: 1px solid transparent;
   border-radius: var(--at-border-radius);
   background: none;
-  color: var(--at-text-muted);
+  color: var(--at-text-secondary);
   cursor: pointer;
   transition: color 0.15s, border-color 0.15s;
 }

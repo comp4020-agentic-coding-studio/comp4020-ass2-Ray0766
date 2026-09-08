@@ -109,7 +109,10 @@ const resolvedSocialImage = resolveSocialImage(socialImage);
       <slot />
     </main>
     <footer class="studio-status">
-      <p class="studio-status__credit">{credit}</p>
+      {/* Clipped to one line by studio-shell.css; the title is how a pointer
+          reads the rest of it on a narrow window. The sentence itself is
+          always whole in the DOM. */}
+      <p class="studio-status__credit" title={credit}>{credit}</p>
       <div class="studio-status__controls">
         <button
           type="button"

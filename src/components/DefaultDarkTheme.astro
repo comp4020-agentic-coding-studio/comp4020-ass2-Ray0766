@@ -12,3 +12,36 @@
     document.documentElement.dataset.theme = "dark";
   }
 </script>
+
+<script>
+  // The footer's toggle carries `aria-label="Switch to dark theme"` as a
+  // literal in the theme's own markup, and the theme only ever rewrites it
+  // inside its click handler. So on any load where the page is already dark,
+  // the button offers the theme it is standing in — and pressing it goes the
+  // other way, because the click handler reads `data-theme` rather than the
+  // label. Measured: wrong in four of the six stored-preference x OS states,
+  // right only with a light preference stored.
+  //
+  // That is this component's problem rather than the theme's: the script above
+  // is what makes dark the effective theme when nothing is stored, which turns
+  // the broken case into the first visit — the one a marker gets. So the label
+  // is corrected here, from the theme actually in effect, wherever this
+  // component is included. Every page carrying the footer toggle carries it.
+  //
+  // Module script, so it runs after the document is parsed and the footer
+  // exists; `astro:page-load` covers a view transition, the same event the
+  // theme's own handler binds on.
+  function syncFooterThemeLabel() {
+    const label =
+      document.documentElement.dataset.theme === "dark"
+        ? "Switch to light theme"
+        : "Switch to dark theme";
+    for (const button of document.querySelectorAll(".at-footer-theme-toggle")) {
+      button.setAttribute("aria-label", label);
+      button.setAttribute("title", label);
+    }
+  }
+
+  syncFooterThemeLabel();
+  document.addEventListener("astro:page-load", syncFooterThemeLabel);
+</script>

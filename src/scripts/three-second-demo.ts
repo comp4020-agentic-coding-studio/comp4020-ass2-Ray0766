@@ -16,26 +16,52 @@ if (root) {
     payoff.hidden = true;
     controls.hidden = false;
 
+    let started = false;
     let pausedAtThreeSeconds = false;
+    let decided = false;
+
+    // A control does not get hidden out from under the person who just
+    // pressed it. Chrome answers `hidden` on the focused element by blurring
+    // it, `document.activeElement` becomes `<body>`, the focus ring vanishes
+    // and a screen reader loses its place — none of which shows up in a
+    // screenshot (CLAUDE.md §7). Both buttons here used to do exactly that.
+    //
+    // So a spent control stays where it is, marked `aria-disabled` (which the
+    // theme already styles) and guarded against a second press, which is the
+    // pattern CLAUDE.md prescribes over `disabled` for the same reason:
+    // `disabled` blurs too.
+    const retire = (button: HTMLButtonElement): void => {
+      button.setAttribute("aria-disabled", "true");
+    };
 
     playButton.addEventListener("click", () => {
-      playButton.hidden = true;
+      if (started) return;
+      started = true;
+      retire(playButton);
       ring?.classList.add("is-active");
-      video.play();
+      void video.play();
     });
 
     video.addEventListener("timeupdate", () => {
       if (!pausedAtThreeSeconds && video.currentTime >= 3) {
         pausedAtThreeSeconds = true;
         video.pause();
+        // Revealing, not hiding: nothing is focused in here yet, so this
+        // takes no keyboard away from anyone. Focus is deliberately not moved
+        // onto Stay — the reader asked for a clip, not for the page to grab
+        // the cursor three seconds later — so it stays on the Play button
+        // they pressed, one Tab away from the pair.
         decision.hidden = false;
       }
     });
 
-    const decide = () => {
-      decision.hidden = true;
+    const decide = (): void => {
+      if (decided) return;
+      decided = true;
+      retire(stayButton);
+      retire(scrollButton);
       payoff.hidden = false;
-      video.play();
+      void video.play();
     };
 
     stayButton.addEventListener("click", decide);

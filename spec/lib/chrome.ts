@@ -383,6 +383,27 @@ export class Tab {
     })();`);
   }
 
+  /** A real key press, dispatched by the browser rather than by a synthetic
+   *  DOM event. It matters for the two things a synthetic `KeyboardEvent`
+   *  cannot do: Enter on a focused button runs the browser's own activation
+   *  behaviour (so `click` fires the way it does for a person), and Tab moves
+   *  the browser's sequential focus, which is the only way to ask where the
+   *  keyboard actually goes next. */
+  async press(key: "Enter" | "Tab" | "Space"): Promise<void> {
+    const KEYS = {
+      Enter: { windowsVirtualKeyCode: 13, key: "Enter", code: "Enter", text: "\r" },
+      Tab: { windowsVirtualKeyCode: 9, key: "Tab", code: "Tab", text: "" },
+      Space: { windowsVirtualKeyCode: 32, key: " ", code: "Space", text: " " },
+    } as const;
+    const { text, ...descriptor } = KEYS[key];
+    await this.#connection.send("Input.dispatchKeyEvent", {
+      type: text ? "keyDown" : "rawKeyDown",
+      ...descriptor,
+      ...(text ? { text, unmodifiedText: text } : {}),
+    });
+    await this.#connection.send("Input.dispatchKeyEvent", { type: "keyUp", ...descriptor });
+  }
+
   async evaluate<T>(source: string): Promise<T> {
     const result = (await this.#connection.send("Runtime.evaluate", {
       expression: `(() => { ${source} })()`,

@@ -71,9 +71,16 @@
 
 /* The class's own `display` beats the UA stylesheet's [hidden] rule at equal
    specificity, so the hidden attribute needs its own, more specific rule to
-   still take effect once JS sets it. */
+   still take effect once JS sets it.
+   `.at-button` sets a display too and was left out of this list, which is how
+   a pressed Play button went on being painted at 90x47 while Chrome had
+   already blurred it for carrying the attribute — visible and unfocusable at
+   the same time. Nothing hides a control here any more (see
+   three-second-demo.ts), but the rule belongs in the set so the attribute
+   cannot mean two different things inside one widget. */
 .three-second-demo__controls[hidden],
-.three-second-demo__decision[hidden] {
+.three-second-demo__decision[hidden],
+.three-second-demo__controls .at-button[hidden] {
   display: none;
 }
 

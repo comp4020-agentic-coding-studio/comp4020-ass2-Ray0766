@@ -20,7 +20,7 @@
     "kind": "image",
     "file": "week04-t1.avif"
    },
-   "note": "The prompt and strength are fixed from here to t5; only a rough sketch is guiding this pass."
+   "note": "The prompt is fixed from here to t5 and only a rough sketch is guiding this pass. The denoising strength was held constant too, but its value was never written down - this manifest carries no strength and no seed, in the one week whose whole point is that dial. Read it as the argument for the log rather than as a number to copy."
   },
   {
    "id": "week04-t2",

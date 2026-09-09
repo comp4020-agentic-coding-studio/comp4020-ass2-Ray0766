@@ -248,6 +248,29 @@ find the real one or state the technique generically.
   `--at-secondary` in the light, 5.70:1). `spec/palette.test.ts` computes
   every one of those numbers from the token values and fails the build if a
   stylesheet paints `--at-accent` as `color`, `stroke`, `border` or `outline`.
+- Token arithmetic proves the tokens agree with each other. It does not prove
+  any page ever asks for one. `phase-colours.css` derives a correct ink for
+  each of the four phase fills and `spec/palette.test.ts` checked all four
+  green for days, while the weight bar on the home page and `/assessments/`
+  painted its labels `var(--at-black)` and nothing on the site referenced a
+  `-ink` token at all — black measured 3.62:1 on generators, 3.46:1 on
+  holding and 2.40:1 on episode, on the pages a marker opens. So a token
+  nothing references is not a passing check, it is dead code with a test on
+  it: before trusting the arithmetic, grep for a use of the token, and put the
+  real check on the rendered page. `spec/weight-bar-contrast.test.ts` is that
+  check — it drives the Chrome already on the machine over the DevTools
+  protocol (`spec/lib/chrome.ts`, no new dependency, puppeteer still stays out
+  of `package.json`), samples the composited pixel under every label at both
+  marking viewports in both themes, and reads the ink off the same element's
+  computed style. Three things make a sample worth believing, each learned by
+  getting it wrong: keep out of the element's own text and borders and confirm
+  `elementFromPoint` still answers the element; inset past a `border-radius`,
+  because a rounded corner's antialiased blend with the page behind it is
+  exactly the lightest pixel a worst-case search goes hunting for; and read
+  every point in one scroll position, since a font or a lazy image landing
+  after `load` moves the element without moving the scroll offset. Where the
+  fill is flat, assert the sampled pixel equals the declared background — that
+  one line catches all three at once.
 - Walk the page from the address bar with the keyboard alone before calling
   an interactive change done: every control reachable, in document order,
   with a ring you can see. `all: unset` is an opt-out of the focus indicator,

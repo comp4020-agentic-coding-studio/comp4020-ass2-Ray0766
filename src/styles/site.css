@@ -898,7 +898,15 @@ p {
   gap: 0.15rem;
   padding: 0.75rem 0.6rem;
   background: var(--phase-color);
-  color: var(--at-black);
+  /* Each segment's own ink, not a fixed one. Three of the four fills are too
+     dark for near-black --- generators 3.62:1, holding 3.46:1, episode 2.40:1
+     measured on the rendered bar --- and the rig gold is too light for white,
+     so the only ink that works on all four is the one derived from whichever
+     fill is underneath (phase-colours.css). Deliberately no fallback: if a
+     segment ever arrives without its phase class, --phase-color goes missing
+     with --phase-ink and the pair fails visibly together rather than painting
+     unreadable text on a fill that still looks fine. */
+  color: var(--phase-ink);
   text-decoration: none;
   line-height: 1.2;
   transition: filter 0.15s;
@@ -919,20 +927,28 @@ p {
   opacity: 0.85;
 }
 
+/* Fill and ink travel together: the class that says which phase a segment
+   belongs to is the only place that knows which ink goes on it. The legend
+   items share these classes for their swatches and simply never read the ink. */
+
 .weight-bar__segment--rig {
   --phase-color: var(--phase-rig);
+  --phase-ink: var(--phase-rig-ink);
 }
 
 .weight-bar__segment--generators {
   --phase-color: var(--phase-generators);
+  --phase-ink: var(--phase-generators-ink);
 }
 
 .weight-bar__segment--holding {
   --phase-color: var(--phase-holding);
+  --phase-ink: var(--phase-holding-ink);
 }
 
 .weight-bar__segment--episode {
   --phase-color: var(--phase-episode);
+  --phase-ink: var(--phase-episode-ink);
 }
 
 .weight-bar__legend {

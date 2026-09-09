@@ -9,6 +9,7 @@
 import { resolveDeskRequest, DESK_MESSAGES } from "../../lib/canvas/resolve";
 import type { ClientTier, ClientWeek } from "../../lib/studio-client";
 import { createRecordedBackend } from "./backends/recorded";
+import { registerDesk } from "./desk-handoff";
 
 const PHONE = "(max-width: 640px)";
 
@@ -273,6 +274,22 @@ function mountPhoneDesk(root: HTMLElement, payloadEl: HTMLScriptElement): void {
       recordedBlock!.hidden = true;
       recordedBlock!.textContent = "";
       promptBox!.focus();
+    });
+
+    // The other half of the pair the breakpoint swaps. Both selects are
+    // normally moved *by* the reader, so selectWeek and selectTier only update
+    // the closure and the panes below them — applying a handed-over snapshot
+    // has to move the two selects as well, which is what the two render calls
+    // are doing here and not inside those functions.
+    registerDesk("phone", {
+      read: () => ({ week: currentWeek.week, tierId: currentTier.id, prompt: promptBox!.value }),
+      apply: ({ week, tierId, prompt }) => {
+        selectWeek(week);
+        selectTier(tierId);
+        renderWeeks();
+        renderTiers();
+        promptBox!.value = prompt;
+      },
     });
 
     renderWeeks();

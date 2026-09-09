@@ -208,6 +208,26 @@ find the real one or state the technique generically.
 - A regression sentinel counts only once it has been seen red under the bug it
   guards against. Inject the bug, watch it fail for the right reason, then
   fix.
+- A branch nobody has ever watched execute is not a guard, it is a comment.
+  Anything new that only runs in a condition — a fallback, a hand-over, an
+  escape rule, a derived token — needs one observation of it actually running
+  before it counts as done. Three of these shipped in one round, each of them
+  read as handled: `--phase-*-ink` derived a correct ink for all four phases
+  while nothing on the site referenced any of them, so `spec/palette.test.ts`
+  was green about dead code; `three-second-demo.css` gave `[hidden]` its
+  escape rule to the two containers and not to the button, so the pressed Play
+  button stayed painted for the whole clip; and `phone-swap.ts` decided
+  "the reader was in the canvas" with `stage.contains(target)` against a desk
+  that is the stage's *sibling*, so the focus hand-over could not fire on any
+  crossing that mattered and never had. The tell is the same each time: the
+  code is right, the condition reaching it is false, and reading the source
+  tells you nothing. Drive it, or assert on it having happened.
+  This applies to the harness too. Headless Chrome has no OS-focused window,
+  so it defers focus events forever: `element.focus()` moves
+  `document.activeElement` and fires no `focusin` at all. A check that reads
+  activeElement passes; page code that listens for focus never runs. `Tab`
+  turns on `Emulation.setFocusEmulationEnabled` for exactly this, and a red
+  run taken before that was on is not evidence of anything.
 - A check that matches a bare substring of source — a tag name, an attribute
   name — is fed by the file's own comments and by the `querySelector` string
   that looks for the thing, so it stays green after the thing is gone. Anchor

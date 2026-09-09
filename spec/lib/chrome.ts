@@ -298,6 +298,16 @@ export class Tab {
     const connection = await Connection.open(created.webSocketDebuggerUrl);
     await connection.send("Page.enable");
     await connection.send("Runtime.enable");
+    // Headless Chrome has no window the OS has focused, so `document.hasFocus()`
+    // is false and Chrome *defers every focus event until the document is
+    // focused again* --- which never happens. `element.focus()` still moves
+    // `document.activeElement`, so a check that only reads activeElement looks
+    // fine, and any page code listening for `focusin` or `focus` never runs at
+    // all. Measured on /studio/: activeElement was TEXTAREA#desk-prompt and the
+    // document-level focusin listener had fired zero times, which made a
+    // hand-over that depends on knowing where the reader was look broken when
+    // it was the harness that could not tell it.
+    await connection.send("Emulation.setFocusEmulationEnabled", { enabled: true });
     return new Tab(connection, child, profile);
   }
 

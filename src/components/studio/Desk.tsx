@@ -34,6 +34,7 @@ import {
 import type { CanvasDoc, ID, Node, NodeMeta } from "../../lib/canvas/types";
 import type { ClientTier, ClientWeek } from "../../lib/studio-client";
 import { createRecordedBackend } from "../../scripts/studio/backends/recorded";
+import { registerDesk, type DeskSnapshot } from "../../scripts/studio/desk-handoff";
 import type { RunResult } from "../../scripts/studio/backends/types";
 import type { TierEntry } from "./canvas-context";
 
@@ -176,6 +177,36 @@ export function useDesk({
       if (first) selectTier(first.id);
     },
     [weeks, selectTier],
+  );
+
+  // This desk is one half of a pair the 640px breakpoint swaps, and the other
+  // half is not React (desk-form.ts). Read through refs rather than through the
+  // effect's dependencies: the crossing asks for whatever is on the desk at
+  // that instant, and re-registering on every keystroke to keep a closure
+  // fresh would be a lot of churn for a function called twice a session.
+  const snapshotRef = useRef<DeskSnapshot>({ week, tierId, prompt });
+  snapshotRef.current = { week, tierId, prompt };
+  const selectWeekRef = useRef(selectWeek);
+  selectWeekRef.current = selectWeek;
+  const selectTierRef = useRef(selectTier);
+  selectTierRef.current = selectTier;
+
+  useEffect(
+    () =>
+      registerDesk("canvas", {
+        read: () => snapshotRef.current,
+        // Week first, tier second, prompt last: selectWeek resets the tier and
+        // selectTier resets the prompt, so any other order hands back the
+        // recorded input and throws away the edit that was being carried.
+        // All three are state updates in one synchronous call, so React
+        // batches them and the last write to `prompt` is the one that lands.
+        apply: ({ week: nextWeek, tierId: nextTier, prompt: nextPrompt }) => {
+          selectWeekRef.current(nextWeek);
+          selectTierRef.current(nextTier);
+          setPrompt(nextPrompt);
+        },
+      }),
+    [],
   );
 
   const recordedInputOfNode = useCallback(

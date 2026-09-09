@@ -17,7 +17,19 @@ const [lectures, sessions, assessments] = await Promise.all([
 
 const lecture = lectures.find((entry) => entry.data.week === week);
 const session = sessions.find((entry) => entry.data.week === week);
-const assessment = assessments.find((entry) => entry.data.week === week);
+
+// Every assessment closing this week, not the first one. A week carries at most
+// one for nine of the twelve, which is what made `.find()` look right for a
+// year; week 12 closes both the showcase (20%) and Dailies participation (24%)
+// on the same Friday, and the strip on /lectures/week-12/ was quietly dropping
+// whichever of the two sorted second. ReleaseCalendar.astro learned this
+// already and carries the same comment.
+const due = assessments
+  .filter((entry) => entry.data.week === week)
+  .sort(
+    (a, b) =>
+      a.data.due.getTime() - b.data.due.getTime() || a.data.title.localeCompare(b.data.title),
+  );
 ---
 
 <ul class="week-strip" aria-label={`Week ${week} at a glance`}>
@@ -45,10 +57,16 @@ const assessment = assessments.find((entry) => entry.data.week === week);
       "—"
     )}
   </li>
-  {assessment && (
+  {due.length > 0 && (
     <li>
-      Friday due: <a href={withBase(`/assessments/${assessment.id}/`)}>{assessment.data.title}</a> (
-      {assessment.data.weight}%)
+      Friday due:{" "}
+      {due.map((assessment, index) => (
+        <Fragment>
+          {index > 0 && ", "}
+          <a href={withBase(`/assessments/${assessment.id}/`)}>{assessment.data.title}</a>
+          {" "}({assessment.data.weight}%)
+        </Fragment>
+      ))}
     </li>
   )}
 </ul>

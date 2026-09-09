@@ -32,7 +32,7 @@ enough that today's result can be found again next week.
   <SpecRow term="Weights">One base release plus a long tail of community finetunes, from a public repository. An API model publishes the same information as terms of service instead of as a file.</SpecRow>
   <SpecRow term="Licence">Not interchangeable between files: some permit commercial use outright, some are research-only, and some carry a responsible-use clause restricting the output itself.</SpecRow>
   <SpecRow term="The record">The workflow graph on a local rig, the request log on an API rig. Either one lets someone rerun the decision that produced a frame; the frame does not.</SpecRow>
-  <SpecRow term="Render time">Tens of seconds to minutes per five-second take, plus queue time and a metered cost on an API rig — before counting the takes thrown away.</SpecRow>
+  <SpecRow term="Render time">Wall-clock time per take on a local rig, queue time plus a metered cost on an API rig. It is a number you measure on the rig you actually have, not one you can carry over from someone else's — and before counting the takes thrown away.</SpecRow>
 </SpecSheet>
 
 ## The two shapes of a budget
@@ -70,13 +70,22 @@ whatever lets someone else rerun the decision that produced it.
 
 ## Render time is not shooting time
 
-On the fastest consumer card sold today, a five-second take renders in
-tens of seconds on the lighter models and over a minute on the heavier
-ones; mid-range hardware measures the same take in minutes, and an API
-call adds queue time on top of its metered cost. Call it five seconds of
-compute — or a few cents — per second of footage, at the optimistic end,
-before counting the takes thrown away. A shot that survives Dailies is
-rarely attempt one, on either kind of rig.
+Wan2.2's README states that TI2V-5B, the smallest model in that release,
+"can generate a 5-second 720P video in under 9 minutes on a single
+consumer-grade GPU" — the same model the README puts at a floor of 24GB
+of VRAM. Read that as a floor rather than a promise: it is the model's
+own best case, at its smallest size, for one take that worked.
+
+A heavier model, a longer clip, or a card that only just clears the VRAM
+line all move that number, which is why the only render time worth
+planning a shot around is the one you have timed on your own rig. On an
+API rig the equivalent number is the provider's published per-call price
+for the model you are calling, plus queue time: look it up for the
+account you open this week and write it down, the same way you would
+time a local render. A shot that survives Dailies is rarely attempt one,
+on either kind of rig.
+
+Source: Wan2.2 README — [https://github.com/Wan-Video/Wan2.2](https://github.com/Wan-Video/Wan2.2)
 
 ## Before class
 

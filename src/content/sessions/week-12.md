@@ -30,8 +30,8 @@ The rungs, in the order they screen:
 - **the sharp drop** — one identifiable moment, traceable to one decision
 - **the slow decline** — density that flattened out rather than a single mistake
 
-The failure shape is an account that describes a pilot the room did not
-watch: a prediction written to be right rather than to be checked.
+What does not survive the room is an account of a pilot the room did not
+watch — a prediction written to be right rather than to be checked.
 
-You leave with one drop-off you can point at and the decision upstream
-of it.
+By the end of the hour every pilot has one drop-off somebody can point
+at, and one decision upstream of it.

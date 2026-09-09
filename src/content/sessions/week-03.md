@@ -33,8 +33,9 @@ The rungs, in the order they screen:
 - **+ tag vocabulary + negative prompt** — the first outright ban, and how far it reaches
 - **+ shot size, camera angle, colour script** — the keyframe the rest of the course reuses
 
-The failure shape is a rung that bought nothing at all, and a line-up
-where nobody can say which element was responsible.
+What usually goes wrong here is a rung that added words and changed
+nothing — and its harder twin, a change nobody in the room can pin to one
+element.
 
 You leave with one instruction you can stop writing, and one you cannot.
 

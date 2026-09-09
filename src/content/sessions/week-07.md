@@ -31,10 +31,11 @@ The rungs, in the order they screen:
 - **t1 upscaled x2 to 1080x1920** — no new generation at all, so the note is about line quality
 - **I2VA from the key frame** — the same shot again, started from a still
 
-The failure shape is a route you cannot retrace under questioning: the
-clip is fine and the reasoning behind it is missing.
+The clip being fine is not the question here. A graph its own author
+cannot walk somebody through has not been built, only arrived at.
 
-You leave with one route you can defend and one you were copying.
+Of the four routes, one you can defend and one you were copying; telling
+them apart is what the hour is for.
 
 The rungs above are not a description. The rig recorded them once, and
 that recording is the scale: [replay the four routes this Dailies is

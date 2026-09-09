@@ -36,7 +36,8 @@ The failure shape is a roll that reads well at a glance, loses the face
 under the checklist, and was logged as a pass because nobody looked
 twice.
 
-You leave knowing which of the four checks your worst roll failed on.
+Whichever of the four checks caught your worst roll is the one worth
+running first from here on.
 
 The rungs above are not a description. The rig recorded them once, and
 that recording is the scale: [replay the five rolls this Dailies is

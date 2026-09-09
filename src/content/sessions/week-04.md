@@ -33,11 +33,12 @@ The rungs, in the order they screen:
 - **finished keyframe, refined** — an already-finished frame refined rather than rebuilt
 - **finished keyframe + ControlNet pose lock** — a bare skeleton, no colour or line, still holding the pose
 
-The failure shape is an output that owes nothing to the input beside it.
+An output that owes nothing to the input beside it is the one to stop on.
 That is a number on the strength dial, and it is read off the log rather
 than argued about in front of the picture.
 
-You leave able to say where more finish stopped buying more control.
+The point where more finish stopped buying more control sits somewhere
+different for every input, and naming yours is the exercise.
 
 The rungs above are not a description. The rig recorded them once, and
 that recording is the scale: [replay the five passes this Dailies is

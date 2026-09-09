@@ -33,12 +33,12 @@ The rungs, in the order they screen:
 - **beat sheet + shot list** — size and angle fixed, and the cuts landing where the list says
 - **storyboard (+ 3 frames)** — boards specific enough to check a torch and a profile against
 
-The failure shape is a rung that reads well and constrains nothing above
-it: the document is enjoyable and the shot could still have gone
-anywhere.
+A document can read well and constrain nothing above it. That is the one
+to catch: the beat sheet is a pleasure to read and the shot could still
+have gone anywhere.
 
-You leave with the earliest document that would have caught your worst
-shot.
+For your worst shot, the question is which of the four documents was the
+earliest one that would have caught it.
 
 The rungs above are not a description. The rig recorded them once, and
 that recording is the scale: [replay the four documents this Dailies is

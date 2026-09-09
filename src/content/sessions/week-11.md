@@ -32,8 +32,8 @@ The rungs, in the order they screen:
 - **captions** — present and in sync for the whole run, not just the opening
 - **the container** — the export opens as the thing it says it is
 
-The failure shape is a cut nobody measured. "It sounded fine" is not a
-loudness reading, and this is the one Dailies where a reading exists and
-can be brought.
+A cut nobody measured is the one that stalls the room. "It sounded fine"
+is not a loudness reading, and this is the one Dailies where a reading
+exists and can be brought.
 
 You leave with the number you missed and by how much.

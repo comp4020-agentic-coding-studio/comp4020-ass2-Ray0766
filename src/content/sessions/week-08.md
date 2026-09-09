@@ -33,12 +33,12 @@ The rungs, in the order they screen:
 - **4 references: + dry state** — the hair reads dry before she steps out
 - **5 references: + scene** — the same place at the same hour in both shots
 
-The failure shape is a set that pins the face and lets the world drift,
-which reads as a continuity error long before anyone can say which item
-caused it.
+A set that pins the face and lets the world drift reads as a continuity
+error long before anyone can say which item caused it. Closing that gap
+is what an itemised audit is for.
 
-You leave with the smallest set that held, and the item that broke
-first.
+The smallest set that held is the one to build the next scene on; the
+item that broke first is the one to add to it.
 
 The rungs above are not a description. The rig recorded them once, and
 that recording is the scale: [replay the four sets this Dailies is

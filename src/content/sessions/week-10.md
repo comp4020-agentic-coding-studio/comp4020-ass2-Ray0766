@@ -35,5 +35,5 @@ The failure shape is a note filed against no gate. "Something is off
 about the second shot" cannot be actioned and cannot be closed, so it
 sits in the room forever instead of going back to the queue.
 
-You leave with the gate a shot failed on, and whether that is a patch or
-a reshoot.
+Every shot that failed leaves the room with a named gate and a verdict:
+patch or reshoot.

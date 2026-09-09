@@ -95,18 +95,24 @@ name and the memory floor disagree.
 
 <p class="deck-figure">9<span class="deck-figure__unit">minutes, at most</span></p>
 
-Wan2.2's own figure for one five-second 720P clip out of TI2V-5B on an RTX
-4090. That is one take, before the takes you throw away.
+Wan2.2's own figure for one five-second 720P clip out of TI2V-5B, on a single
+consumer-grade GPU. That is one take, before the takes you throw away.
 
 <p class="deck-source">Source: Wan2.2 README — https://github.com/Wan-Video/Wan2.2</p>
 
 ```notes
 The README states it as "TI2V-5B can generate a 5-second 720P video in under 9
-minutes on a single consumer-grade GPU". Read it as a floor rather than a
-promise: it is the model's own best case, on the fastest consumer card, at the
-smallest of the three sizes, for a take that works. A shot that survives
-Dailies is rarely attempt one, on either kind of rig, and an API call adds
-queue time on top of its metered cost.
+minutes on a single consumer-grade GPU". It names no card there. The card in
+the README belongs to a different sentence about the same model — the hardware
+floor quoted on the previous slide, "a GPU with at least 24GB VRAM (e.g, RTX
+4090 GPU)" — and a floor is not a stopwatch: a card that only just clears 24GB
+is not the one this figure was measured on, and the README never says which
+one was.
+
+Read the nine minutes as a floor too, rather than a promise: it is the model's
+own best case, at the smallest of the three sizes, for a take that works. A
+shot that survives Dailies is rarely attempt one, on either kind of rig, and an
+API call adds queue time on top of its metered cost.
 ```
 
 ---

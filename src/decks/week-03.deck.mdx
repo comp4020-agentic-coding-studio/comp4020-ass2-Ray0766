@@ -91,12 +91,12 @@ labelled lines and nothing else.
 An anime checkpoint is not a general-purpose model with a style applied. Its
 card states the numbers it was tuned for, and they are not the defaults.
 
-| Setting        | NoobAI-XL 1.1 |
-| -------------- | ------------- |
-| CFG            | 5 to 6        |
-| Steps          | 25 to 30      |
-| Sampler        | Euler a       |
-| 9:16 dimension | 768 x 1344    |
+| Setting             | NoobAI-XL 1.1 |
+| ------------------- | ------------- |
+| CFG                 | 5 to 6        |
+| Steps               | 25 to 30      |
+| Sampler             | Euler a       |
+| Vertical resolution | 768 x 1344    |
 
 <p class="deck-source">Source: NoobAI-XL 1.1 model card — https://huggingface.co/Laxhar/noobai-XL-1.1</p>
 
@@ -105,6 +105,13 @@ Four numbers, all off the model card, and all lower than the generic defaults
 from last week: CFG 5 to 6 against 8.0, steps 25 to 30 against 20. A card that
 publishes its own settings is telling you the generic ones will cost you
 rolls.
+
+The last row is a generation size and not a delivery frame, and the two are
+different things worth keeping apart: 768 x 1344 is 4:7, or 0.5714, while the
+9:16 the episode ships in is 0.5625. What the card publishes is a shape the
+model was trained to produce, so asking it for a true 9:16 instead buys worse
+rolls, not a better frame. Meeting the delivery frame is a crop or a scale at
+the end of the pipeline, in week 11.
 
 The same card is where the licence complication for this family lives. Its
 metadata declares `fair-ai-public-license-1.0-sd`, and the README adds a

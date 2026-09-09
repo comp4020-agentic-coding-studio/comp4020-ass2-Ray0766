@@ -41,11 +41,12 @@ every new shot against it rather than trusting a general impression.
 
 ## Two ways to lock identity
 
-<p class="deck-figure">10,000x<span class="deck-figure__unit">fewer trainable parameters than a full fine-tune</span></p>
+<p class="deck-figure">10,000x<span class="deck-figure__unit">fewer trainable parameters than GPT-3 175B fine-tuned with Adam</span></p>
 
 Reference adapters need no training and hold loosely. LoRA trains first and
 holds harder: it freezes the pretrained weights and injects trainable rank
-decomposition matrices into each layer instead.
+decomposition matrices into each layer instead. The ratio is that paper's own
+language-model measurement, not a figure for a diffusion checkpoint.
 
 <p class="deck-source">Source: LoRA: Low-Rank Adaptation of Large Language Models — https://arxiv.org/abs/2106.09685</p>
 
@@ -55,10 +56,13 @@ face repeatedly. Reference adapters — the kind Phase 2 already used to carry
 identity from an image into a new generation — need no training and work the
 moment a reference image exists, but they hold identity loosely enough that
 drift is still possible under enough motion or style pressure. LoRA and
-DreamBooth work the opposite way: both fine-tune a small set of weights on
-several images of the same subject, producing a checkpoint that reproduces
-that subject more reliably than any single reference image can, at the cost of
-needing a training pass before the first shot instead of after it.
+DreamBooth work the opposite way, and they are not two names for one method.
+Both want a training pass on a few images of the subject before the first
+shot, and both hold a subject harder than any single reference image does.
+Where they part is what they train: DreamBooth's method is to "fine-tune all
+layers of the model", so the artefact is a whole checkpoint at a whole
+checkpoint's cost, while LoRA leaves the pretrained weights frozen and the
+artefact is a small file that loads on top of a checkpoint you already have.
 
 The comparison on the slide is the paper's own, against a full fine-tune of
 GPT-3 175B: 10,000 times fewer trainable parameters and three times less GPU

@@ -2,7 +2,7 @@
 title: The Continuity Pass
 description: Dailies for the week's reference-ladder exercise.
 week: 8
-date: 2027-04-26
+date: 2027-04-28
 teachers:
   - dutch-meridian
 draft: false

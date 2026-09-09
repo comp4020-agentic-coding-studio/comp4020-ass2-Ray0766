@@ -2,7 +2,7 @@
 title: The Graph Review
 description: Dailies for the week's own-workflow ladder, read node by node.
 week: 7
-date: 2027-04-19
+date: 2027-04-21
 teachers:
   - dutch-meridian
 draft: false

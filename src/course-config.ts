@@ -54,9 +54,19 @@ export const courseMeta = slopCourseMetaSchema.parse({
   level: 8,
   startDate: "2027-02-22",
   endDate: "2027-05-28",
+  // The one piece of prose on this site with nowhere to put a Source line: it
+  // is the home page's opening paragraph, its hero lead (index.astro slices the
+  // first sentence out of it) and the <meta description> every link preview
+  // uses. It used to open on "the fastest-growing form of screen drama on
+  // earth" and "machines now do most of the shooting" — a superlative and a
+  // production-share statistic, both global, neither sourced, and no room here
+  // to source them. So it states what the course holds rather than what the
+  // world is doing. The real numbers about the form are not gone: they are in
+  // week 10, scoped to China and each carrying the regulator or the report it
+  // came from (CLAUDE.md §3).
   description:
-    "Serialized melodrama is the fastest-growing form of screen drama on earth, and " +
-    "machines now do most of the shooting. This studio course takes you from an empty " +
-    "GPU to one finished pilot episode of a vertical drama: one shot, one hook, one episode.",
+    "A studio course in vertical serialized drama, where the machine does the shooting and " +
+    "only the technique you add to the rig earns a mark. Twelve weeks take you from an empty " +
+    "GPU to one finished pilot episode: one shot, one hook, one episode.",
   tags: ["generative video", "screen production", "serial drama"],
 }) satisfies CourseMetaInput;

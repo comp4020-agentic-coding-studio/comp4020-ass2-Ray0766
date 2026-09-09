@@ -31,8 +31,9 @@ The rungs, in the order they screen:
 - **t1 upscaled x2 to 1080x1920** — no new generation at all, so the note is about line quality
 - **I2VA from the key frame** — the same shot again, started from a still
 
-The clip being fine is not the question here. A graph its own author
-cannot walk somebody through has not been built, only arrived at.
+The clip being fine is not the question here. What stops a screening is
+a stall in the trace: a node nobody can put a job to, and the clip
+waiting behind it until that node is named or taken out.
 
 Of the four routes, one you can defend and one you were copying; telling
 them apart is what the hour is for.

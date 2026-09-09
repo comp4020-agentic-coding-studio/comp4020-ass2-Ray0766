@@ -36,7 +36,7 @@ The rungs, in the order they screen:
 The failure shape is a clip that moves convincingly and comes back with
 a different person in it.
 
-Which anchor your own shot actually needed is rarely the one you assumed
+The anchor your own shot actually needed is rarely the one you assumed
 at the top of the ladder.
 
 The rungs above are not a description. The rig recorded them once, and

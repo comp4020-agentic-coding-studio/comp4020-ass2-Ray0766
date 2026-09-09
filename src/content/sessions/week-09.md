@@ -33,12 +33,11 @@ The rungs, in the order they screen:
 - **beat sheet + shot list** — size and angle fixed, and the cuts landing where the list says
 - **storyboard (+ 3 frames)** — boards specific enough to check a torch and a profile against
 
-A document can read well and constrain nothing above it. That is the one
-to catch: the beat sheet is a pleasure to read and the shot could still
-have gone anywhere.
+A document can read well and constrain nothing above it — the beat sheet
+is a pleasure to read and the shot could still have gone anywhere.
 
-For your worst shot, the question is which of the four documents was the
-earliest one that would have caught it.
+For your worst shot, name the earliest of the four documents that would
+have caught it.
 
 The rungs above are not a description. The rig recorded them once, and
 that recording is the scale: [replay the four documents this Dailies is

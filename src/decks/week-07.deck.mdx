@@ -144,9 +144,10 @@ it somewhere else.
 
 ## Everything after the sampler is a fix pass
 
-The sampler hands back a latent. `VAEDecode` turns it into an image, an
-upscale node runs a specified upscale model over it, a LoRA loader's strength
-is typically used between 0 and 1. None of them revisit the decision.
+The sampler hands back a latent. `VAEDecode` turns it into an image; an upscale
+node runs an upscale model over it. Neither revisits the decision. A LoRA
+loader looks like one and is not: it hands back adjusted `model` and `clip`.
+That is loader work, upstream of all this.
 
 <p class="deck-source">Source: ComfyUI docs, LoraLoader — https://docs.comfy.org/built-in-nodes/LoraLoader</p>
 
@@ -161,10 +162,21 @@ relearn something that was already solved. The one exception is when the
 supplied graph does something the shot in front of it doesn't need at all, in
 which case removing that piece cleanly is worth more than working around it.
 
+The LoRA loader is on the slide as the counter-example, because it is the node
+this taxonomy most often gets wrong: it is late in the list, it is optional,
+and it changes how the result looks, so it reads like a fix pass. The docs
+settle it. It takes `model` and `clip` and returns "The model with LoRA
+adjustments applied", strength "typically used between 0~1 for daily image
+generation" — the same two wires in and out as the checkpoint loader, and the
+sampler has not run yet when it happens.
+
 The still here is the ladder's upscale tier, which is a fix pass and nothing
 else: the same take as the tier below it, at twice the size. Worth noticing
 that the upscale node's docs state no scale factor — the factor belongs to the
-model you load into it, not to the node.
+model you load into it, not to the node. Worth noticing too that the recording
+ran that upscale after the render rather than inside a graph, which is a
+shortcut the assessment does not allow: a fix pass in the graph is the one that
+reruns from the file.
 ```
 
 ---

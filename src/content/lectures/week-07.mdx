@@ -74,6 +74,13 @@ graph didn't use. The next tier adds an upscale and fix pass after the
 sampler. The top tier is a two-stage pipeline: a keyframe generated in
 one graph, then handed into a second graph that turns it into video.
 
+The recorded version of that third tier on this site did not do it that
+way: the upscaler ran over the finished clip afterwards, outside any
+graph, which is why that tier's file is a list of command-line steps
+rather than a workflow. Both routes produce the same frames. Only one of
+them can be rerun by handing someone the file, which is why the
+assessment asks for the fix pass inside the graph.
+
 <CompareSet week={7} />
 
 ## Before class

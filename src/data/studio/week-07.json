@@ -53,7 +53,7 @@
     "file": "week07-t3.mp4",
     "poster": "week07-t3.avif"
    },
-   "note": "No new generation - the t1 clip through Real-ESRGAN: watch the line quality, not the content."
+   "note": "No new generation - the t1 clip through Real-ESRGAN, run after the render and outside any graph, so this tier ships command-line steps rather than a workflow: watch the line quality, not the content."
   },
   {
    "id": "week07-t4",

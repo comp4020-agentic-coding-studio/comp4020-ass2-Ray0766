@@ -15,6 +15,13 @@ const published = (dir: string) =>
   loadContentDir(dir).filter((file) => file.frontmatter.draft !== "true");
 const lectures = published("src/content/lectures");
 const sessions = published("src/content/sessions");
+const dues = published("src/content/assessments");
+
+/** The clock the course publishes its deadlines in. */
+const COURSE_OFFSET = "+10:00";
+
+/** `2027-03-12T12:00:00+10:00`, split into date, time and offset. */
+const DUE = /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2}:\d{2})([+-]\d{2}:\d{2})$/;
 
 const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
@@ -131,6 +138,65 @@ describe("the teaching rhythm", () => {
     expect(
       misaligned,
       "a week's Dailies screens the exercise its own lecture set, so the two are two days apart",
+    ).toEqual([]);
+  });
+
+  // The third leg of the rhythm, and the one with a trap in it.
+  //
+  // `weekdayOf` above reads a plain YYYY-MM-DD in UTC, which is the right thing
+  // for a date carrying no time. A `due` is not that: it is an instant with an
+  // offset on it, and `new Date(due).getUTCDay()` — the obvious thing to reach
+  // for — answers what day it was in London, not in the course's own week.
+  // Today the two agree by luck, because every due is 12:00+10:00 and that is
+  // 02:00Z on the same date. They stop agreeing the moment a deadline moves
+  // earlier than 10:00 in the course's morning: 09:00+10:00 is 23:00Z the day
+  // before. Measured, because I had the direction backwards at first — going
+  // *later* in the local day is safe all the way to 23:59, it is going earlier
+  // that rolls UTC back. Both failure modes are real from there: a correct
+  // Friday 09:00 deadline would read as Thursday and fail a file that is fine,
+  // and a wrong Saturday 09:00 deadline would read as Friday and pass.
+  //
+  // So the date is taken as written, in the offset it was written in, and that
+  // offset is asserted separately rather than assumed — the reading is only
+  // sound while the two are the same clock.
+  it("writes every due in the course's own clock", () => {
+    const odd = dues
+      .map((file) => ({ file, match: DUE.exec(file.frontmatter.due ?? "") }))
+      .filter(({ match }) => match?.[3] !== COURSE_OFFSET)
+      .map(({ file }) => `${file.path}: due "${file.frontmatter.due}"`);
+    expect(
+      odd,
+      `every due is an instant written as YYYY-MM-DDThh:mm:ss${COURSE_OFFSET}. The check below ` +
+        `reads the date exactly as written, which is only the course's own date while the ` +
+        `offset is the course's own`,
+    ).toEqual([]);
+  });
+
+  it("makes every assessment due four days after its own week's lecture", () => {
+    const wrong = dues.flatMap((file) => {
+      const week = file.frontmatter.week;
+      const due = DUE.exec(file.frontmatter.due ?? "");
+      if (!due) return [`${file.path}: due "${file.frontmatter.due}" is not a timestamp`];
+      const lecture = lectures.find((entry) => entry.frontmatter.week === week);
+      if (!lecture) return [`week ${week} has an assessment but no lecture`];
+
+      const dueDate = due[1]!;
+      // Both sides are plain dates by here, so midnight-UTC subtraction is
+      // whole calendar days and nothing else.
+      const gap =
+        (Date.parse(`${dueDate}T00:00:00Z`) - Date.parse(`${lecture.frontmatter.date}T00:00:00Z`)) /
+        86_400_000;
+      return gap === 4
+        ? []
+        : [
+            `${file.slug} (week ${week}): lecture ${lecture.frontmatter.date}, due ${dueDate} ` +
+              `(${weekdayOf(dueDate)} in ${COURSE_OFFSET}) — ${gap} days apart, not 4`,
+          ];
+    });
+    expect(
+      wrong,
+      "due Friday (CLAUDE.md §4) — asserted as four days after that week's Monday lecture " +
+        "rather than as a bare weekday, so an assessment cannot drift onto some other week's Friday",
     ).toEqual([]);
   });
 });

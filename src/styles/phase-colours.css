@@ -29,7 +29,15 @@
      straddle the switch — white is 3.49:1 on the rig gold and 5.80:1, 6.06:1
      and 8.75:1 on the other three. A phase colour is a fill and never ink
      (CLAUDE.md §7); this is what makes the fill usable. Checked as token
-     arithmetic in spec/palette.test.ts. */
+     arithmetic in spec/palette.test.ts.
+
+     The same recipe is written out a second time in src/decks/theme.css,
+     against --deck-phase rather than a named phase. That one is deliberate,
+     not a copy waiting to be deduplicated: a deck's title band sets
+     --deck-phase per slide, so one declaration there covers all four phases,
+     and expressing it through these tokens would mean a var() per phase for
+     no gain. Two places, so a change to the threshold or the chroma has to be
+     made in both. */
   --phase-rig-ink: oklch(from var(--phase-rig) clamp(0.16, (0.58 - l) * 1000, 1) 0 h);
   --phase-generators-ink: oklch(from var(--phase-generators) clamp(0.16, (0.58 - l) * 1000, 1) 0 h);
   --phase-holding-ink: oklch(from var(--phase-holding) clamp(0.16, (0.58 - l) * 1000, 1) 0 h);

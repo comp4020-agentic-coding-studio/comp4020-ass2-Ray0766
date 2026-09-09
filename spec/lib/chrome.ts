@@ -334,7 +334,19 @@ export class Tab {
    *  it does so *without* changing the scroll offset --- so an element's
    *  recorded rectangle silently goes stale while every obvious check still
    *  agrees. Seen as a two-pixel drift that failed one combination in a run and
-   *  passed the next. */
+   *  passed the next.
+   *
+   *  `<video>` is the same hazard one step later, and it is the one that turned
+   *  up the moment a second browser-driving check started running alongside the
+   *  first. The home page's hero loop is sized by its own intrinsic ratio, so
+   *  the stage is one height before `loadedmetadata` and another after --- and
+   *  metadata arrives well after `load` and after every image. With one Chrome
+   *  on an idle machine it lands before anything here looks; with two of them
+   *  competing for the CPU it lands *during* the sampling, which moved the
+   *  weight bar 300px down the page between one run and the next and tripped
+   *  that check's own scroll guard. So: wait for the videos too, and then poll
+   *  until the document height actually holds still, rather than trusting that
+   *  the list of things worth waiting for is now complete. */
   async settle(): Promise<void> {
     await this.evaluate(`return (async () => {
       for (const image of document.images) image.loading = "eager";
@@ -344,6 +356,28 @@ export class Tab {
           .filter((image) => !image.complete)
           .map((image) => new Promise((done) => { image.onload = image.onerror = done; })),
       );
+      await Promise.all(
+        [...document.querySelectorAll("video")]
+          .filter((video) => video.readyState < HTMLMediaElement.HAVE_METADATA)
+          .map((video) => new Promise((done) => {
+            // A poster-only hero on a machine with no codec would otherwise
+            // wait forever; a bounded wait leaves the stability poll below as
+            // the backstop.
+            const timer = setTimeout(done, 10000);
+            const finish = () => { clearTimeout(timer); done(); };
+            video.addEventListener("loadedmetadata", finish, { once: true });
+            video.addEventListener("error", finish, { once: true });
+          })),
+      );
+      let previous = -1;
+      let stable = 0;
+      const deadline = performance.now() + 10000;
+      while (stable < 6 && performance.now() < deadline) {
+        await new Promise((done) => setTimeout(done, 50));
+        const height = document.documentElement.scrollHeight;
+        stable = height === previous ? stable + 1 : 0;
+        previous = height;
+      }
       await new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)));
       return null;
     })();`);
@@ -402,6 +436,44 @@ export class Tab {
       /* the OS will reap it */
     }
   }
+}
+
+// ---------------------------------------------------------------------------
+// A reading taken from one layout
+// ---------------------------------------------------------------------------
+
+/** Take a reading, and take it again if the page moved underneath it.
+ *
+ *  Both colour checks read an element's geometry inside the page and then
+ *  sample its pixels from Node a moment later, so anything that relays out in
+ *  between moves every recorded coordinate while the sampler goes on reading
+ *  the old ones. Each of them therefore records the scroll offset on the way in,
+ *  re-reads it on the way out, and fails the case when the two disagree.
+ *
+ *  That guard is right and stays exactly as strict as it was. But a guard that
+ *  trips is not a verdict about the page --- it says this particular reading is
+ *  worthless, and the answer to a worthless reading is to take another one.
+ *  Which matters as soon as there are two of these checks: they run in parallel
+ *  vitest workers, each driving its own Chrome, and a page that settles before
+ *  anything looks at it on an idle machine settles mid-sample on a busy one.
+ *
+ *  `settle()` between attempts, and the last attempt is returned whatever
+ *  happened, so a page that genuinely will not hold still still fails --- on the
+ *  caller's own assertion, with the numbers that prove it. */
+export async function whileStill<T extends { scroll: { x: number; y: number } }>(
+  tab: Tab,
+  read: () => Promise<T>,
+  attempts = 4,
+): Promise<T & { scrolledAfter: { x: number; y: number } }> {
+  let last: (T & { scrolledAfter: { x: number; y: number } }) | undefined;
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    const result = await read();
+    const scrolledAfter = await tab.evaluate<{ x: number; y: number }>("return { x: scrollX, y: scrollY };");
+    last = { ...result, scrolledAfter };
+    if (scrolledAfter.x === result.scroll.x && scrolledAfter.y === result.scroll.y) return last;
+    await tab.settle();
+  }
+  return last!;
 }
 
 // ---------------------------------------------------------------------------

@@ -783,8 +783,8 @@ p {
 }
 
 /* ----------------------------------------------------------------------
-   Lecture phase chips — /lectures/ only. Same four-colour family, static
-   gradients, no animation.
+   Phase chips — the group headings on /lectures/ and /decks/. Same
+   four-colour family, static gradients, no animation.
    ---------------------------------------------------------------------- */
 
 .phase-chip {
@@ -800,9 +800,32 @@ p {
   margin-block: 2.5rem 1rem;
   padding: 0.4rem 1.1rem;
   border-radius: 999px;
+  /* Both ends are mixed towards black, and the bright end is why. Starting the
+     gradient on the raw phase colour put the rig chip's white at 3.49:1 — the
+     Slop gold is 0.2507 relative luminance and white needs the fill under
+     0.183 to clear 4.5:1 — so it was passing on WCAG's large-text 3:1 alone,
+     which is to say on the type scale keeping this heading above 24px. That is
+     styling, not a contract.
+
+     The percentage is set by the *thinner* of the two inks, not the white. The
+     weeks span below runs at 0.85 opacity, which composites its white down to
+     #efe8dc against the fill, and that is a whole stop worse: at an 85% mix the
+     rig reads 5.18:1 solid but 4.24:1 thinned. 78% lands the rig at #845811,
+     luminance 0.1193 — 6.20:1 solid, 5.00:1 thinned. 82% would have scraped in
+     at 4.56:1, and the margin is worth two points of lightness given the 0.85
+     is itself a design decision. The other three are nowhere near the line
+     (generators is the next worst at 7.27:1 thinned) but take the same
+     treatment, because the chips are one family and singling out the gold would
+     show.
+
+     Darkening the fill rather than re-inking the text: a phase colour is a fill
+     (CLAUDE.md §7), and the --phase-*-ink recipe assumes a flat one, so the
+     near-black it derives for the rig would be unreadable at this gradient's
+     dark end. Measured on the rendered page, both ends, both inks, in
+     spec/phase-chip-contrast.test.ts. */
   background: linear-gradient(
     135deg,
-    var(--phase-color),
+    color-mix(in oklab, var(--phase-color) 78%, var(--at-black)),
     color-mix(in oklab, var(--phase-color) 55%, var(--at-black))
   );
   color: var(--at-white);

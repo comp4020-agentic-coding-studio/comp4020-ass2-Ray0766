@@ -50,6 +50,7 @@ import {
   RESOLVE_COLOUR,
   serveBuild,
   Tab,
+  whileStill,
   type ColourScheme,
   type Resolved,
   type Rgb,
@@ -232,24 +233,36 @@ async function sweep(): Promise<Reading[]> {
           await tab.evaluate(`document.documentElement.dataset.theme = ${JSON.stringify(theme)}; return null;`);
           await tab.settle();
 
-          const { scroll, segments } = await tab.evaluate<{
-            scroll: { x: number; y: number };
-            segments: Probe[];
-          }>(PROBE);
+          // Retaken if the page moves underneath the sampling, which it started
+          // doing the day a second browser-driving check began competing with
+          // this one for the machine. The guard below is unchanged; what changed
+          // is that tripping it now means take the reading again.
+          const { scroll, sampled, scrolledAfter } = await whileStill(tab, async () => {
+            const { scroll, segments } = await tab.evaluate<{
+              scroll: { x: number; y: number };
+              segments: Probe[];
+            }>(PROBE);
 
-          const sampled: Array<Omit<Reading, "scrolledAfter">> = [];
-          for (const probe of segments) {
-            sampled.push({
-              ...probe,
+            const sampled: Array<Probe & { pixel: Rgb | null }> = [];
+            for (const probe of segments) {
+              sampled.push({
+                ...probe,
+                pixel: probe.point ? await tab.pixel(probe.point.x, probe.point.y) : null,
+              });
+            }
+            return { scroll, sampled };
+          });
+
+          readings.push(
+            ...sampled.map((reading) => ({
+              ...reading,
               page: page.name,
               viewport: viewport.name,
               theme,
-              pixel: probe.point ? await tab.pixel(probe.point.x, probe.point.y) : null,
               scrolledBefore: scroll,
-            });
-          }
-          const after = await tab.evaluate<{ x: number; y: number }>("return { x: scrollX, y: scrollY };");
-          readings.push(...sampled.map((reading) => ({ ...reading, scrolledAfter: after })));
+              scrolledAfter,
+            })),
+          );
         }
       }
     }

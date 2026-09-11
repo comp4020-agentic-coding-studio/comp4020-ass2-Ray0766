@@ -90,6 +90,8 @@ const PLACES = [
 
 interface Probe {
   id: string;
+  /** The accessible name, painted label or not. */
+  name: string;
   /** The button's own declared background, resolved by the page's canvas. */
   fill: Resolved | null;
   /** Somewhere inside the button, clear of its border and of everything it
@@ -247,12 +249,16 @@ const PROBE = String.raw`
           .join(", ");
     }
 
+    // The name, whether or not a label is painted. A control collapsed to its
+    // dot is still a control and still has to say what it is.
+    const named = (button.getAttribute("aria-label") || button.textContent || "").replace(/\s+/g, " ").trim();
     const labelNode = labelled[labelled.length - 1] ?? null;
     const dotNode = plain[0] ?? null;
     const dotBox = dotNode ? dotNode.getBoundingClientRect() : null;
 
     return {
       id: button.dataset.backlotHotspot,
+      name: named,
       fill: resolveColour(style.backgroundColor),
       point,
       why,
@@ -303,6 +309,34 @@ const PROBE = String.raw`
  *  dot" on one run in three and a green suite on the others. So: the same shape
  *  twice in a row, with the stage on screen for both.
  */
+/** Does focus alone bring a collapsed control's label back? Driven with the
+ *  keyboard, not read off a stylesheet: a reveal that only answers `:hover`
+ *  leaves three of the machine room's controls nameless to anybody driving the
+ *  page from the keyboard, whatever their accessible name says. The label is
+ *  found by being the descendant that carries the text, so a class rename does
+ *  not turn this into a check that measures nothing. */
+const REVEAL = (id: string) => String.raw`
+  return (async () => {
+    const button = document.querySelector('[data-backlot-hotspot="${id}"]');
+    if (!button) return null;
+    const carrying = [...button.querySelectorAll("*")].filter((child) => child.textContent.trim() !== "");
+    const label = carrying[carrying.length - 1];
+    if (!label) return null;
+    const before = label.getBoundingClientRect();
+    button.focus();
+    await new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)));
+    await new Promise((done) => setTimeout(done, 400));
+    const after = label.getBoundingClientRect();
+    return {
+      focused: document.activeElement === button,
+      beforeWidth: Math.round(before.width),
+      afterWidth: Math.round(after.width),
+      afterHeight: Math.round(after.height),
+      afterVisibility: getComputedStyle(label).visibility,
+    };
+  })();
+`;
+
 const MOUNTED = String.raw`
   const stage = document.querySelector("[data-backlot-stage]");
   // Not the stage's own visibility: its subtree's. A computed style read here
@@ -365,6 +399,16 @@ const MOUNTED = String.raw`
   return null;
 `;
 
+interface Reveal {
+  focused: boolean;
+  beforeWidth: number;
+  afterWidth: number;
+  afterHeight: number;
+  afterVisibility: string;
+}
+
+const reveals: Record<string, Reveal | null> = {};
+
 async function sweep(): Promise<Reading[]> {
   const site = await serveBuild("dist", base);
   const tab = await Tab.launch();
@@ -419,6 +463,15 @@ async function sweep(): Promise<Reading[]> {
             }
             return { scroll, sampled };
           });
+
+          // Every control that is not painting a label, focused, to see whether
+          // the keyboard brings it back.
+          for (const probe of sampled) {
+            if (probe.label !== null || !viewport.labelled) continue;
+            reveals[`${place.name}|${viewport.name}|${theme}|${probe.id}`] = await tab.evaluate<Reveal | null>(
+              REVEAL(probe.id),
+            );
+          }
 
           readings.push(
             ...sampled.map((reading) => ({
@@ -504,24 +557,69 @@ describe.each(PLACES)("$name", ({ name: place, expect: expected }) => {
               `part that identifies a control needs ${AA_NON_TEXT}:1.`,
           ).toBeGreaterThanOrEqual(AA_NON_TEXT);
 
+          // Two different silences, and they are not the same check.
+          //
+          // At 390 px the layout clips *every* label and puts the name on the
+          // button: there is no reveal, the dot is the control, and a label
+          // turning up here would mean the phone composition had stopped
+          // applying. That is asserted as the state it is.
           if (!labelled) {
-            // The phone rules clip the label to 1x1 and put the name on the
-            // button instead. Asserted rather than assumed: if a label turns up
-            // here, the branch below is the one that should have run.
             expect(
               reading.label,
               `${id} paints a label over the canvas at ${viewport}, so it needs the ink check`,
             ).toBeNull();
+            expect(reading.name, `${id} has no name to stand in for the label it does not paint`).not.toBe("");
             return;
           }
 
-          expect(reading.label, `${id} paints no label at ${viewport}, so nothing was measured`).not.toBeNull();
-          const ink = over(opaque(reading.label!.ink, `${id}'s label colour`), reading.label!.alpha, fill);
+          // At 1920 it is a fact about *this control*, not about the
+          // viewport. Where the anchors on a wall are closer together than the
+          // labels are wide, the engine collapses a label to its dot — five
+          // pictures at 143 px with labels up to 320 px cannot all be labelled
+          // in place, and every layout that keeps all five puts them on top of
+          // the artwork they name. The engine sizes that test against the
+          // labelled width rather than the rendered one, so a collapsed button
+          // does not measure narrow and un-collapse itself.
+          //
+          // So this branches per control. Where there is a label, its ink is
+          // measured on the fill. Where there is not, the control still has to
+          // carry its whole name and a dot you can see, and the label has to
+          // come back for the keyboard — three assertions where there used to
+          // be one, which is the only shape of change to a failing check worth
+          // making.
+          if (reading.label === null) {
+            const interactive = room.interactives.find((entry) => entry.id === id);
+            const door = doors.find((entry) => entry.id === id);
+            const expected = interactive?.label ?? `Open the ${door?.label} door`;
+
+            expect(
+              reading.name,
+              `${id} is collapsed to its dot and its accessible name is "${reading.name}" — a control ` +
+                `with no painted label is only as good as the name it carries`,
+            ).not.toBe("");
+            if (interactive) {
+              expect(reading.name, `${id}'s name is not the one the manifest gives it`).toBe(expected);
+            }
+
+            const reveal = reveals[`${place}|${viewport}|${theme}|${id}`];
+            expect(reveal, `${id} was never focused, so the reveal was not tested`).not.toBeNull();
+            expect(reveal!.focused, `${id} could not take focus`).toBe(true);
+            expect(
+              reveal!.afterWidth,
+              `${id}'s label is ${reveal!.beforeWidth} px wide unfocused and ${reveal!.afterWidth} px wide ` +
+                `focused — the keyboard does not bring it back, so this control is nameless to anyone not ` +
+                `using a pointer`,
+            ).toBeGreaterThan(reveal!.beforeWidth + 20);
+            expect(reveal!.afterVisibility).toBe("visible");
+            return;
+          }
+
+          const ink = over(opaque(reading.label.ink, `${id}'s label colour`), reading.label.alpha, fill);
           const ratio = contrastRatio(ink, fill);
           expect(
             ratio,
             `the ${id} control paints ${formatHex(ink)}` +
-              `${reading.label!.alpha === 1 ? "" : ` (its colour at ${reading.label!.alpha} opacity)`} on ` +
+              `${reading.label.alpha === 1 ? "" : ` (its colour at ${reading.label.alpha} opacity)`} on ` +
               `${formatHex(fill)} — ${ratio.toFixed(2)}:1, and AA body text needs ${AA_BODY_TEXT}:1. ` +
               `A brand colour is a fill, not ink (CLAUDE.md §7).`,
           ).toBeGreaterThanOrEqual(AA_BODY_TEXT);
@@ -541,16 +639,47 @@ describe("the sweep measured something", () => {
     );
   });
 
-  it("found a painted label on every control at the desktop viewport", () => {
+  it("found painted labels at the desktop viewport, and measured their ink", () => {
+    // The floor. Collapsing is per control and legitimate; collapsing *every*
+    // label is a layout change that would leave this check measuring nothing
+    // but dots, and it would otherwise pass.
     const desktop = readings.filter((r) => r.viewport === VIEWPORTS[0].name);
     expect(desktop.length).toBeGreaterThan(0);
-    expect(desktop.filter((r) => r.label !== null).length).toBe(desktop.length);
+    const painted = desktop.filter((r) => r.label !== null).length;
+    expect(
+      painted,
+      `${painted} of ${desktop.length} controls painted a label at the desktop viewport`,
+    ).toBeGreaterThanOrEqual(Math.ceil(desktop.length / 2));
+  });
+
+  it("gave every control a name, painted or collapsed", () => {
+    for (const reading of readings) {
+      expect(reading.name, `${reading.id} at ${reading.viewport} in ${reading.theme} has no name`).not.toBe("");
+    }
+  });
+
+  it("drove the keyboard reveal on every control that collapsed", () => {
+    const collapsed = readings.filter((r) => r.label === null && r.viewport === VIEWPORTS[0].name);
+    expect(collapsed.length, "no control collapsed anywhere, so the reveal was never exercised").toBeGreaterThan(0);
+    for (const reading of collapsed) {
+      expect(
+        reveals[`${reading.place}|${reading.viewport}|${reading.theme}|${reading.id}`],
+        `${reading.id} collapsed at ${reading.viewport} and its reveal was not driven`,
+      ).toBeTruthy();
+    }
   });
 
   it("found no painted label on any control at the phone viewport", () => {
     const phone = readings.filter((r) => r.viewport === VIEWPORTS[1].name);
     expect(phone.length).toBeGreaterThan(0);
     expect(phone.filter((r) => r.label === null).length).toBe(phone.length);
+  });
+
+  it("found some controls collapsed at the desktop viewport, so that branch ran", () => {
+    // The collapse is the design; a run where nothing collapsed would leave the
+    // name, reveal and dot assertions above untested and say nothing about it.
+    const collapsed = readings.filter((r) => r.label === null && r.viewport === VIEWPORTS[0].name);
+    expect(collapsed.length, "no control collapsed at 1920, so the collapse branch never ran").toBeGreaterThan(0);
   });
 
   it("read two different themes, not the same one twice", () => {

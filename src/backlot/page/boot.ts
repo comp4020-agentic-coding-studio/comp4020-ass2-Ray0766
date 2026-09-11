@@ -139,9 +139,11 @@ async function boot(): Promise<void> {
     if (stage.dataset.backlotMode !== mode) setMode(mode);
   }).observe(gallery, { attributes: true, attributeFilter: ["hidden"] });
 
-  // The guard. `data-backlot-used` is set by the page's inline script the first
-  // time focus lands in the gallery or a pointer goes down in it.
-  if (stage.hasAttribute("data-backlot-used")) {
+  // The guard. The flag is set on the root element by the page's head script the
+  // first time focus lands in the gallery, a pointer goes down in it, or it is
+  // scrolled — from the head, because a script in the body does not run until
+  // the stylesheets have, and that window is 700 ms of the reader being ignored.
+  if (document.documentElement.hasAttribute("data-backlot-used")) {
     takeover.hidden = false;
     return;
   }

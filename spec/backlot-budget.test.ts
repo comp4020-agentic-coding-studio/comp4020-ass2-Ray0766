@@ -291,8 +291,21 @@ const WATCH = String.raw`
   const start = () => {
     const look = () => {
       placeList();
+      // The data-backlot-ready attribute, and nothing else. boot.ts sets it on
+      // the line after it awaits the engine, and the engine's contract is that
+      // ready resolves one animation frame after the first frame was presented
+      // — so this attribute appearing *is* the event being timed.
+      //
+      // What it used to key on was stage.hidden being false, which was right when the
+      // stage shipped hidden and boot revealed it, and became a lie the moment
+      // the box redesign took the hidden attribute off the stage so the gallery could live
+      // inside it. The probe then fired at HTML parse and reported 605 ms
+      // against a 3700 ms line, unconditionally. Proved by delaying the island
+      // by 8 s: the real first frame was 11,589 ms, the check read 601 ms and
+      // passed. The redesign was correct; the sentinel was verified red before
+      // it and never re-verified after.
       const stage = document.querySelector("[data-backlot-stage]");
-      if (stage && !stage.hidden && window.__backlotFirstFrame === null) {
+      if (stage && stage.hasAttribute("data-backlot-ready") && window.__backlotFirstFrame === null) {
         window.__backlotFirstFrame = performance.now();
       }
     };
@@ -300,7 +313,7 @@ const WATCH = String.raw`
       subtree: true,
       childList: true,
       attributes: true,
-      attributeFilter: ["hidden"],
+      attributeFilter: ["hidden", "data-backlot-ready"],
     });
     look();
     // The observer fires on the list being parsed in; this catches the case
@@ -344,8 +357,15 @@ const READ = String.raw`
       htmlBytes: navigation.transferSize,
       islandBytes: biggest ? biggest.transferSize : 0,
       bytes: resources.reduce((sum, entry) => sum + entry.transferSize, navigation.transferSize),
-      stageHidden: document.querySelector("[data-backlot-stage]").hidden,
+      ready: document.querySelector("[data-backlot-stage]").hasAttribute("data-backlot-ready"),
       galleryHidden: document.querySelector("[data-studio-fallback]").hidden,
+      // When the chunk that draws the first frame finished arriving. Nothing
+      // can have been drawn before this, which is the invariant below.
+      islandArrived: (() => {
+        const entries = performance.getEntriesByType("resource");
+        const biggest = entries.reduce((a, b) => (b.transferSize > a.transferSize ? b : a), entries[0]);
+        return biggest ? Math.round(biggest.responseEnd) : 0;
+      })(),
     };
   })();
 `;
@@ -366,10 +386,11 @@ interface Timing {
   listTop: { top: number; viewport: number; stageStillHidden: boolean } | null;
   htmlBytes: number;
   islandBytes: number;
+  ready: boolean;
+  islandArrived: number;
   shift: number;
   load: number;
   bytes: number;
-  stageHidden: boolean;
   galleryHidden: boolean;
 }
 
@@ -404,6 +425,10 @@ const GALLERY_WITHOUT_SCRIPTS = String.raw`
 
 let withoutScripts: Gallery | null = null;
 
+/** Every take's first frame, in order, so the message can show the spread the
+ *  median came out of rather than one number with no provenance. */
+const spreads: Record<string, number[]> = {};
+
 async function time(): Promise<Record<string, Timing>> {
   const site = await serveBuild("dist", base);
   const tab = await Tab.launch();
@@ -416,8 +441,28 @@ async function time(): Promise<Record<string, Timing>> {
       // run that reads the first run's bytes off disk is a measurement of this
       // machine's disk.
       await tab.network(SLOW_4G, "off");
-      await tab.goto(`${site.origin}${prefix}backlot/`);
-      readings[viewport.name] = await tab.evaluate<Timing>(READ);
+
+      // Three loads, and the middle one is the answer.
+      //
+      // A single reading of this is not a measurement, it is a coin toss: the
+      // suite runs its files in parallel, so this browser is competing with up
+      // to five others for the machine, and one reading came in at 3586 ms and
+      // another at 3712 ms against a 3700 ms line. A check that flakes is a
+      // check people learn to re-run rather than read, which is worse than one
+      // that is wrong. The median of three is the cheapest statistic that
+      // ignores a single unlucky load without ignoring a real regression — two
+      // of three would have to move for it to move. The spread is reported in
+      // the failure message either way, so a wide one is visible rather than
+      // averaged away.
+      const takes: Timing[] = [];
+      for (let take = 0; take < 3; take++) {
+        await tab.goto(`${site.origin}${prefix}backlot/`);
+        takes.push(await tab.evaluate<Timing>(READ));
+      }
+      const ordered = [...takes].sort((a, b) => (a.firstFrame ?? 0) - (b.firstFrame ?? 0));
+      const median = ordered[1]!;
+      spreads[viewport.name] = ordered.map((take) => Math.round(take.firstFrame ?? -1));
+      readings[viewport.name] = median;
     }
 
     await tab.viewport(1920, 1080);
@@ -440,6 +485,21 @@ const timings = await time();
 const doors = backlotManifest.doors;
 const captionCount = backlotManifest.rooms.reduce((sum, room) => sum + room.pieces.length, 0);
 
+// Seen red under a real delay, which is the only thing that proves this probe is
+// looking at the right event: the built island chunk prefixed with
+// `await new Promise(r => setTimeout(r, 8000))`, then reverted.
+//   AssertionError: the first frame arrived 11592 ms after navigation start on
+//   Slow 4G (1.6 Mbit/s down, 563 ms RTT, cache off), and the budget is 3700 ms.
+// Under the same delay the probe this replaced read 601 ms and passed.
+//
+// And the invariant under it was seen red on its own, by keying the probe back
+// on the old signal:
+//   AssertionError: the first frame was timed at 608 ms, and the chunk that
+//   draws it did not finish arriving until 2802 ms. Whatever this probe is
+//   keying on, it is not the engine presenting a frame.
+// That one needs nobody to remember anything: it catches a probe that has
+// stopped measuring the thing, on the next run after it stops.
+//
 // Seen red three times, each bug reverted. Putting the two `import()` calls back
 // in boot.ts, which is how the boot was written first and is the shape that
 // reads best — it costs two round trips, because a dynamic import cannot be
@@ -529,8 +589,21 @@ describe.each(VIEWPORTS)("the first frame at $name", ({ name }) => {
 
   it("arrives at all", () => {
     expect(reading.firstFrame, "no frame was ever presented, so there is nothing to time").not.toBeNull();
-    expect(reading.stageHidden, "the stage is still hidden, so the island never finished").toBe(false);
+    expect(reading.ready, "the engine never reported a frame, so the island never finished").toBe(true);
     expect(reading.galleryHidden, "the gallery is still the page, so the island never finished").toBe(true);
+  });
+
+  it("did not time something that happened before the island could draw", () => {
+    // The invariant that would have caught the dead probe on the day the box
+    // landed, without anybody having to remember to re-verify it: the first
+    // frame cannot precede the arrival of the chunk that draws it. A probe that
+    // fires at parse reports a number smaller than this and says so.
+    expect(
+      Math.round(reading.firstFrame!),
+      `the first frame was timed at ${Math.round(reading.firstFrame!)} ms, and the chunk that draws it ` +
+        `did not finish arriving until ${reading.islandArrived} ms. Whatever this probe is keying on, it ` +
+        `is not the engine presenting a frame.`,
+    ).toBeGreaterThan(reading.islandArrived);
   });
 
   it(`is on screen within ${FIRST_FRAME_BUDGET} ms of navigation start on Slow 4G`, () => {
@@ -546,7 +619,8 @@ describe.each(VIEWPORTS)("the first frame at $name", ({ name }) => {
 
     expect(
       measured,
-      `the first frame arrived ${measured} ms after navigation start on Slow 4G ` +
+      `the first frame arrived ${measured} ms after navigation start on Slow 4G — the median of three ` +
+        `loads at ${(spreads[name] ?? []).join(", ")} ms ` +
         `(${(SLOW_4G.download * 8) / 1024 / 1024} Mbit/s down, ${rtt} ms RTT, cache off), and the budget is ` +
         `${FIRST_FRAME_BUDGET} ms.\n` +
         [

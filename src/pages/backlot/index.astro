@@ -118,6 +118,37 @@ function frameOf(piece: BacklotPiece): string | undefined {
   credit={CREDIT_LINE}
   place="backlot"
 >
+  <Fragment slot="head">
+    <script is:inline>
+      // Whether the reader has started using the gallery — registered here, in
+      // the head, ahead of the stylesheets, and delegated on the document.
+      //
+      // Both of those are the fix to the same window. An inline script in the
+      // body does not run until every pending stylesheet has loaded: on Slow 4G
+      // that is 1.3 s after the HTML arrived, and a pointerdown at 612 ms was
+      // not recorded while the same event at 1806 ms was. A script in the head
+      // before the first stylesheet link runs as the parser reaches it, and a
+      // listener on the document does not need the gallery to exist yet.
+      //
+      // Scrolling counts. A reader who has scrolled down the door cards is
+      // plainly using them, and scroll does not bubble — hence the capture.
+      // The flag goes on the root element for the same reason the listeners are
+      // delegated: at this point in the parse there is no stage to put it on.
+      (function () {
+        var root = document.documentElement;
+        var used = function (event) {
+          var target = event.target;
+          if (!target || typeof target.closest !== "function") return;
+          if (!target.closest("[data-studio-fallback]")) return;
+          root.setAttribute("data-backlot-used", "");
+        };
+        document.addEventListener("focusin", used, true);
+        document.addEventListener("pointerdown", used, true);
+        document.addEventListener("scroll", used, true);
+      })();
+    </script>
+  </Fragment>
+
   {/* Read everywhere, seen nowhere: the stage is the page at every width here,
       so unlike /studio/ there is no viewport where a heading over it would be
       heading anything (backlot.css). */}
@@ -251,30 +282,20 @@ function frameOf(piece: BacklotPiece): string | undefined {
   </section>
 
   <script is:inline>
-    // Two things, during parsing, because both have to be true before the
-    // island's module exists — on a slow connection that is two seconds away.
+    // The box, during parsing: the stage becomes one viewport tall with its own
+    // scroller, so the gallery inside it is the loading state rather than a
+    // hole. Set from here rather than in the stylesheet so that with JavaScript
+    // off there is no box at all — the stage is natural height, the gallery is
+    // the page, and nothing is scrollable inside anything else.
     //
-    // The box: the stage becomes one viewport tall with its own scroller, so
-    // the gallery inside it is the loading state rather than a hole. Set from
-    // here rather than in the stylesheet so that with JavaScript off there is
-    // no box at all — the stage is natural height, the gallery is the page, and
-    // nothing is scrollable inside anything else.
-    //
-    // The flag: whether the reader has started using the gallery. The takeover
-    // is not allowed to pull the page out from under somebody mid-sentence, and
-    // the window in which they would be reading is exactly the window before
-    // boot.ts runs, so the listeners cannot wait for it.
+    // The listeners that record use are not here — they are in the head, ahead
+    // of the stylesheets, because a script in the body waits for every pending
+    // stylesheet and that is 700 ms of a reader being ignored.
     (function () {
       var stage = document.querySelector("[data-backlot-stage]");
-      var gallery = document.querySelector("[data-studio-fallback]");
-      if (!stage || !gallery) return;
+      if (!stage) return;
       stage.setAttribute("data-backlot-box", "");
       stage.setAttribute("data-backlot-mode", "gallery");
-      var used = function () {
-        stage.setAttribute("data-backlot-used", "");
-      };
-      gallery.addEventListener("focusin", used);
-      gallery.addEventListener("pointerdown", used);
     })();
   </script>
 

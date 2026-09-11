@@ -14,6 +14,16 @@
 // WebGL got a full-viewport blank above the list, permanently. The no-JS path
 // and the happy path were both verified and this one sat between them.
 //
+// Every probe below keys on something the page does *now*, and that is not a
+// free property — it is the thing that went wrong in spec/backlot-budget.test.ts
+// this round. That file watched the stage losing its `hidden` attribute, which
+// was the right signal until the redesign in this very file took `hidden` off
+// the stage, after which it fired at HTML parse and passed unconditionally. So:
+// the modes come from `data-backlot-mode`, the box from `data-backlot-box`, the
+// frame from `data-backlot-ready`, the use flag from the root element, and every
+// one of them is an attribute this page sets on purpose at the moment in
+// question — not a side effect that a layout change can quietly take away.
+//
 // Reading a computed style: always on the next frame, never in the task that
 // set it. base.css forces `transition-duration: 0.01ms !important` with
 // `transition-property: all` under `prefers-reduced-motion`, and a same-task
@@ -61,7 +71,7 @@ const STATE = String.raw`
     mode: stage.dataset.backlotMode ?? null,
     boxed: stage.hasAttribute("data-backlot-box"),
     ready: stage.hasAttribute("data-backlot-ready"),
-    used: stage.hasAttribute("data-backlot-used"),
+    used: document.documentElement.hasAttribute("data-backlot-used"),
     stageHeight: Math.round(stageBox.height),
     stageWidth: Math.round(stageBox.width),
     galleryHidden: gallery.hidden,
@@ -185,6 +195,8 @@ interface Sweep {
   hiddenAgain: State;
   noWebGl: State;
   scrolledInside: { inside: number; page: number };
+  early: { used: boolean; at: number; stylesheetsDone: number };
+  scrolledCounts: boolean;
 }
 
 async function sweep(): Promise<Sweep> {
@@ -301,10 +313,64 @@ async function sweep(): Promise<Sweep> {
     noWebGl = await read(fifth);
   } finally {
     await fifth.close();
+  }
+
+  // 6. The window. A pointer goes down in the gallery as early as the gallery
+  //    exists — before the stylesheets have loaded, which is when an inline
+  //    script in the *body* would still be waiting. And a scroll, which is just
+  //    as plainly using the list and used not to count at all.
+  const sixth = await Tab.launch();
+  let early: { used: boolean; at: number; stylesheetsDone: number };
+  let scrolledCounts: boolean;
+  try {
+    await sixth.onNewDocument(String.raw`
+      window.__earlyAt = null;
+      const waiting = setInterval(() => {
+        const link = document.querySelector("[data-studio-fallback] li.backlot-door a");
+        if (!link) return;
+        clearInterval(waiting);
+        window.__earlyAt = Math.round(performance.now());
+        link.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, composed: true }));
+      }, 10);
+    `);
+    await sixth.viewport(1920, 1080);
+    await sixth.media({ colourScheme: "dark", reducedMotion: true });
+    await sixth.network(SLOW_4G, "off");
+    await sixth.goto(url);
+    early = await sixth.evaluate<{ used: boolean; at: number; stylesheetsDone: number }>(`return {
+      used: document.documentElement.hasAttribute("data-backlot-used"),
+      at: window.__earlyAt ?? -1,
+      stylesheetsDone: Math.round(
+        Math.max(0, ...performance.getEntriesByType("resource")
+          .filter((entry) => entry.name.endsWith(".css"))
+          .map((entry) => entry.responseEnd)),
+      ),
+    };`);
+  } finally {
+    await sixth.close();
+  }
+
+  const seventh = await Tab.launch();
+  try {
+    await seventh.viewport(1920, 1080);
+    await seventh.media({ colourScheme: "dark", reducedMotion: true });
+    await seventh.goto(url);
+    scrolledCounts = await seventh.evaluate<boolean>(`return (async () => {
+      const gallery = document.querySelector("[data-studio-fallback]");
+      gallery.hidden = false;
+      gallery.scrollTop = 400;
+      ${NEXT_FRAME}
+      return document.documentElement.hasAttribute("data-backlot-used");
+    })();`);
+  } finally {
+    await seventh.close();
     await site.close();
   }
 
-  return { atPaint, tookOver, usedThenReady, afterPressing, showAsAList, hiddenAgain, noWebGl, scrolledInside };
+  return {
+    atPaint, tookOver, usedThenReady, afterPressing, showAsAList, hiddenAgain, noWebGl,
+    scrolledInside, early, scrolledCounts,
+  };
 }
 
 const driven = await sweep();
@@ -401,10 +467,17 @@ describe("the engine takes the box when nobody is using it", () => {
 // 3. The guard.
 // ---------------------------------------------------------------------------
 
-// Seen red by deleting the `data-backlot-used` guard from boot.ts, which is the
-// whole of it, and reverting:
+// Seen red three times, each reverted. Deleting the `data-backlot-used` guard
+// from boot.ts, which is the whole of it:
 //   AssertionError: the engine took the box from under the reader: expected
 //   'backlot' to be 'gallery'
+// Putting the listeners back in the body, where every pending stylesheet holds
+// them:
+//   AssertionError: a pointer went down in the gallery at 616 ms and nothing
+//   recorded it: expected false to be true
+// And dropping the scroll listener:
+//   AssertionError: a reader who scrolled the door cards was not counted as
+//   using them: expected false to be true
 describe("the engine does not take the box from a reader who is using it", () => {
   it("records that the gallery was used, and waits", () => {
     expect(driven.usedThenReady.used, "focus landed in the gallery and nothing recorded it").toBe(true);
@@ -412,6 +485,28 @@ describe("the engine does not take the box from a reader who is using it", () =>
     expect(driven.usedThenReady.mode, "the engine took the box from under the reader").toBe("gallery");
     expect(driven.usedThenReady.galleryHidden).toBe(false);
     expect(driven.usedThenReady.takeoverShown, "no way across was offered").toBe(true);
+  });
+
+  it("counts a pointer that goes down before the stylesheets have loaded", () => {
+    // The listeners live in the head, ahead of the first stylesheet link, and
+    // are delegated on the document. Both halves matter: an inline script in the
+    // *body* does not run until every pending stylesheet has, so a pointerdown
+    // at 612 ms went unrecorded while the same event at 1806 ms was recorded —
+    // and the 3D then took the box from a reader who was already using it.
+    expect(driven.early.at, "the drive never found a door card to press").toBeGreaterThan(0);
+    expect(
+      driven.early.at,
+      `the press was driven at ${driven.early.at} ms and the stylesheets did not finish until ` +
+        `${driven.early.stylesheetsDone} ms — this run did not exercise the window at all`,
+    ).toBeLessThan(driven.early.stylesheetsDone);
+    expect(
+      driven.early.used,
+      `a pointer went down in the gallery at ${driven.early.at} ms and nothing recorded it`,
+    ).toBe(true);
+  });
+
+  it("counts scrolling the list as using it", () => {
+    expect(driven.scrolledCounts, "a reader who scrolled the door cards was not counted as using them").toBe(true);
   });
 
   it("crosses when the reader presses the button, and not before", () => {

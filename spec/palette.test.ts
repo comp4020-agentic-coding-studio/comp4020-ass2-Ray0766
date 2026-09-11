@@ -243,6 +243,25 @@ describe("no stylesheet in this project paints the accent as ink", () => {
   // other property that can take a colour is ink or a stroke.
   const INK = /^\s*(?:color|stroke|border[\w-]*|outline|text-decoration-color|caret-color)\s*:[^;]*var\(--at-accent\)[^;]*;/gm;
 
+  // A glob that matches nothing runs a loop zero times and reports every one of
+  // its zero cases passing. The enumeration this replaced had gone stale by
+  // seven files — backlot.css and backlot-hud.css from this round, and
+  // prompt-composer.css and reference-episode.css among four that predate it
+  // and had never been checked at all — so widening it was right; leaving it
+  // unguarded would be the same failure one level up.
+  // Seen red by pointing the glob at an extension that does not exist:
+  //   AssertionError: the glob matched no stylesheets, so the loop below checks
+  //   nothing: expected 0 to be greater than 15
+  // and the run reported "1 failed | 15 passed (16)" rather than 37 — twenty-one
+  // per-file checks had simply stopped existing, which without this line is a
+  // loop running zero times and reporting every one of its zero cases green.
+  it("found the project's stylesheets to check", () => {
+    expect(FILES.length, "the glob matched no stylesheets, so the loop below checks nothing").toBeGreaterThan(15);
+    for (const required of ["site.css", "backlot.css", "backlot-hud.css", "studio-shell.css"]) {
+      expect(FILES, `${required} is not among the stylesheets being checked`).toContain(required);
+    }
+  });
+
   for (const file of FILES) {
     it(`${file} uses the accent only as a fill`, () => {
       const css = read(`src/styles/${file}`);

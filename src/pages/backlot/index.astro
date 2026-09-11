@@ -1,0 +1,76 @@
+---
+// SKELETON — the contract's landing pad, so the engine and the rooms have a
+// route to render into from the first minute. The page's real body is the
+// static gallery: every door as a card, the machine room's pieces and all of
+// their captions, so a reader with no JS gets the whole teaching point and
+// never learns that a 3D version existed.
+import { withBase } from "astro-theme-university/url";
+import StudioLayout from "../../layouts/StudioLayout.astro";
+import { backlotManifest } from "../../backlot/rooms/manifest";
+import "../../styles/backlot.css";
+
+// Every href the client sees is already base-resolved: the island never calls
+// withBase, and a root-absolute link would 404 on Pages' sub-path.
+const manifest = {
+  doors: backlotManifest.doors.map((door) => ({ ...door, href: withBase(door.href) })),
+  rooms: backlotManifest.rooms.map((room) => ({
+    ...room,
+    href: withBase(room.href),
+    interactives: room.interactives.map((interactive) =>
+      interactive.href ? { ...interactive, href: withBase(interactive.href) } : interactive,
+    ),
+  })),
+};
+
+const payload = JSON.stringify({ manifest, assetPrefix: withBase("/studio/") }).replace(
+  /<\/script/gi,
+  "<\\/script",
+);
+
+const CREDIT_LINE =
+  "The backlot is drawn in the browser from the site's own navigation and the Studio's own manifests. Every frame on a wall is a file the rig recorded.";
+---
+
+<StudioLayout
+  title="The backlot"
+  description="The course as a place you can walk: the six doors from the top of every page, stood up in a ring, and the machine room behind the Studio one."
+  credit={CREDIT_LINE}
+>
+  <h1 class="studio-shell__title">The backlot</h1>
+
+  <script type="application/json" is:inline data-backlot-payload set:html={payload} />
+
+  <section class="backlot-stage" data-backlot-stage hidden aria-label="The backlot">
+    <canvas data-backlot-canvas></canvas>
+    <div data-backlot-hud></div>
+  </section>
+
+  <script src="../../backlot/page/boot.ts"></script>
+
+  <div class="backlot-gallery" id="studio-list" data-studio-fallback>
+    <p>{CREDIT_LINE}</p>
+    <ul>
+      {
+        manifest.doors.map((door) => (
+          <li id={`door-${door.id}`}>
+            <a href={door.href}>{door.label}</a>
+            <p>{door.blurb}</p>
+          </li>
+        ))
+      }
+    </ul>
+    {
+      manifest.rooms.map((room) => (
+        <section id={room.id}>
+          <h2>{room.title}</h2>
+          <p>{room.intro}</p>
+          <ul>
+            {room.pieces.map((piece) => (
+              <li id={piece.id}>{piece.caption}</li>
+            ))}
+          </ul>
+        </section>
+      ))
+    }
+  </div>
+</StudioLayout>

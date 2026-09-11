@@ -1,0 +1,6 @@
+/* The /backlot/ page: the stage that holds the canvas, and the gallery that is
+   the page with JS off.
+
+   Unlayered, like the rest of this project's CSS — site.css says why. Owned by
+   the page half of the backlot work; the HUD's own controls are in
+   backlot-hud.css. */

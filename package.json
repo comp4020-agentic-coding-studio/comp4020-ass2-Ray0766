@@ -26,13 +26,15 @@
     "astromotion": "git+https://github.com/ANUcybernetics/astromotion.git#v0.23.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
-    "sharp": "^0.35.3"
+    "sharp": "^0.35.3",
+    "three": "^0.186.0"
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.9",
     "@types/node": "^24.0.0",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.7",
+    "@types/three": "^0.185.4",
     "lightningcss": "^1.32.0",
     "pagefind": "^1.5.2",
     "typescript": "^6.0.3",

@@ -1,0 +1,7 @@
+/* The HUD over the backlot canvas: the hotspot buttons, their focus ring, the
+   live region, and anything else the engine puts in the DOM rather than in the
+   scene.
+
+   Every hotspot is a real button parked over the thing it acts on, so this file
+   is what makes a button that sits on top of a 3D scene still look like a
+   control and still show a ring. Owned by the engine half. */

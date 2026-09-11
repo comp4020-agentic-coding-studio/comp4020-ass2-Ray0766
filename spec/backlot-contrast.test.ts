@@ -1,0 +1,569 @@
+// The HUD's controls, measured as rendered pixels, at both marking viewports
+// and in both themes.
+//
+// Why this is not covered by anything already here. The build's axe pass runs
+// axe-core over the HTML inside a JSDOM document, and JSDOM has no layout and
+// no computed colour, so its contrast rules cannot fire at all — "60 pages, no
+// accessibility violations" is printed on every build and is silent about every
+// line below. spec/palette.test.ts is token arithmetic, which proves the tokens
+// agree with each other and says nothing about whether anything asks for one.
+// And neither of them can see the HUD, which does not exist until the island has
+// mounted: there is no HUD in any built HTML file.
+//
+// Two ways this file has been wrong, both of which read as green, and both kept
+// here because they are worth more than the checks they broke.
+//
+// It collected **zero tests** for one run while the summary said "Tests 1210
+// passed": a backtick inside one of the String.raw probes below closed the
+// template, the transform failed, and all 68 readings were simply absent. The
+// file-level FAIL was in the output; the number I read was not.
+// spec/suite-integrity.test.ts now parses every spec file and fails by name
+// before the runner gets there.
+//
+// And it read colour *inside the theme's own transition*. Flipping `data-theme`
+// on a page that is already painted transitions `color`, and a computed read in
+// that window returns the value the property is moving away from: the dark
+// theme's #f0eeeb, measured against the light theme's #fffdfa ground, 1.14:1, on
+// five of six controls, on one run in three. It is the same trap that made the
+// engine's scene boot blown out to white, met from the other direction. The
+// sweep now stores the theme and loads the page again, so it is built in that
+// theme from its first frame and nothing transitions — which is also exactly
+// what a returning reader gets, so the check is more honest as well as stable.
+//
+// The scene is put into reduced motion for the same reason spec/backlot-hotspots
+// does it: the idle camera moves a button between the reading that picks a
+// sample point and the screenshot that takes it. Colour does not depend on
+// motion, and the alternative is sampling somewhere the control no longer is.
+//
+// Not covered here, and it should be: the button's own fill against the scene
+// behind it. The pill is `--at-bg` over a floor the engine paints from the same
+// palette, and proving that boundary is legible everywhere the camera can put a
+// door needs a per-pixel search around each control rather than one reading.
+// It is in the receipt as the gap it is.
+
+import { describe, expect, it } from "vitest";
+import { AA_BODY_TEXT, contrastRatio } from "astro-theme-university/contrast";
+
+import { backlotManifest } from "../src/backlot/rooms/manifest";
+import { gitOrigin, resolveDeployment } from "../scripts/pages-base.ts";
+import {
+  formatHex,
+  opaque,
+  RESOLVE_COLOUR,
+  serveBuild,
+  Tab,
+  whileStill,
+  type ColourScheme,
+  type Resolved,
+  type Rgb,
+} from "./lib/chrome.ts";
+
+const { base } = resolveDeployment(process.env, gitOrigin);
+const prefix = base.endsWith("/") ? base : `${base}/`;
+
+const doors = backlotManifest.doors;
+const room = backlotManifest.rooms[0]!;
+
+/** WCAG 2.2 SC 1.4.11. The dot is the whole of the control at 390px, so it is
+ *  a part required to identify it, not decoration with an aria-hidden on it. */
+const AA_NON_TEXT = 3;
+
+/** What the compositor does: a partly transparent ink over an opaque fill, in
+ *  sRGB's own gamma space, which is where a browser blends. */
+const over = (ink: Rgb, alpha: number, fill: Rgb): Rgb =>
+  ink.map((channel, index) => channel * alpha + fill[index]! * (1 - alpha)) as Rgb;
+
+const VIEWPORTS = [
+  { name: "desktop 1920×1080", width: 1920, height: 1080, labelled: true },
+  { name: "phone 390×844", width: 390, height: 844, labelled: false },
+] as const;
+
+/** A first visit is forced dark on any OS, so dark is what a marker sees; light
+ *  is what a reader gets back the moment the status bar's toggle stores a
+ *  preference, which is why it is checked too (CLAUDE.md §7). */
+const THEMES: readonly ColourScheme[] = ["dark", "light"];
+
+const PLACES = [
+  { name: "the hub", expect: () => doors.map((door) => door.id) },
+  { name: "the machine room", expect: () => room.interactives.map((entry) => entry.id) },
+] as const;
+
+interface Probe {
+  id: string;
+  /** The button's own declared background, resolved by the page's canvas. */
+  fill: Resolved | null;
+  /** Somewhere inside the button, clear of its border and of everything it
+   *  contains, so the pixel there is the button's own fill. */
+  point: { x: number; y: number } | null;
+  why: string;
+  /** Each child of the control, as it was when the reading was taken. */
+  parts: string[];
+  /** The label, if the layout is painting one at this width. */
+  label: { text: string; alpha: number; ink: Resolved } | null;
+  /** The dot, and a point at the middle of it. */
+  dot: { fill: Resolved; alpha: number; point: { x: number; y: number } | null } | null;
+  opacity: number;
+}
+
+interface Reading extends Probe {
+  place: string;
+  viewport: string;
+  theme: ColourScheme;
+  pixel: Rgb | null;
+  dotPixel: Rgb | null;
+  scrolledBefore: { x: number; y: number };
+  scrolledAfter: { x: number; y: number };
+}
+
+/** Runs in the page. Finds the parts of a control by what they are rather than
+ *  by the class names the engine happens to use: the label is the painted
+ *  descendant carrying the button's text, the dot is the painted descendant
+ *  carrying none. A class rename in backlot-hud.css should not quietly turn
+ *  this into a check that measures nothing. */
+const PROBE = String.raw`
+  ${RESOLVE_COLOUR}
+
+  const painted = (element) => {
+    const rect = element.getBoundingClientRect();
+    const style = getComputedStyle(element);
+    return (
+      rect.width > 2 && rect.height > 2 &&
+      style.display !== "none" && style.visibility !== "hidden" && Number(style.opacity) > 0
+    );
+  };
+
+  const alphaUpTo = (node, stop) => {
+    let alpha = 1;
+    for (let el = node; el && el !== stop; el = el.parentElement) alpha *= Number(getComputedStyle(el).opacity);
+    return alpha;
+  };
+
+  const buttons = [...document.querySelectorAll("[data-backlot-hud] button")].filter((b) => !b.hidden);
+
+  const probes = buttons.map((button) => {
+    const style = getComputedStyle(button);
+    const box = button.getBoundingClientRect();
+    const children = [...button.querySelectorAll("*")];
+    const labelled = children.filter((child) => child.textContent.trim() !== "" && painted(child));
+    const plain = children.filter((child) => child.textContent.trim() === "" && painted(child));
+
+    // Keep-out: every painted descendant's boxes, and every text run's own
+    // rects. A point on a glyph reads the ink, not the fill.
+    const keepOut = [];
+    for (const child of children) {
+      if (!painted(child)) continue;
+      keepOut.push(...child.getClientRects());
+    }
+    // A text run's own rects are laid out at the text's full width, whether or
+    // not the element clips it. The label is overflow hidden with an ellipsis,
+    // so "Play four sentences + beats + negatives" lays out wider than the pill
+    // it sits in, and its raw rect covered every candidate point in the control
+    // -- three of them could not be sampled at all. Clamped to the element that
+    // owns the text, which is where the glyphs actually stop being painted.
+    const clamp = (rect, bound) => ({
+      left: Math.max(rect.left, bound.left),
+      right: Math.min(rect.right, bound.right),
+      top: Math.max(rect.top, bound.top),
+      bottom: Math.min(rect.bottom, bound.bottom),
+    });
+    const walker = document.createTreeWalker(button, NodeFilter.SHOW_TEXT);
+    for (let text = walker.nextNode(); text; text = walker.nextNode()) {
+      if (!text.nodeValue || !text.nodeValue.trim()) continue;
+      if (!painted(text.parentElement)) continue;
+      const bound = text.parentElement.getBoundingClientRect();
+      const range = document.createRange();
+      range.selectNodeContents(text);
+      for (const rect of range.getClientRects()) keepOut.push(clamp(rect, bound));
+    }
+    const clearOf = (x, y) =>
+      keepOut.every((r) => x < r.left - 2 || x > r.right + 2 || y < r.top - 2 || y > r.bottom + 2);
+
+    const inset = (side) => parseFloat(style["border" + side + "Width"]) + 1;
+    const left = box.left + inset("Left");
+    const right = box.right - inset("Right");
+
+    // A hotspot is a pill, and the corner of a rounded box is where its
+    // antialiased blend with whatever is behind it lives — the lightest pixel a
+    // worst-case search goes hunting for, and the one the first version of this
+    // found: #2b1d09 sampled against a declared #070504, four rows down from
+    // the top of a 28px capsule where the shape has not reached that far left
+    // yet. At the vertical middle of a rounded box its horizontal extent is the
+    // full width, whatever the radius, so the search is confined to the band
+    // where that is true: a single row for a capsule, the whole height for a
+    // square one.
+    const corners = ["TopLeft", "TopRight", "BottomRight", "BottomLeft"].map((corner) =>
+      parseFloat(style["border" + corner + "Radius"]),
+    );
+    const radius = Math.min(Math.max(...corners), box.width / 2, box.height / 2);
+    const middle = (box.top + box.bottom) / 2;
+    const reach = Math.max(0, box.height / 2 - radius - 1);
+    const top = middle - reach;
+    const bottom = middle + reach;
+
+    // The candidates are whole pixels from the start, and the bounds are rounded
+    // inwards once. Interpolating in floats and then rounding, with a guard that
+    // threw away anything outside the band, silently threw away the *only* two
+    // clear points on three of these controls: a button at x=859.0 has its
+    // inset edge at 861.0078, rounding lands on 861, and 861 < 861.0078 is the
+    // guard. It looked like a control with nowhere clear to sample and it was a
+    // hundredth of a pixel of arithmetic.
+    const x0 = Math.ceil(left);
+    const x1 = Math.floor(right);
+    const y0 = reach > 0 ? Math.ceil(top) : Math.round(middle);
+    const y1 = reach > 0 ? Math.floor(bottom) : Math.round(middle);
+
+    let point = null;
+    let why =
+      x1 < x0 || y1 < y0
+        ? "the control has no whole pixel inside its own border"
+        : "no point inside the control is clear of what it contains";
+    const STEPS = 16;
+    for (let row = 0; row <= STEPS && !point; row++) {
+      for (let col = 0; col <= STEPS && !point; col++) {
+        const x = x0 + Math.round(((x1 - x0) * col) / STEPS);
+        const y = y0 + Math.round(((y1 - y0) * row) / STEPS);
+        if (x1 < x0 || y1 < y0) continue;
+        if (!clearOf(x, y)) continue;
+        if (document.elementFromPoint(x, y) !== button) {
+          why = "every clear point inside the control is covered by something else";
+          continue;
+        }
+        point = { x, y };
+      }
+    }
+    // A sampler that cannot find a point has to say what was in the way, or the
+    // next person reads "no point is clear" and has to rebuild the geometry by
+    // hand to find out why.
+    if (point) why = "";
+    else {
+      const round = (n) => Math.round(n * 10) / 10;
+      why +=
+        ". The control is [" + round(box.left) + ".." + round(box.right) + "] x [" +
+        round(box.top) + ".." + round(box.bottom) + "], the pixels searched were y " +
+        y0 + ".." + y1 + ", x " + x0 + ".." + x1 +
+        ", and the keep-out boxes were " +
+        keepOut
+          .map((r) => "[" + round(r.left) + ".." + round(r.right) + "] x [" + round(r.top) + ".." + round(r.bottom) + "]")
+          .join(", ");
+    }
+
+    const labelNode = labelled[labelled.length - 1] ?? null;
+    const dotNode = plain[0] ?? null;
+    const dotBox = dotNode ? dotNode.getBoundingClientRect() : null;
+
+    return {
+      id: button.dataset.backlotHotspot,
+      fill: resolveColour(style.backgroundColor),
+      point,
+      why,
+      // What the control was made of when it was read, so "no dot" says which
+      // part was missing and how big it was rather than only that it was gone.
+      parts: children.map((child) => {
+        const rect = child.getBoundingClientRect();
+        const childStyle = getComputedStyle(child);
+        return (
+          String(child.className || child.tagName) +
+          " " + Math.round(rect.width) + "x" + Math.round(rect.height) +
+          " " + childStyle.display + "/" + childStyle.visibility + "/" + childStyle.opacity +
+          (child.textContent.trim() === "" ? " (no text)" : " (text)")
+        );
+      }),
+      opacity: Number(style.opacity),
+      label: labelNode
+        ? {
+            text: labelNode.textContent.replace(/\s+/g, " ").trim(),
+            alpha: alphaUpTo(labelNode, button),
+            ink: resolveColour(getComputedStyle(labelNode).color),
+          }
+        : null,
+      dot: dotNode
+        ? {
+            fill: resolveColour(getComputedStyle(dotNode).backgroundColor),
+            alpha: alphaUpTo(dotNode, button),
+            point: {
+              x: Math.round(dotBox.left + dotBox.width / 2),
+              y: Math.round(dotBox.top + dotBox.height / 2),
+            },
+          }
+        : null,
+    };
+  });
+
+  return { scroll: { x: scrollX, y: scrollY }, probes };
+`;
+
+/** Waits for the HUD to be on screen *and* to have stopped changing shape.
+ *  Two things go wrong a frame too early, and both did. The stage carries
+ *  `data-reserve`, so for a moment after boot.ts takes the `hidden` attribute
+ *  off it a computed style read from here still reports the
+ *  `[data-reserve][hidden]` rule's `visibility: hidden` — and a control inside
+ *  a `visibility: hidden` subtree cannot be focused and is not what
+ *  `elementFromPoint` answers. And a control read on the frame it was parked on
+ *  can still measure its parts at nothing, which showed up as "people has no
+ *  dot" on one run in three and a green suite on the others. So: the same shape
+ *  twice in a row, with the stage on screen for both.
+ */
+const MOUNTED = String.raw`
+  const stage = document.querySelector("[data-backlot-stage]");
+  // Not the stage's own visibility: its subtree's. A computed style read here
+  // goes on reporting the [data-reserve][hidden] rule for a while after the
+  // attribute is gone, and it clears on the stage before it clears on the
+  // controls inside it -- measured, as a hotspot whose dot came back
+  // "14x14 block/hidden/1" while the stage above it already read visible.
+  const onScreen = () => {
+    // The mode first. The stage now holds the gallery until the engine takes
+    // the box, and while it does the HUD carries the hidden attribute -- its
+    // buttons do not, so a check that only looked at them found six controls
+    // inside a display:none container and called the page ready. It passed
+    // alone and failed under six browsers competing, which is the worst way for
+    // it to be wrong.
+    if (stage.dataset.backlotMode !== "backlot") return false;
+    if (stage.hidden || getComputedStyle(stage).visibility !== "visible") return false;
+    const control = document.querySelector("[data-backlot-hud] button:not([hidden])");
+    if (!control) return false;
+    for (const part of [control, ...control.querySelectorAll("*")]) {
+      if (getComputedStyle(part).visibility !== "visible") return false;
+    }
+    return true;
+  };
+  const shape = () =>
+    [...document.querySelectorAll("[data-backlot-hud] button")]
+      .filter((button) => !button.hidden)
+      .map((button) => {
+        const box = button.getBoundingClientRect();
+        const parts = [...button.querySelectorAll("*")].map((child) => {
+          const rect = child.getBoundingClientRect();
+          const style = getComputedStyle(child);
+          // Colour is in the shape, not just geometry, and that is the whole
+          // reason this loop exists in a contrast check. The theme transitions
+          // the colour when data-theme flips, and a computed read inside that
+          // transition returns the value it is moving *from*: the dark theme's
+          // #f0eeeb, measured against the light theme's #fffdfa ground at
+          // 1.14:1, on five of six controls, on one run in three. Waiting for
+          // the same colour twice in a row is waiting for the transition.
+          return (
+            Math.round(rect.width) + "x" + Math.round(rect.height) +
+            style.visibility + style.color + style.backgroundColor
+          );
+        });
+        return Math.round(box.width) + "x" + Math.round(box.height) + ":" + parts.join(",");
+      })
+      .join("|");
+
+  let previous = "";
+  const deadline = performance.now() + 20000;
+  while (performance.now() < deadline) {
+    await new Promise((done) => requestAnimationFrame(() => done()));
+    if (!onScreen()) {
+      previous = "";
+      continue;
+    }
+    const now = shape();
+    if (now !== "" && now === previous) return "mounted";
+    previous = now;
+  }
+  return null;
+`;
+
+async function sweep(): Promise<Reading[]> {
+  const site = await serveBuild("dist", base);
+  const tab = await Tab.launch();
+  const url = `${site.origin}${prefix}backlot/`;
+  const readings: Reading[] = [];
+
+  try {
+    for (const viewport of VIEWPORTS) {
+      for (const theme of THEMES) {
+        await tab.viewport(viewport.width, viewport.height);
+        await tab.media({ colourScheme: theme, reducedMotion: true });
+        // Stored, then loaded again — rather than flipped on a page that is
+        // already painted. The layout's own inline script reads this key during
+        // parsing, so the page is built in the theme from its first frame and
+        // nothing transitions. Flipping `data-theme` after the fact transitions
+        // `color`, and a computed read inside that transition returns the value
+        // it is moving *from*: measured as the dark theme's #f0eeeb against the
+        // light theme's #fffdfa at 1.14:1, on five of six controls, on one run
+        // in three. This is also what a returning reader actually gets.
+        await tab.goto(url);
+        await tab.evaluate(
+          `try { localStorage.setItem("at-theme", ${JSON.stringify(theme)}); } catch {} return null;`,
+        );
+        await tab.goto(url);
+        const mounted = await tab.evaluate<string | null>(`return (async () => { ${MOUNTED} })();`);
+        if (!mounted) throw new Error(`the backlot never mounted at ${viewport.name} in the ${theme} theme`);
+
+        for (const place of PLACES) {
+          if (place.name === "the machine room") {
+            // Entered with the keyboard, so the engine's focus hand-over runs
+            // the way it does for a reader.
+            const door = doors.find((candidate) => candidate.kind === "room")!;
+            await tab.evaluate(
+              `document.querySelector('[data-backlot-hotspot="${door.id}"]').focus(); return null;`,
+            );
+            await tab.press("Enter");
+            await tab.evaluate(`return new Promise((done) => setTimeout(done, 2500));`);
+          }
+
+          const { scroll, sampled, scrolledAfter } = await whileStill(tab, async () => {
+            const { scroll, probes } = await tab.evaluate<{
+              scroll: { x: number; y: number };
+              probes: Probe[];
+            }>(PROBE);
+            const sampled: Array<Probe & { pixel: Rgb | null; dotPixel: Rgb | null }> = [];
+            for (const probe of probes) {
+              sampled.push({
+                ...probe,
+                pixel: probe.point ? await tab.pixel(probe.point.x, probe.point.y) : null,
+                dotPixel: probe.dot?.point ? await tab.pixel(probe.dot.point.x, probe.dot.point.y) : null,
+              });
+            }
+            return { scroll, sampled };
+          });
+
+          readings.push(
+            ...sampled.map((reading) => ({
+              ...reading,
+              place: place.name,
+              viewport: viewport.name,
+              theme,
+              scrolledBefore: scroll,
+              scrolledAfter,
+            })),
+          );
+        }
+      }
+    }
+  } finally {
+    await tab.close();
+    await site.close();
+  }
+
+  return readings;
+}
+
+const readings = await sweep();
+
+const at = (place: string, viewport: string, theme: ColourScheme) =>
+  readings.filter((r) => r.place === place && r.viewport === viewport && r.theme === theme);
+
+// Seen red by painting the hotspot's label in the brand gold in the built page
+// (`.backlot-hotspot__label { color: var(--at-accent) }`), which is the mistake
+// CLAUDE.md §7 says this palette keeps inviting:
+//   AssertionError: the lectures control paints #b97d1c on #fffdfa — 3.44:1,
+//   and AA body text needs 4.5:1. A brand colour is a fill, not ink
+//   (CLAUDE.md §7).: expected 3.4395959058292935 to be greater than or equal
+//   to 4.5
+//   (14 failed | 54 passed — every control at 1920, in both themes)
+// then reverted. Injected into the build rather than into backlot-hud.css
+// because that file belongs to the engine this round.
+describe.each(PLACES)("$name", ({ name: place, expect: expected }) => {
+  describe.each(VIEWPORTS)("at $name", ({ name: viewport, labelled }) => {
+    describe.each(THEMES)("in the %s theme", (theme) => {
+      it("has the controls it should have", () => {
+        expect(at(place, viewport, theme).map((r) => r.id)).toEqual(expected());
+      });
+
+      for (const id of expected()) {
+        it(`the ${id} control`, () => {
+          const reading = at(place, viewport, theme).find((r) => r.id === id)!;
+
+          // Every coordinate above was read in the page and sampled from Node a
+          // moment later. If the page moved in between, nothing below is about
+          // the place it says it is.
+          expect(reading.scrolledAfter, "the page moved while the pixels were being sampled").toEqual(
+            reading.scrolledBefore,
+          );
+
+          expect(reading.point, `could not sample ${id}: ${reading.why}`).not.toBeNull();
+          expect(reading.pixel, `no pixel came back for ${id}`).not.toBeNull();
+          const fill = reading.pixel!;
+
+          // The control's fill is opaque and it is the topmost thing at that
+          // point, so the composited colour and the declared one agree. When
+          // they stop agreeing the pixel is the true reading, and this says so.
+          expect(
+            formatHex(fill),
+            `${id}'s composited fill should match its declared background`,
+          ).toBe(formatHex(opaque(reading.fill!, `${id}'s background`)));
+          expect(reading.opacity, `${id} is not fully opaque, so its label sits over the scene too`).toBe(1);
+
+          // The dot is the control at 390px and part of it at 1920.
+          expect(
+            reading.dot,
+            `${id} has no dot, so there is nothing to identify it by. It was made of: ${reading.parts.join("; ")}`,
+          ).not.toBeNull();
+          expect(reading.dotPixel, `no pixel came back for ${id}'s dot`).not.toBeNull();
+          const dot = reading.dotPixel!;
+          expect(formatHex(dot), `${id}'s dot should paint its declared fill`).toBe(
+            formatHex(opaque(reading.dot!.fill, `${id}'s dot`)),
+          );
+          const dotRatio = contrastRatio(dot, fill);
+          expect(
+            dotRatio,
+            `${id}'s dot paints ${formatHex(dot)} on ${formatHex(fill)} — ${dotRatio.toFixed(2)}:1, and a ` +
+              `part that identifies a control needs ${AA_NON_TEXT}:1.`,
+          ).toBeGreaterThanOrEqual(AA_NON_TEXT);
+
+          if (!labelled) {
+            // The phone rules clip the label to 1x1 and put the name on the
+            // button instead. Asserted rather than assumed: if a label turns up
+            // here, the branch below is the one that should have run.
+            expect(
+              reading.label,
+              `${id} paints a label over the canvas at ${viewport}, so it needs the ink check`,
+            ).toBeNull();
+            return;
+          }
+
+          expect(reading.label, `${id} paints no label at ${viewport}, so nothing was measured`).not.toBeNull();
+          const ink = over(opaque(reading.label!.ink, `${id}'s label colour`), reading.label!.alpha, fill);
+          const ratio = contrastRatio(ink, fill);
+          expect(
+            ratio,
+            `the ${id} control paints ${formatHex(ink)}` +
+              `${reading.label!.alpha === 1 ? "" : ` (its colour at ${reading.label!.alpha} opacity)`} on ` +
+              `${formatHex(fill)} — ${ratio.toFixed(2)}:1, and AA body text needs ${AA_BODY_TEXT}:1. ` +
+              `A brand colour is a fill, not ink (CLAUDE.md §7).`,
+          ).toBeGreaterThanOrEqual(AA_BODY_TEXT);
+        });
+      }
+    });
+  });
+});
+
+// The failure mode of everything above is a layout change that hides every
+// label, after which all the desktop cases take the phone branch and the suite
+// stays green about a HUD nobody can read.
+describe("the sweep measured something", () => {
+  it("measured every control in both places, at both viewports, in both themes", () => {
+    expect(readings.length).toBe(
+      (doors.length + room.interactives.length) * VIEWPORTS.length * THEMES.length,
+    );
+  });
+
+  it("found a painted label on every control at the desktop viewport", () => {
+    const desktop = readings.filter((r) => r.viewport === VIEWPORTS[0].name);
+    expect(desktop.length).toBeGreaterThan(0);
+    expect(desktop.filter((r) => r.label !== null).length).toBe(desktop.length);
+  });
+
+  it("found no painted label on any control at the phone viewport", () => {
+    const phone = readings.filter((r) => r.viewport === VIEWPORTS[1].name);
+    expect(phone.length).toBeGreaterThan(0);
+    expect(phone.filter((r) => r.label === null).length).toBe(phone.length);
+  });
+
+  it("read two different themes, not the same one twice", () => {
+    const fills = new Set(
+      readings.filter((r) => r.point).map((r) => `${r.theme}:${formatHex(r.pixel!)}`),
+    );
+    const dark = [...fills].filter((entry) => entry.startsWith("dark:"));
+    const light = [...fills].filter((entry) => entry.startsWith("light:"));
+    expect(dark.length).toBeGreaterThan(0);
+    expect(light.length).toBeGreaterThan(0);
+    expect(
+      dark.map((entry) => entry.slice(5)),
+      "both themes produced the same control fill, so the toggle did not reach the HUD",
+    ).not.toEqual(light.map((entry) => entry.slice(6)));
+  });
+});

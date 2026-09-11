@@ -20,7 +20,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, statSync } from "node:fs
 import { createServer, type Server } from "node:http";
 import { tmpdir } from "node:os";
 import { extname, join, normalize, resolve, sep } from "node:path";
-import { inflateSync } from "node:zlib";
+import { gzipSync, inflateSync } from "node:zlib";
 
 /** Channel values in 0..1, the shape the theme's contrast helpers take. */
 export type Rgb = [number, number, number];
@@ -132,12 +132,25 @@ export function serveBuild(root: string, base: string): Promise<StaticSite> {
       response.writeHead(500).end("could not read the file");
       return;
     }
+
+    // Compress what a real host compresses. It makes no difference to a colour
+    // reading and all the difference to a timing one: the island is 593 kB of
+    // JavaScript and 148 kB of gzip, and served raw on a throttled connection
+    // it spends 2.8 s on the wire instead of 0.7 s. A first-frame budget
+    // measured against the uncompressed file is a measurement of this test
+    // server, and GitHub Pages has served gzip since before this repo existed.
+    const type = MIME[extname(file)] ?? "application/octet-stream";
+    const compressible = /^(?:text\/|application\/(?:javascript|json|xml)|image\/svg)/.test(type);
+    const wanted = String(request.headers["accept-encoding"] ?? "").includes("gzip");
+    const encoded = compressible && wanted ? gzipSync(body, { level: 9 }) : null;
+
     response.writeHead(200, {
-      "content-type": MIME[extname(file)] ?? "application/octet-stream",
-      "content-length": String(body.byteLength),
+      "content-type": type,
+      "content-length": String((encoded ?? body).byteLength),
       "cache-control": "no-store",
+      ...(encoded ? { "content-encoding": "gzip", vary: "accept-encoding" } : {}),
     });
-    response.end(body);
+    response.end(encoded ?? body);
   });
 
   return new Promise((fulfil, fail) => {
@@ -178,6 +191,7 @@ class Connection {
   #nextId = 1;
   #calls = new Map<number, { fulfil: (value: Record<string, unknown>) => void; fail: (error: Error) => void }>();
   #waiting: Waiter[] = [];
+  #collecting: { method: string; seen: Record<string, unknown>[] }[] = [];
 
   private constructor(socket: WebSocket) {
     this.#socket = socket;
@@ -203,6 +217,9 @@ class Connection {
       return;
     }
     if (message.method) {
+      for (const sink of this.#collecting) {
+        if (sink.method === message.method) sink.seen.push(message.params ?? {});
+      }
       const still: Waiter[] = [];
       for (const waiter of this.#waiting) {
         if (waiter.method === message.method) waiter.fulfil();
@@ -226,6 +243,16 @@ class Connection {
     return new Promise((fulfil) => this.#waiting.push({ method, fulfil }));
   }
 
+  /** Every `method` event from now on, into an array the caller keeps. The
+   *  resource timing API cannot answer what a page's own JavaScript is not told
+   *  — request priority is the one that matters for a first-frame budget, and
+   *  it only exists in the protocol. */
+  collect(method: string): Record<string, unknown>[] {
+    const seen: Record<string, unknown>[] = [];
+    this.#collecting.push({ method, seen });
+    return seen;
+  }
+
   close(): void {
     this.#socket.close();
   }
@@ -236,6 +263,23 @@ class Connection {
 // ---------------------------------------------------------------------------
 
 export type ColourScheme = "light" | "dark";
+
+/** Throughput in bytes per second, latency in milliseconds — the units
+ *  `Network.emulateNetworkConditions` takes. */
+export interface NetworkConditions {
+  download: number;
+  upload: number;
+  latency: number;
+}
+
+/** Chrome DevTools' own "Slow 4G" preset, arithmetic and all, so a budget
+ *  measured here is the number a marker would read off the Network panel
+ *  rather than an approximation of it. */
+export const SLOW_4G: NetworkConditions = {
+  download: (1.6 * 1024 * 1024) / 8,
+  upload: (750 * 1024) / 8,
+  latency: 562.5,
+};
 
 export class Tab {
   #connection: Connection;
@@ -333,6 +377,55 @@ export class Tab {
     });
   }
 
+  /** Every emulated media feature at once. `setEmulatedMedia` replaces the whole
+   *  list rather than adding to it, so anything that wants a second preference
+   *  alongside the colour scheme has to send both in one call. */
+  async media(features: { colourScheme?: ColourScheme; reducedMotion?: boolean }): Promise<void> {
+    const list: { name: string; value: string }[] = [];
+    if (features.colourScheme) list.push({ name: "prefers-color-scheme", value: features.colourScheme });
+    if (features.reducedMotion !== undefined) {
+      list.push({ name: "prefers-reduced-motion", value: features.reducedMotion ? "reduce" : "no-preference" });
+    }
+    await this.#connection.send("Emulation.setEmulatedMedia", { features: list });
+  }
+
+  /** JavaScript off, the way a reader turns it off — not "the island did not
+   *  run this time". A no-JS check that boots the island and then reads the
+   *  DOM is reading the page the island left behind, which is a different
+   *  page; this reads the one the server sent. Applies from the next
+   *  navigation. */
+  async scripts(enabled: boolean): Promise<void> {
+    await this.#connection.send("Emulation.setScriptExecutionDisabled", { value: !enabled });
+  }
+
+  /** Throttle the connection, and say whether the cache is allowed to answer.
+   *  `null` restores full speed. A budget measured with a warm cache is a
+   *  measurement of this machine, not of the page. */
+  async network(conditions: NetworkConditions | null, cache: "on" | "off" = "on"): Promise<void> {
+    await this.#connection.send("Network.enable");
+    await this.#connection.send("Network.setCacheDisabled", { cacheDisabled: cache === "off" });
+    await this.#connection.send("Network.emulateNetworkConditions", {
+      offline: false,
+      latency: conditions?.latency ?? 0,
+      downloadThroughput: conditions?.download ?? -1,
+      uploadThroughput: conditions?.upload ?? -1,
+    });
+  }
+
+  /** Runs `source` in every document this tab opens, before anything the page
+   *  itself runs. It is how something that happens *during* load can be
+   *  observed without putting a stopwatch in the page: the page ships what it
+   *  ships, and the harness watches from outside it. */
+  async onNewDocument(source: string): Promise<void> {
+    await this.#connection.send("Page.addScriptToEvaluateOnNewDocument", { source });
+  }
+
+  /** Every event of one protocol method from now on. `Network.enable` has to be
+   *  on for the Network ones, which `network()` does. */
+  collect(method: string): Record<string, unknown>[] {
+    return this.#connection.collect(method);
+  }
+
   async goto(url: string): Promise<void> {
     const loaded = this.#connection.expect("Page.loadEventFired");
     await this.#connection.send("Page.navigate", { url });
@@ -399,11 +492,14 @@ export class Tab {
    *  behaviour (so `click` fires the way it does for a person), and Tab moves
    *  the browser's sequential focus, which is the only way to ask where the
    *  keyboard actually goes next. */
-  async press(key: "Enter" | "Tab" | "Space"): Promise<void> {
+  async press(key: "Enter" | "Tab" | "Space" | "Escape"): Promise<void> {
     const KEYS = {
       Enter: { windowsVirtualKeyCode: 13, key: "Enter", code: "Enter", text: "\r" },
       Tab: { windowsVirtualKeyCode: 9, key: "Tab", code: "Tab", text: "" },
       Space: { windowsVirtualKeyCode: 32, key: " ", code: "Space", text: " " },
+      // No text, so it goes out as a rawKeyDown like Tab does. Escape with a
+      // text payload is a key press nobody's keyboard produces.
+      Escape: { windowsVirtualKeyCode: 27, key: "Escape", code: "Escape", text: "" },
     } as const;
     const { text, ...descriptor } = KEYS[key];
     await this.#connection.send("Input.dispatchKeyEvent", {

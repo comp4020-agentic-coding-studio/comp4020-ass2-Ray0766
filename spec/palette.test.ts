@@ -11,7 +11,7 @@
 // What it guards: the Slop gold is a fill, not ink. Ink is `--at-brand-ink`,
 // which is the gold on the dark theme and the brand's copper on the light one.
 
-import { readFileSync } from "node:fs";
+import { globSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
@@ -230,22 +230,14 @@ describe("every phase colour carries an ink that clears AA on it", () => {
 //   expected [ 'color: var(--at-accent);' ] to deeply equal []
 // then reverted.
 describe("no stylesheet in this project paints the accent as ink", () => {
-  const FILES = [
-    "blind-rung.css",
-    "compare-set.css",
-    "cut.css",
-    "drift-audit.css",
-    "graph-reader.css",
-    "lecture-phases.css",
-    "reading.css",
-    "retention-curve.css",
-    "same-seed.css",
-    "site.css",
-    "studio.css",
-    "studio-canvas.css",
-    "studio-shell.css",
-    "three-second-demo.css",
-  ];
+  // Every stylesheet this project writes, found rather than listed. The list
+  // used to be typed out here, which meant a stylesheet added after it was
+  // written was not checked and nothing said so — backlot.css and
+  // backlot-hud.css both landed outside it. A check whose scope is a hand-kept
+  // enumeration goes quiet exactly when the code grows (CLAUDE.md §7).
+  const FILES = globSync("src/styles/*.css")
+    .map((path) => path.replace(/^src\/styles\//, ""))
+    .sort();
 
   // `background`, `fill` and `accent-color` are fills and stay gold; every
   // other property that can take a colour is ink or a stroke.

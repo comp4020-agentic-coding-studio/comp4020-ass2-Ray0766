@@ -136,7 +136,16 @@ function doorIdFromHref(href: string): string {
   return id;
 }
 
-export const backlotDoors: BacklotDoor[] = siteConfig.links.map((link, order) => {
+// The theme types `links` as optional — a site is allowed to have no nav at
+// all. This one is not: the ring is the nav, so a nav that isn't there is a
+// backlot with nothing in it, and that should stop the build rather than
+// render an empty floor.
+const navLinks = siteConfig.links;
+if (!navLinks?.length) {
+  throw new Error("backlot: siteConfig.links is empty, so there are no doors to stand up");
+}
+
+export const backlotDoors: BacklotDoor[] = navLinks.map((link, order) => {
   const entry = doorKinds[link.href];
   if (!entry) {
     throw new Error(
@@ -168,6 +177,19 @@ function tier(weekNumber: number, tierId: string) {
 
 const anchorFor = (weekNumber: number, tierId: string) =>
   `week-${String(weekNumber).padStart(2, "0")}:${tierId}`;
+
+/**
+ * A tier's poster frame. The schema makes it optional because a tier whose
+ * output is already a still doesn't need one — so a wall that hangs the poster
+ * has to say what it means for there not to be one, rather than hanging
+ * `undefined` and finding out in the browser.
+ */
+function posterOf(rung: { id: string; output: { poster?: string } }): string {
+  if (!rung.output.poster) {
+    throw new Error(`backlot: ${rung.id} has no poster frame to hang`);
+  }
+  return rung.output.poster;
+}
 
 /**
  * The front wall: week 5's prompt ladder, five rungs, as five 9:16 screens.
@@ -249,7 +271,7 @@ const rightWall: BacklotPiece[] = ["t1", "t2", "t3", "t4", "t5"].map((tierId, sl
     wall: "right" as const,
     slot,
     kind: "still" as const,
-    file: rung.output.poster,
+    file: posterOf(rung),
     aspect: [576, 1024] as [number, number],
     caption: `${rung.label} — one prompt, five seeds.`,
     studioAnchor: anchorFor(2, tierId),
@@ -259,11 +281,15 @@ const rightWall: BacklotPiece[] = ["t1", "t2", "t3", "t4", "t5"].map((tierId, sl
 /** The desk: the week 7 workflow graph, on the monitor, readable up close. */
 const deskScreen: BacklotPiece = (() => {
   const { tier: rung } = tier(7, "t1");
-  const graph = typeof rung.input.value === "string" ? rung.input.value : undefined;
-  const file = graph ?? "week07-t1.graph.json";
-  if (!file.endsWith(".graph.json")) {
-    throw new Error(`backlot: week 7 t1 input is not a workflow graph (${file})`);
+  // The input schema is a discriminated union and the field names differ by
+  // kind, so this narrows on the kind rather than going looking for a field.
+  // It used to read `input.value` and fall back to the filename it expected,
+  // which would have hung the right file for the wrong reason on every build
+  // and stayed quiet the day week 7's rung stopped being a graph at all.
+  if (rung.input.kind !== "graph") {
+    throw new Error(`backlot: week 7 t1 is a ${rung.input.kind}, and the monitor shows a graph`);
   }
+  const file = rung.input.file;
   return {
     id: "desk-graph",
     wall: "desk",

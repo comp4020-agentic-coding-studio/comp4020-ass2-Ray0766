@@ -1,13 +1,26 @@
 ---
-// SKELETON — the contract's landing pad, so the engine and the rooms have a
-// route to render into from the first minute. The page's real body is the
-// static gallery: every door as a card, the machine room's pieces and all of
-// their captions, so a reader with no JS gets the whole teaching point and
-// never learns that a 3D version existed.
+// /backlot/ — the course laid out as a place, and the same place as a list.
+//
+// The list below the stage is the page. It is not a summary of something else
+// and it carries no notice about what a browser could not do: every door, every
+// frame on every wall and every note that goes with one is in the DOM before a
+// byte of the island has arrived. A reader with no JS, no WebGL, or a chunk
+// that never lands gets the whole thing, and nothing on the page tells them
+// they are missing anything, because they are not.
+//
+// Nothing here is retyped from the site. The doors are siteConfig.links by way
+// of src/backlot/rooms/manifest.ts, the captions are the notes already written
+// in src/data/studio/*.json, and every href goes through withBase because Pages
+// mounts this site under a sub-path (CLAUDE.md §4).
 import { withBase } from "astro-theme-university/url";
 import StudioLayout from "../../layouts/StudioLayout.astro";
-import { backlotManifest } from "../../backlot/rooms/manifest";
+import { backlotManifest, type BacklotPiece, type BacklotRoom } from "../../backlot/rooms/manifest";
 import "../../styles/backlot.css";
+
+// The Studio's page and the Studio's files are the same directory: every piece
+// is served straight out of public/studio/, and every studioAnchor is a
+// fragment on the page of the same name. One const, so the two cannot drift.
+const studioBase = withBase("/studio/");
 
 // Every href the client sees is already base-resolved: the island never calls
 // withBase, and a root-absolute link would 404 on Pages' sub-path.
@@ -22,55 +35,248 @@ const manifest = {
   })),
 };
 
-const payload = JSON.stringify({ manifest, assetPrefix: withBase("/studio/") }).replace(
+const payload = JSON.stringify({ manifest, assetPrefix: studioBase }).replace(
   /<\/script/gi,
   "<\\/script",
 );
 
+// The same doors again, for the reader rather than the island: `href` is where
+// the card's link goes, `path` is the site's own path, which is what the card
+// says out loud. Mapped off the manifest a second time rather than zipped
+// against the first by index, so there is no order to keep in step.
+const doorCards = backlotManifest.doors.map((door) => ({
+  ...door,
+  path: door.href,
+  href: withBase(door.href),
+}));
+
+// True whether the page is a canvas or a list, which is the only kind of credit
+// this page can carry: it is in the status bar on every visit, and the list
+// closes its own opening paragraph with it.
 const CREDIT_LINE =
-  "The backlot is drawn in the browser from the site's own navigation and the Studio's own manifests. Every frame on a wall is a file the rig recorded.";
+  "The doors are the six links at the top of every page, in the same order. Every frame in the machine room is a file the rig recorded; nothing here is generated in the browser.";
+
+/**
+ * What each wall is called in the list. The room's intro says what hangs where;
+ * these are the headings that let a reader find it again.
+ *
+ * Keyed by the manifest's own wall id, and a wall with no heading is a build
+ * error rather than a group of pieces with nothing over them — same bargain as
+ * `doorKinds` in the manifest, for the same reason.
+ */
+const WALL_HEADINGS: Record<BacklotPiece["wall"], string> = {
+  front: "Front wall — week 5's prompt ladder",
+  left: "Left wall — week 8's continuity references",
+  right: "Right wall — week 2's five seeds",
+  desk: "The desk — week 7's workflow graph",
+};
+
+/** What the link under a piece offers. A clip hangs as its poster frame, so the
+ *  link is to the clip; a still is shown small, so the link is to the file. */
+const FILE_LABEL: Record<BacklotPiece["kind"], string> = {
+  clip: "The recorded clip",
+  still: "The full-size still",
+  graph: "The workflow graph",
+};
+
+/** Pieces grouped by wall, in the order the walls first appear in the room and
+ *  the order the slots run along each one. Derived rather than listed, so a
+ *  piece added to the manifest hangs itself in here. */
+function wallsOf(room: BacklotRoom) {
+  const walls: { wall: BacklotPiece["wall"]; heading: string; pieces: BacklotPiece[] }[] = [];
+  for (const piece of room.pieces) {
+    let group = walls.find((candidate) => candidate.wall === piece.wall);
+    if (!group) {
+      const heading = WALL_HEADINGS[piece.wall];
+      if (!heading) {
+        throw new Error(
+          `backlot: the ${piece.wall} wall has no heading in src/pages/backlot/index.astro, so its ` +
+            `pieces would be listed under nothing. Add one.`,
+        );
+      }
+      group = { wall: piece.wall, heading, pieces: [] };
+      walls.push(group);
+    }
+    group.pieces.push(piece);
+  }
+  for (const group of walls) group.pieces.sort((a, b) => a.slot - b.slot);
+  return walls;
+}
+
+/** The frame the list shows: a clip hangs as its poster, a still as itself. The
+ *  desk's graph is a JSON file with no frame at all, which is why this can come
+ *  back undefined instead of assuming every piece has a picture. */
+function frameOf(piece: BacklotPiece): string | undefined {
+  const file = piece.poster ?? piece.file;
+  return /\.(avif|webp|png|jpe?g)$/.test(file) ? file : undefined;
+}
 ---
 
 <StudioLayout
   title="The backlot"
-  description="The course as a place you can walk: the six doors from the top of every page, stood up in a ring, and the machine room behind the Studio one."
+  description="The course as a place: the six doors from the top of every page stood up in a ring, and the machine room behind the Studio one."
   credit={CREDIT_LINE}
+  place="backlot"
 >
+  {/* Read everywhere, seen nowhere: the stage is the page at every width here,
+      so unlike /studio/ there is no viewport where a heading over it would be
+      heading anything (backlot.css). */}
   <h1 class="studio-shell__title">The backlot</h1>
 
   <script type="application/json" is:inline data-backlot-payload set:html={payload} />
 
-  <section class="backlot-stage" data-backlot-stage hidden aria-label="The backlot">
-    <canvas data-backlot-canvas></canvas>
-    <div data-backlot-hud></div>
-  </section>
+  {/* One stage, and the list lives inside it. The box is never empty: from
+      first paint it holds the gallery, and the gallery is not a placeholder —
+      the door cards are real links, the captions are the real notes, and a
+      reader can use all of it while the island is still on the wire. When the
+      engine has a frame it fades in inside the same box and takes the box over.
 
-  <script src="../../backlot/page/boot.ts"></script>
+      The canvas and the HUD ship `hidden` so that with no JavaScript they are
+      not there at all: a bare <canvas> is `display: inline` with a 300x150
+      intrinsic size, which would be an empty rectangle above the list. boot.ts
+      un-hides the canvas before the engine measures it, and keeps it invisible
+      by opacity until the mode flips. */}
+  <section class="backlot-stage" data-backlot-stage aria-label="The backlot">
+    <canvas class="backlot-stage__canvas" data-backlot-canvas hidden></canvas>
+    <div class="backlot-stage__hud" data-backlot-hud hidden></div>
 
-  <div class="backlot-gallery" id="studio-list" data-studio-fallback>
-    <p>{CREDIT_LINE}</p>
-    <ul>
-      {
-        manifest.doors.map((door) => (
-          <li id={`door-${door.id}`}>
-            <a href={door.href}>{door.label}</a>
-            <p>{door.blurb}</p>
-          </li>
-        ))
-      }
-    </ul>
+    {/* Before the list in the DOM, so the keyboard reaches it in one Tab rather
+        than after six thousand pixels of gallery. Positioned into the corner by
+        backlot.css. Ships hidden; only a boot that has a frame ready *and* has
+        found the reader already using the list ever shows it. */}
+    <button type="button" class="backlot-takeover" data-backlot-takeover hidden>
+      Enter the backlot
+    </button>
+
+    <div class="backlot-gallery" id="studio-list" data-studio-fallback>
+      <div class="backlot-gallery__column">
+    <p class="backlot-gallery__lead">
+      Most of the doors go where their names go. The Studio's opens into the room the recordings
+      came off, with the walls it was shot against. {CREDIT_LINE}
+    </p>
+
+    <section class="backlot-doors" aria-labelledby="backlot-doors-heading">
+      <h2 id="backlot-doors-heading">The doors</h2>
+      <ul class="backlot-doors__list">
+        {
+          doorCards.map((door) => {
+            const room = manifest.rooms.find((candidate) => candidate.id === door.roomId);
+            return (
+              <li class="backlot-door" id={`door-${door.id}`}>
+                <p class="backlot-door__order">Door {door.order + 1} of {doorCards.length}</p>
+                <h3 class="backlot-door__name">
+                  <a class="backlot-door__link" href={door.href}>
+                    {door.label}
+                  </a>
+                </h3>
+                <p class="backlot-door__where">
+                  {room ? (
+                    <Fragment>
+                      <a href={`#${room.id}`}>{room.title}</a> is behind this one, and it keeps its
+                      own way out to <code>{door.path}</code>.
+                    </Fragment>
+                  ) : (
+                    <Fragment>
+                      Goes to <code>{door.path}</code>.
+                    </Fragment>
+                  )}
+                </p>
+                <p class="backlot-door__blurb">{door.blurb}</p>
+              </li>
+            );
+          })
+        }
+      </ul>
+    </section>
+
     {
       manifest.rooms.map((room) => (
-        <section id={room.id}>
-          <h2>{room.title}</h2>
-          <p>{room.intro}</p>
-          <ul>
-            {room.pieces.map((piece) => (
-              <li id={piece.id}>{piece.caption}</li>
-            ))}
-          </ul>
+        <section class="backlot-room" id={room.id} aria-labelledby={`${room.id}-heading`}>
+          <h2 id={`${room.id}-heading`}>{room.title}</h2>
+          <p class="backlot-room__intro">{room.intro}</p>
+          <p class="backlot-room__exit">
+            The same files, with the inputs that produced them and the whole rig around them, are on{" "}
+            <a href={room.href}>the Studio page</a>.
+          </p>
+
+          {wallsOf(room).map((group) => (
+            <section class="backlot-wall" id={`wall-${group.wall}`}>
+              <h3 class="backlot-wall__heading">{group.heading}</h3>
+              <ol class="backlot-wall__pieces">
+                {group.pieces.map((piece) => {
+                  const frame = frameOf(piece);
+                  return (
+                    <li class="backlot-piece" id={piece.id}>
+                      <figure class="backlot-piece__figure">
+                        {frame && (
+                          <img
+                            class="backlot-piece__frame"
+                            src={`${studioBase}${frame}`}
+                            width={piece.aspect[0]}
+                            height={piece.aspect[1]}
+                            loading="lazy"
+                            decoding="async"
+                            alt=""
+                          />
+                        )}
+                        {/* The caption is the piece's description as well as its
+                            note, which is why the frame's alt is empty: the one
+                            sentence anyone here can honestly write about the
+                            picture is already written, in the Studio's own
+                            words, right beside it. */}
+                        <figcaption class="backlot-piece__caption">{piece.caption}</figcaption>
+                      </figure>
+                      <p class="backlot-piece__links">
+                        <a href={`${studioBase}${piece.file}`}>{FILE_LABEL[piece.kind]}</a>
+                        {piece.studioAnchor && (
+                          <Fragment>
+                            {" · "}
+                            <a href={`${studioBase}#${piece.studioAnchor}`}>
+                              Where it sits in the Studio
+                            </a>
+                          </Fragment>
+                        )}
+                      </p>
+                    </li>
+                  );
+                })}
+              </ol>
+            </section>
+          ))}
         </section>
       ))
-    }
-  </div>
+      }
+      </div>
+    </div>
+  </section>
+
+  <script is:inline>
+    // Two things, during parsing, because both have to be true before the
+    // island's module exists — on a slow connection that is two seconds away.
+    //
+    // The box: the stage becomes one viewport tall with its own scroller, so
+    // the gallery inside it is the loading state rather than a hole. Set from
+    // here rather than in the stylesheet so that with JavaScript off there is
+    // no box at all — the stage is natural height, the gallery is the page, and
+    // nothing is scrollable inside anything else.
+    //
+    // The flag: whether the reader has started using the gallery. The takeover
+    // is not allowed to pull the page out from under somebody mid-sentence, and
+    // the window in which they would be reading is exactly the window before
+    // boot.ts runs, so the listeners cannot wait for it.
+    (function () {
+      var stage = document.querySelector("[data-backlot-stage]");
+      var gallery = document.querySelector("[data-studio-fallback]");
+      if (!stage || !gallery) return;
+      stage.setAttribute("data-backlot-box", "");
+      stage.setAttribute("data-backlot-mode", "gallery");
+      var used = function () {
+        stage.setAttribute("data-backlot-used", "");
+      };
+      gallery.addEventListener("focusin", used);
+      gallery.addEventListener("pointerdown", used);
+    })();
+  </script>
+
+  <script src="../../backlot/page/boot.ts"></script>
 </StudioLayout>

@@ -1,5 +1,7 @@
 ---
-// The one page on this site that is not a page: /studio/ is a stage.
+// The two pages on this site that are not pages: /studio/ and /backlot/ are
+// stages. It was one until the backlot was built on the same shape, and the
+// status bar now carries the link between them.
 //
 // Every other route goes through the theme's BaseLayout, which is nav, a
 // prose column and a footer. A canvas inside a prose column was the wrong
@@ -26,6 +28,7 @@ import Nav from "astro-theme-university/components/Nav.astro";
 import OpenGraph from "astro-theme-university/components/OpenGraph.astro";
 import Icon from "astro-theme-university/components/Icon.astro";
 import { resolveSocialImage } from "astro-theme-university/images";
+import { withBase } from "astro-theme-university/url";
 import { siteConfig } from "../site-config";
 import "astro-theme-university/styles/base.css";
 import "astro-theme-university/styles/components.css";
@@ -38,12 +41,22 @@ export interface Props {
   /** The one line of credit under the stage: what the rig was, and that
    *  nothing on this page is generated in the browser. */
   credit: string;
+  /** Which of the two stages this is. The status bar carries a link to the
+   *  other one, and a link to the page it is already on is a dead control. */
+  place?: "studio" | "backlot";
 }
 
-const { title, description, credit } = Astro.props;
+const { title, description, credit, place = "studio" } = Astro.props;
 const { name, links, logo, logoDark, logoCompact, logoCompactDark, socialImage, socialImageAlt } = siteConfig;
 
 const resolvedSocialImage = resolveSocialImage(socialImage);
+
+// Defaulting to "studio" is what keeps /studio/ from having to know this prop
+// exists: the page that was here first says nothing and gets the link out.
+const away =
+  place === "backlot"
+    ? { href: withBase("/studio/"), text: "Open the Studio" }
+    : { href: withBase("/backlot/"), text: "Walk the backlot →" };
 ---
 
 <!doctype html>
@@ -124,6 +137,10 @@ const resolvedSocialImage = resolveSocialImage(socialImage);
         >
           Show as a list
         </button>
+        {/* The way between the two stages, and the only entry to the backlot
+            that is on a page rather than on the home page. It is a link, not a
+            button, because it goes somewhere. */}
+        <a class="studio-status__away at-button at-button--outline" href={away.href}>{away.text}</a>
         <button
           type="button"
           class="studio-status__theme"

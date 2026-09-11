@@ -82,9 +82,16 @@
 }
 
 /* The same treatment the canvas chrome got: quiet text with a border that
-   arrives on hover and on focus, rather than a permanent box. Two small
-   controls at the end of a line, not two buttons in a bar. */
-.studio-status__list.at-button {
+   arrives on hover and on focus, rather than a permanent box. Small controls at
+   the end of a line, not buttons in a bar.
+
+   Three of them now: the list toggle, the theme toggle, and the link to the
+   other stage. The link takes the button treatment rather than a link's,
+   because it sits in a row with the other two, and it must not take the
+   theme's full `.at-button` padding: that would push the bar past the 2.25rem
+   the stage's height arithmetic subtracts. */
+.studio-status__list.at-button,
+.studio-status__away.at-button {
   min-block-size: 1.5rem;
   padding-block: 0;
   padding-inline: var(--at-spacing-xs);
@@ -95,9 +102,24 @@
 }
 
 .studio-status__list.at-button:hover,
-.studio-status__list.at-button:focus-visible {
+.studio-status__list.at-button:focus-visible,
+.studio-status__away.at-button:hover,
+.studio-status__away.at-button:focus-visible {
   border-color: var(--at-brand-ink);
   color: var(--at-brand-ink);
+}
+
+/* The one place the two controls differ, and it is not settled. The theme
+   washes an outline button on hover with `--at-accent-soft`; the link clears
+   it, the button does not. Gold ink over the accent wash is the brand colour
+   doing both jobs at once, which is the thing CLAUDE.md 7 rules out, so the
+   suspicion is that the button is the one that is wrong rather than the link.
+   Neither has been measured on the composite. Left as found rather than made
+   consistent by guessing, because whichever way it goes it changes a control
+   that has been shipping on /studio/. */
+.studio-status__away.at-button:hover,
+.studio-status__away.at-button:focus-visible {
+  background: none;
 }
 
 /* Deliberately not the theme's `.at-footer-theme-toggle`. That class carries

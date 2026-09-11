@@ -1,6 +1,332 @@
-/* The /backlot/ page: the stage that holds the canvas, and the gallery that is
-   the page with JS off.
+/* The /backlot/ page: the stage that holds the canvas, the list that is the
+   page with JS off, and the status bar's link between the backlot and the
+   Studio.
 
    Unlayered, like the rest of this project's CSS — site.css says why. Owned by
    the page half of the backlot work; the HUD's own controls are in
-   backlot-hud.css. */
+   backlot-hud.css.
+
+   That last block is why StudioLayout.astro imports this file rather than only
+   /backlot/ importing it: the link it styles sits in the status bar on both
+   pages the layout serves, and the bar's own stylesheet belongs to somebody
+   else this round. Noted in the receipt as a rule that wants to move. */
+
+/* ------------------------------------------------------------------- stage */
+
+/* The stage is one box, and there is always something in it. With no
+   JavaScript it is not a box at all: no height, no scroller, no positioning —
+   the canvas and the HUD are `hidden` and therefore not there, and the gallery
+   inside is simply the page, at natural height, exactly as it would be if the
+   backlot had never been built.
+
+   Everything below hangs off `[data-backlot-box]`, which the page's own inline
+   script sets during parsing. That is the same bargain `data-reserve` strikes
+   on /studio/ and /cut/ — a layout that only exists when JavaScript does — but
+   it is deliberately not that attribute: `[data-reserve][hidden]` in site.css
+   means "hold space for something that is not here yet", and this box is the
+   opposite. It is full from first paint. */
+.backlot-stage {
+  position: relative;
+}
+
+/* No `display` on the class, on purpose, here or on the canvas. A `display`
+   declared by an author rule beats the UA stylesheet's `[hidden]`, which is the
+   one rule keeping the canvas out of the page for a reader with JS off —
+   measured once as a 1920x923 empty rectangle above the list, and again as a
+   painted control that did nothing. */
+.backlot-stage[data-backlot-box] {
+  block-size: calc(100dvh - var(--at-nav-height) - var(--studio-status-height));
+  overflow: hidden;
+  isolation: isolate;
+  /* The ground the canvas fades in over. With the gallery hidden and the canvas
+     still at zero opacity, this is what is on screen, so it matches the
+     gallery's own ground and the fade has nothing to flash against. */
+  background: var(--at-bg);
+}
+
+.backlot-stage[data-backlot-box] .backlot-stage__canvas,
+.backlot-stage[data-backlot-box] .backlot-stage__hud,
+.backlot-stage[data-backlot-box] .backlot-gallery {
+  position: absolute;
+  inset: 0;
+}
+
+/* Opacity, never `display`, and never `visibility` either: the engine measures
+   this element to size its renderer and counts its first presented frame off it,
+   and a `display: none` canvas reads 0x0. It keeps its box in both modes and
+   only its paint changes. */
+.backlot-stage__canvas {
+  inline-size: 100%;
+  block-size: 100%;
+  opacity: 0;
+  transition: opacity 320ms ease;
+}
+
+[data-backlot-mode="backlot"] .backlot-stage__canvas {
+  opacity: 1;
+}
+
+/* Belt and braces: base.css already forces every transition to 0.01ms under the
+   preference, with `transition-property: all` and an `!important`. Written out
+   anyway so the intent is in this file rather than inherited from a theme rule
+   two packages away — and so that reading it here says what happens. */
+@media (prefers-reduced-motion: reduce) {
+  .backlot-stage__canvas {
+    transition: none;
+  }
+}
+
+/* The HUD's buttons, their ring and the live region are the engine's
+   (backlot-hud.css). All this says is where the layer sits. */
+
+/* --------------------------------------------------------- the way across */
+
+/* Shown only when the engine has a frame ready and the reader was already using
+   the list — the one case where taking the box would be taking it from
+   somebody. In the corner, above the gallery's own scroller. */
+.backlot-takeover {
+  position: absolute;
+  z-index: 2;
+  inset-block-start: var(--at-spacing-md);
+  inset-inline-end: var(--at-spacing-md);
+  display: inline-flex;
+  align-items: center;
+  padding: 0.35rem var(--at-spacing-sm);
+  border: 1px solid var(--at-brand-ink);
+  border-radius: var(--at-border-radius);
+  background: var(--at-bg-elevated);
+  color: var(--at-brand-ink);
+  font: inherit;
+  font-size: var(--at-font-size-sm);
+  cursor: pointer;
+}
+
+/* The escape rule the display above makes necessary, written out rather than
+   assumed: three-second-demo.css records what happens without it, and this page
+   has already been bitten by it twice. */
+.backlot-takeover[hidden] {
+  display: none;
+}
+
+.backlot-takeover:hover {
+  background: var(--at-bg);
+}
+
+.backlot-takeover:focus-visible {
+  outline: 2px solid var(--at-brand-ink);
+  outline-offset: 2px;
+}
+
+/* Read everywhere, seen nowhere. studio-shell.css un-hides the H1 below 641,
+   where /studio/ has no canvas and the list is the page; the backlot has a
+   stage at that width, so a visible heading would push it out of its own height
+   arithmetic. Scoped to the page that has a stage rather than turned off for
+   everybody. */
+.studio-shell:has([data-backlot-stage]) .studio-shell__title {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  /* The phone rules studio-shell.css puts on this heading give it a gutter and
+     a 2rem lead-in; kept, they make the clipped box 36x36 instead of 1x1. */
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* ------------------------------------------------------------- the gallery */
+
+/* Two elements, and the split is what lets the same markup be a page and a
+   panel. `.backlot-gallery` is the scroller — the whole box when there is a
+   box, the whole flow when there is not — and the column inside it is the prose
+   measure, so the text does not run the full width of a 1920 screen. Putting
+   the measure on the scroller instead would leave the sides of the box
+   unscrollable, which is a 6000px list you can only drag by its middle. */
+.backlot-gallery__column {
+  max-inline-size: var(--at-content-width);
+  margin-inline: auto;
+  padding-inline: var(--at-gutter);
+  padding-block: var(--at-spacing-xl);
+  overflow-wrap: break-word;
+}
+
+/* The box is one viewport and the list is about six thousand pixels, so the
+   list scrolls inside it. `overscroll-behavior: contain` is what keeps that
+   scroll from chaining into the page's when it hits either end — with the box
+   on, the document is exactly the viewport and has nothing to scroll, and a
+   chained scroll would be the reader dragging a page that does not move. */
+.backlot-stage[data-backlot-box] .backlot-gallery {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.backlot-gallery__lead {
+  margin-block-start: 0;
+}
+
+.backlot-doors,
+.backlot-room {
+  margin-block-start: var(--at-spacing-xl);
+  padding-block-start: var(--at-spacing-lg);
+  border-block-start: 1px solid var(--at-border);
+}
+
+/* The rule above a section and the heading under it are one gesture. The
+   theme's h2 brings its own lead-in, which on top of the padding put 80px of
+   nothing between the line and the words. */
+.backlot-doors > h2:first-child,
+.backlot-room > h2:first-child {
+  margin-block-start: 0;
+}
+
+/* ---------------------------------------------------------------- the ring */
+
+.backlot-doors__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  gap: var(--at-spacing-md);
+}
+
+.backlot-door {
+  border: 1px solid var(--at-border);
+  border-radius: var(--at-border-radius);
+  padding: var(--at-spacing-md);
+  background: var(--at-bg-alt);
+}
+
+.backlot-door__order {
+  margin: 0;
+  font-size: var(--at-font-size-xs);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--at-text-secondary);
+}
+
+.backlot-door__name {
+  margin-block: var(--at-spacing-xs) var(--at-spacing-sm);
+  font-size: var(--at-font-size-h4);
+}
+
+.backlot-door__where {
+  margin-block: 0 var(--at-spacing-sm);
+  font-size: var(--at-font-size-sm);
+  color: var(--at-text-secondary);
+}
+
+.backlot-door__where code {
+  font-family: var(--at-font-mono);
+  font-size: 0.9em;
+}
+
+.backlot-door__blurb {
+  margin: 0;
+  font-size: var(--at-font-size-sm);
+}
+
+/* ------------------------------------------------------------- the walls */
+
+.backlot-room__intro,
+.backlot-room__exit {
+  max-inline-size: 62ch;
+}
+
+.backlot-wall {
+  margin-block-start: var(--at-spacing-xl);
+}
+
+.backlot-wall__heading {
+  margin-block-end: var(--at-spacing-md);
+  padding-block-end: var(--at-spacing-xs);
+  border-block-end: 1px solid var(--at-divider);
+}
+
+.backlot-wall__pieces {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--at-spacing-lg);
+}
+
+/* A catalogue entry, not a contact sheet: the frame is a thumbnail and the note
+   beside it gets the width a sentence needs. Below 30rem the two stack, because
+   a 7rem picture next to a 6rem column of text is neither. */
+.backlot-piece__figure {
+  margin: 0;
+  display: grid;
+  grid-template-columns: 7rem minmax(0, 1fr);
+  gap: var(--at-spacing-md);
+  align-items: start;
+}
+
+.backlot-piece__frame {
+  inline-size: 100%;
+  block-size: auto;
+  border-radius: var(--at-border-radius);
+  background: var(--at-bg-alt);
+}
+
+/* The desk's graph is a JSON file with no frame, so its caption takes the whole
+   row rather than leaving an empty column where a picture would have been. */
+.backlot-piece__figure:not(:has(.backlot-piece__frame)) {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.backlot-piece__caption {
+  margin: 0;
+}
+
+.backlot-piece__links {
+  margin-block: var(--at-spacing-xs) 0;
+  font-size: var(--at-font-size-sm);
+  color: var(--at-text-secondary);
+}
+
+@media (max-width: 30rem) {
+  .backlot-piece__figure {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .backlot-piece__frame {
+    max-inline-size: 9rem;
+  }
+}
+
+/* "Show as a list" is the reverse switch for the same box: it puts the gallery
+   back over the 3D. Which means it is only a control at all once there is a 3D
+   to put it over — before that the list *is* the box, and hiding it would leave
+   an empty rectangle. So it is off until boot.ts marks the stage ready, and it
+   is off for a reader with no JavaScript, where it never becomes anything.
+
+   Both halves are needed. `.at-button` declares a display, which beats the UA
+   stylesheet's `[hidden] { display: none }` — the same trap three-second-demo.css
+   records, and it was live in this bar: with script execution disabled, "Show as
+   a list" measured 96x27 and visible. Unlayered, so both of these beat the
+   theme's class and studio-shell.css's own phone rule without a specificity
+   fight. */
+.studio-body:has([data-backlot-stage]) .studio-status__list {
+  display: none;
+}
+
+.studio-body:has([data-backlot-stage][data-backlot-ready]) .studio-status__list:not([hidden]) {
+  display: inline-flex;
+}
+
+@media (max-width: 640px) {
+  /* The stage's height subtracts `--studio-status-height`, which is the bar's
+     height on /studio/ — where the bar carries a line of credit. Below 641 the
+     credit is hidden and the bar is its two controls and the rule above them,
+     so 2.25rem over-states it and the stage stops 12px short of the bar: a pale
+     stripe under the scene at 390x844. Restated from what the bar is actually
+     made of rather than measured, so it cannot drift: the controls' own
+     min-block-size plus the 1px border-block-start. Scoped to this page because
+     /studio/ has no canvas at this width for the number to be wrong about. */
+  .studio-body:has([data-backlot-stage]) {
+    --studio-status-height: calc(1.5rem + 1px);
+  }
+
+}

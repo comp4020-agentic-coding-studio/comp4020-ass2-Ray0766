@@ -62,6 +62,10 @@ export interface GodCamera {
   aim(yaw: number, pitch: number): void;
   /** Remember what the god view has to keep in shot: a cylinder, in world units. */
   frame(centre: Vector3, radius: number, height: number): void;
+  /** The same, for a box. A room is framed this way rather than as a cylinder:
+   *  a disc round a square room wastes the corners, and the frustum is centred
+   *  on the content rather than on the floor. */
+  frameBox(min: Vector3, max: Vector3): void;
   /** Viewport pixels to frustum. Safe to call with a zero box; it does nothing. */
   resize(width: number, height: number): void;
   /** Where a viewport point lands on the floor, or null if it misses it. */
@@ -96,7 +100,17 @@ export function createGodCamera(): GodCamera {
   const rig = new Group();
   rig.add(camera);
 
-  const base = { centre: new Vector3(), radius: 1, height: 1 };
+  /** What the resting view has to hold. A cylinder for the hub, which is a ring
+   *  you look down into; a box for a room, which is not. They fit differently
+   *  on purpose — see `fitGod`. */
+  const base = {
+    kind: "cylinder" as "cylinder" | "box",
+    centre: new Vector3(),
+    radius: 1,
+    height: 1,
+    min: new Vector3(),
+    max: new Vector3(),
+  };
   let aspect = 1;
   let aimYaw = 0;
   let aimPitch = 0;
@@ -115,6 +129,7 @@ export function createGodCamera(): GodCamera {
   const offset = new Vector3();
   const pivot = new Vector3();
   const flat = new Vector3();
+  const slide = new Vector3();
 
   const godPosition = new Vector3();
   const godRotation = new Quaternion();
@@ -132,30 +147,59 @@ export function createGodCamera(): GodCamera {
     into.setFromRotationMatrix(look);
   }
 
-  /** The god view's half-height: the bounding cylinder's silhouette measured in
-   *  camera space, grown so the short axis covers it too. Measured rather than
-   *  guessed, because the projected footprint of a tilted cylinder is not its
-   *  radius. */
-  function godHalfHeight(): number {
+  /** The god view's half-height, and how far the camera has to slide along its
+   *  own up axis to put the content in the middle of the frame.
+   *
+   *  The two shapes fit differently, and that is the whole of what gives a room
+   *  its own view. A cylinder is fitted symmetrically about the pivot, which is
+   *  right for the hub: the ring is centred on the floor and the doors stand up
+   *  out of it evenly. A box is fitted to its own camera-space extent and the
+   *  frustum is slid to match. Measured on the machine room, that recentring
+   *  alone is worth 85 -> 108 px per metre, because a symmetric frustum around
+   *  a floor-level pivot spends half its height on empty air under the floor.
+   *
+   *  Measured rather than derived either way: the projected footprint of a
+   *  tilted shape is not its plan. */
+  function fitGod(): { half: number; shiftY: number } {
     intoCamera.copy(camera.matrixWorld).invert();
-    let wide = 0;
-    let tall = 0;
-    for (let step = 0; step < 16; step++) {
-      const angle = (step / 16) * Math.PI * 2;
-      for (const level of [0, base.height]) {
-        corner
-          .set(
+    let minX = Infinity;
+    let maxX = -Infinity;
+    let minY = Infinity;
+    let maxY = -Infinity;
+
+    const take = (x: number, y: number, z: number) => {
+      corner.set(x, y, z).applyMatrix4(intoCamera);
+      minX = Math.min(minX, corner.x);
+      maxX = Math.max(maxX, corner.x);
+      minY = Math.min(minY, corner.y);
+      maxY = Math.max(maxY, corner.y);
+    };
+
+    if (base.kind === "cylinder") {
+      for (let step = 0; step < 16; step++) {
+        const angle = (step / 16) * Math.PI * 2;
+        for (const level of [0, base.height]) {
+          take(
             base.centre.x + Math.cos(angle) * base.radius,
             base.centre.y + level,
             base.centre.z + Math.sin(angle) * base.radius,
-          )
-          .applyMatrix4(intoCamera);
-        wide = Math.max(wide, Math.abs(corner.x));
-        tall = Math.max(tall, Math.abs(corner.y));
+          );
+        }
+      }
+      // Symmetric about the pivot, exactly as the hub has always been fitted.
+      const tall = Math.max(Math.abs(minY), Math.abs(maxY));
+      const wide = Math.max(Math.abs(minX), Math.abs(maxX));
+      return { half: Math.max(tall, wide / aspect) * MARGIN, shiftY: 0 };
+    }
+
+    for (const x of [base.min.x, base.max.x]) {
+      for (const y of [base.min.y, base.max.y]) {
+        for (const z of [base.min.z, base.max.z]) take(x, y, z);
       }
     }
     // Grow whichever axis is short. Never shrink: shrinking is what clips.
-    return Math.max(tall, wide / aspect) * MARGIN;
+    const half = Math.max((maxY - minY) / 2, (maxX - minX) / 2 / aspect) * MARGIN;
+    return { half, shiftY: (maxY + minY) / 2 };
   }
 
   function apply(): void {
@@ -175,7 +219,17 @@ export function createGodCamera(): GodCamera {
     camera.position.copy(godPosition);
     camera.quaternion.copy(godRotation);
     camera.updateMatrixWorld(true);
-    const godHalf = godHalfHeight();
+    const fitted = fitGod();
+    const godHalf = fitted.half;
+    if (fitted.shiftY !== 0) {
+      // An orthographic camera slid along its own up axis just moves the
+      // frustum, so the fit taken a moment ago still holds and there is nothing
+      // to iterate.
+      slide.set(0, 1, 0).applyQuaternion(godRotation);
+      godPosition.addScaledVector(slide, fitted.shiftY);
+      camera.position.copy(godPosition);
+      camera.updateMatrixWorld(true);
+    }
 
     let near = 0.1;
     if (framing && blend > 0) {
@@ -239,9 +293,18 @@ export function createGodCamera(): GodCamera {
     },
 
     frame(centre, radius, height) {
+      base.kind = "cylinder";
       base.centre.copy(centre);
       base.radius = Math.max(radius, 0.001);
       base.height = Math.max(height, 0.001);
+      apply();
+    },
+
+    frameBox(min, max) {
+      base.kind = "box";
+      base.min.copy(min);
+      base.max.copy(max);
+      base.centre.set((min.x + max.x) / 2, 0, (min.z + max.z) / 2);
       apply();
     },
 

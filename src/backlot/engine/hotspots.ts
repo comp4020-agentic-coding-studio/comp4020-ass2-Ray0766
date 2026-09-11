@@ -31,6 +31,9 @@ export interface HotspotHooks {
 const EDGE_INSET = 14;
 /** Clear space kept between two parked buttons before one is pushed down. */
 const GAP = 4;
+/** Roughly what a hotspot measures once its label has come down to the dot.
+ *  Only used to keep two dots off each other, so it does not have to be exact. */
+const DOT_BOX = 30;
 
 interface Parked {
   spec: HotspotSpec;
@@ -38,6 +41,9 @@ interface Parked {
   button: HTMLButtonElement;
   /** Belongs to a room rather than to the hub. */
   scoped: boolean;
+  /** Registered by the engine into the room's scope rather than by the room.
+   *  It is a control the room gets for free, not a thing the room contains. */
+  own: boolean;
   near: boolean;
   enabled: boolean;
   busy: boolean;
@@ -50,6 +56,11 @@ interface Parked {
 
 export interface HotspotDeck {
   api: HotspotApi;
+  /** Register something the engine owns into the current scope. It behaves like
+   *  any other hotspot except that `scopedBounds` does not count it: the way out
+   *  is placed at a point the engine picked, so letting it into the room's
+   *  extent would be the engine measuring itself. */
+  registerOwn(spec: HotspotSpec): Hotspot;
   /** One polite sentence. Re-announced even when the words repeat. */
   announce(message: string): void;
   /** Park every button over its point, in canvas pixels. Called each frame. */
@@ -71,6 +82,15 @@ export interface HotspotDeck {
    *  viewport crossing the phone breakpoint does. */
   remeasure(): void;
   locate(id: string): Vector3 | null;
+  /** The extent of everything **the room itself** registered, or null when the
+   *  room has registered nothing. This is what a room says is worth reaching, so
+   *  it is what its resting view is composed around — and it is why the engine's
+   *  own way-out hotspot is excluded. That one is parked at a point the engine
+   *  chose, 5.6 m back, well outside any room; counting it pinned the near edge
+   *  of every composition to the back wall and made the clamp that reads this
+   *  dead on every room, always. Found by the rooms owner, who moved their
+   *  furthest hotspot 2.9 m and got byte-identical output both times. */
+  scopedBounds(): { min: Vector3; max: Vector3 } | null;
   buttonFor(id: string): HTMLButtonElement | null;
   /** Everything registered after this belongs to the room, and goes when it does. */
   beginScope(): void;
@@ -109,7 +129,7 @@ export function createHotspots(hud: HTMLElement, camera: OrthographicCamera, hoo
     entry.button.setAttribute("aria-disabled", entry.enabled ? "false" : "true");
   }
 
-  function register(spec: HotspotSpec): Hotspot {
+  function register(spec: HotspotSpec, own = false): Hotspot {
     const button = document.createElement("button");
     button.type = "button";
     button.className = "backlot-hotspot";
@@ -130,6 +150,7 @@ export function createHotspots(hud: HTMLElement, camera: OrthographicCamera, hoo
       spec,
       button,
       scoped: scoping,
+      own,
       near: false,
       enabled: true,
       busy: false,
@@ -182,48 +203,87 @@ export function createHotspots(hud: HTMLElement, camera: OrthographicCamera, hoo
   }
 
   return {
-    api: { register } satisfies HotspotApi,
+    api: { register: (spec) => register(spec) } satisfies HotspotApi,
+
+    registerOwn(spec) {
+      return register(spec, true);
+    },
 
     announce: announcer,
 
     park(width, height) {
       if (width <= 0 || height <= 0) return;
       placed.length = 0;
+
+      // Project everything first: where a label can go depends on where its
+      // neighbours are, so nothing can be decided one button at a time.
+      const live: { entry: Parked; x: number; y: number; clamped: boolean }[] = [];
       for (const entry of parked) {
         if (entry.button.hidden) continue;
-
         projected.copy(entry.spec.position).project(camera);
         const behind = projected.z > 1 || projected.z < -1;
         const rawX = (projected.x * 0.5 + 0.5) * width;
         const rawY = (-projected.y * 0.5 + 0.5) * height;
-        let x = Math.min(Math.max(rawX, EDGE_INSET), width - EDGE_INSET);
-        let y = Math.min(Math.max(rawY, EDGE_INSET), height - EDGE_INSET);
-        const clamped = x !== rawX || y !== rawY || behind;
-
+        const x = Math.min(Math.max(rawX, EDGE_INSET), width - EDGE_INSET);
+        const y = Math.min(Math.max(rawY, EDGE_INSET), height - EDGE_INSET);
         if (entry.width === 0) {
+          // Measured with the label showing, and kept. A dense button's own box
+          // is the dot, so re-measuring one would read the wrong number and the
+          // decision below would flip-flop frame to frame.
           const box = entry.button.getBoundingClientRect();
           entry.width = box.width;
           entry.height = box.height;
         }
+        live.push({ entry, x, y, clamped: x !== rawX || y !== rawY || behind });
+      }
 
-        // Five frames in a row on a wall put five labels in the same 600 px,
-        // and five overlapping labels are none. So: parked over the thing it
-        // acts on, and pushed straight down only far enough to stop being
-        // covered by one already placed. Registration order wins, which makes
-        // the arrangement stable from frame to frame rather than a shuffle.
+      // A label that covers the thing it names is worse than no label on the
+      // canvas at all: five clips in a row on a wall are 143 px wide at
+      // 1920x1080 and their labels are up to 320, so laying them out at all
+      // means laying them across the artwork. Where the anchors are closer
+      // together than the labels are wide, the labels come down to their dot
+      // and come back on hover or focus. The dot still marks the thing, the
+      // accessible name never changes, and the gallery has every caption in
+      // text regardless.
+      //
+      // The test is the distance between anchors against the *labelled* widths,
+      // never against what is currently rendered — a button that is already
+      // dense measures narrow, which would un-dense it, which would widen it
+      // again. Deciding from a quantity the decision cannot change is what
+      // makes this hold still.
+      for (const one of live) {
+        const crowded = live.some(
+          (other) =>
+            other !== one &&
+            Math.abs(other.x - one.x) < (other.entry.width + one.entry.width) / 2 + GAP &&
+            Math.abs(other.y - one.y) < (other.entry.height + one.entry.height) / 2 + GAP,
+        );
+        if (crowded) one.entry.button.dataset.backlotDense = "true";
+        else delete one.entry.button.dataset.backlotDense;
+      }
+
+      for (const one of live) {
+        const { entry } = one;
+        const dense = entry.button.dataset.backlotDense === "true";
+        const boxWidth = dense ? DOT_BOX : entry.width;
+        const boxHeight = dense ? DOT_BOX : entry.height;
+        let y = one.y;
+        // Whatever is left after the labels have come down — two dots on top of
+        // each other — still gets nudged apart, downwards, in registration
+        // order so the arrangement is stable rather than a shuffle.
         for (let attempt = 0; attempt < 8; attempt++) {
           const clash = placed.find(
             (other) =>
-              Math.abs(other.x - x) < (other.width + entry.width) / 2 + GAP &&
-              Math.abs(other.y - y) < (other.height + entry.height) / 2 + GAP,
+              Math.abs(other.x - one.x) < (other.width + boxWidth) / 2 + GAP &&
+              Math.abs(other.y - y) < (other.height + boxHeight) / 2 + GAP,
           );
           if (!clash) break;
-          y = clash.y + (clash.height + entry.height) / 2 + GAP;
+          y = clash.y + (clash.height + boxHeight) / 2 + GAP;
         }
         y = Math.min(y, height - EDGE_INSET);
-        placed.push({ x, y, width: entry.width, height: entry.height });
+        placed.push({ x: one.x, y, width: boxWidth, height: boxHeight });
 
-        const roundedX = Math.round(x);
+        const roundedX = Math.round(one.x);
         const roundedY = Math.round(y);
         if (roundedX !== entry.x || roundedY !== entry.y) {
           entry.x = roundedX;
@@ -237,13 +297,18 @@ export function createHotspots(hud: HTMLElement, camera: OrthographicCamera, hoo
         // Off the edge of the frame is a styling state, never a removal: a
         // button that leaves the tab order because the camera moved is a
         // control that disappeared under the reader's hand.
-        if (clamped) entry.button.dataset.backlotEdge = "true";
+        if (one.clamped) entry.button.dataset.backlotEdge = "true";
         else delete entry.button.dataset.backlotEdge;
       }
     },
 
     remeasure() {
-      for (const entry of parked) entry.width = 0;
+      for (const entry of parked) {
+        // The label has to be showing to be measured, so the dense state comes
+        // off first and the next park decides it again from scratch.
+        delete entry.button.dataset.backlotDense;
+        entry.width = 0;
+      }
     },
 
     track(position, seed = false) {
@@ -271,6 +336,18 @@ export function createHotspots(hud: HTMLElement, camera: OrthographicCamera, hoo
 
     locate(id) {
       return parked.find((entry) => entry.spec.id === id)?.spec.position ?? null;
+    },
+
+    scopedBounds() {
+      const marks = parked.filter((entry) => entry.scoped && !entry.own);
+      if (marks.length === 0) return null;
+      const min = marks[0]!.spec.position.clone();
+      const max = min.clone();
+      for (const entry of marks) {
+        min.min(entry.spec.position);
+        max.max(entry.spec.position);
+      }
+      return { min, max };
     },
 
     buttonFor(id) {

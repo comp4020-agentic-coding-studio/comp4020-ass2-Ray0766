@@ -29,24 +29,35 @@ import { Painter, type Role } from "./palette";
 // --------------------------------------------------------------- dimensions
 
 /**
- * Metres. Wide enough for five 9:16 screens along the front, deep enough for
- * five stills down each side, and square.
+ * Metres. Five 9:16 screens across one end, five stills down each side, a desk,
+ * a tower, a chair, and room to walk between them — 5.8 wide, 4.6 deep, 2.2 to
+ * the ceiling.
  *
- * Square is not a taste decision. The engine bounds the figure with a circle of
- * `max(size.x, size.z) / 2` taken off the room's own bounding box
- * (src/backlot/engine/index.ts, enterRoom), so in an oblong room the circle
- * reaches past the short pair of walls: at 9 × 7.6 the figure walked three
- * metres straight ahead and came out the far side of the front wall, which I
- * watched happen. On a square the circle is inscribed, and the walls hold.
+ * It was 7.6 square, and 7.6 square is not what this room is. It is one
+ * person's rig in one room; a real room of that description is four to five
+ * metres, and the only reason this one is 5.8 across is that the manifest hangs
+ * a five-rung ladder along that wall and the rungs have to stay big enough to
+ * read. So the depth came down and the width did not.
+ *
+ * Depth is the lever, and it is the only one I own. The frame is 2.08:1 and the
+ * room's plan is 1.26:1, so the composition is height-bound: the vertical
+ * extent the camera has to hold is `height × cos(tilt) + depth × sin(tilt)`,
+ * width does not enter it, and narrowing the room would shrink the screens for
+ * nothing. Measured at 1920×1080, with the engine's room camera: 145 px per
+ * metre at 5.8 × 5.8 × 2.2, 184 at 5.8 × 4.6 × 2.2. The furniture is what that
+ * buys — a desk is 1.8 m whatever the room is, so every metre off the depth is
+ * a fifth more desk, tower and chair on screen. The pictures on the side walls
+ * are laid out along that depth and would shrink with it, so the clear margin
+ * at each end of a run came down with it too, which holds them where they were.
  */
 export const ROOM = {
-  width: 7.6,
-  depth: 7.6,
-  height: 3.6,
+  width: 5.8,
+  depth: 4.6,
+  height: 2.2,
   /** How far off a wall a frame's face sits, so it never z-fights the wall. */
   relief: 0.04,
   /** Where the figure stands to read a frame, measured out along its normal. */
-  standOff: 1.7,
+  standOff: 0.9,
   /** The side walls' frames stand off the wall and turn toward the open side,
    *  which is the only reason they are visible at all: the camera is fixed,
    *  looks down the room's long axis, and a picture flat on a side wall is
@@ -55,6 +66,8 @@ export const ROOM = {
   rake: 0.45,
   /** How much +z the side normals carry. 0 is flat on the wall. */
   rakeTurn: 0.85,
+  /** Clear floor at each end of a run of frames. */
+  margin: 0.7,
 };
 
 /** How the picture fades up over its fill once a texture lands. Seconds. */
@@ -104,7 +117,7 @@ export interface MountSurface {
   heightHint?: number;
 }
 
-const FRAME_HEIGHT = 1.62;
+const FRAME_HEIGHT = 1.28;
 
 /** A stride past the stand point. */
 const reachOf = (surface: MountSurface | undefined): number =>
@@ -129,8 +142,8 @@ export function fitInside(aspect: [number, number], box: { width: number; height
  * side wall runs the way it reads when the figure turns to face it.
  */
 export function wallSurfaces(pieceCounts: Record<string, number>): Record<string, MountSurface> {
-  const frontSpan = ROOM.width - 1.2;
-  const sideSpan = ROOM.depth - 1.2;
+  const frontSpan = ROOM.width - ROOM.margin;
+  const sideSpan = ROOM.depth - ROOM.margin;
   const frontSlots = Math.max(1, pieceCounts.front ?? 1);
   const sideSlots = Math.max(1, pieceCounts.left ?? pieceCounts.right ?? 1);
   const frontPitch = frontSpan / frontSlots;
@@ -142,7 +155,7 @@ export function wallSurfaces(pieceCounts: Record<string, number>): Record<string
       along: new Vector3(1, 0, 0),
       normal: new Vector3(0, 0, 1),
       pitch: frontPitch,
-      box: { width: frontPitch - 0.26, height: 2.4 },
+      box: { width: frontPitch - 0.2, height: 1.6 },
       standOff: ROOM.standOff,
     },
     left: {
@@ -150,7 +163,7 @@ export function wallSurfaces(pieceCounts: Record<string, number>): Record<string
       along: new Vector3(0, 0, -1),
       normal: new Vector3(1, 0, ROOM.rakeTurn).normalize(),
       pitch: sidePitch,
-      box: { width: sidePitch - 0.28, height: 1.6 },
+      box: { width: sidePitch - 0.22, height: 1.3 },
       standOff: ROOM.standOff,
     },
     right: {
@@ -158,7 +171,7 @@ export function wallSurfaces(pieceCounts: Record<string, number>): Record<string
       along: new Vector3(0, 0, 1),
       normal: new Vector3(-1, 0, ROOM.rakeTurn).normalize(),
       pitch: sidePitch,
-      box: { width: sidePitch - 0.28, height: 1.6 },
+      box: { width: sidePitch - 0.22, height: 1.3 },
       standOff: ROOM.standOff,
     },
   };
@@ -375,6 +388,8 @@ export function buildRoomShell(context: RoomContext, options: ShellOptions = {})
   let takePlaceAt: PieceFrame | null = null;
   let stillFor = 0;
   const wasAt = new Vector3();
+  /** The focus each framed piece asked for, by piece id. */
+  const placeFocus = new Map<string, Omit<FocusRequest, "target">>();
 
   const stopFrame = context.onFrame((delta) => {
     for (const item of ticking) item.tick(delta);
@@ -386,6 +401,7 @@ export function buildRoomShell(context: RoomContext, options: ShellOptions = {})
     if (stillFor < SETTLE_SECONDS) return;
     const place = takePlaceAt;
     takePlaceAt = null;
+    void context.focus({ target: place.centre.clone(), ...(placeFocus.get(place.piece.id) ?? { radius: 0.5 }) });
     if (context.player.position.distanceTo(place.standPoint) > 0.3) void context.player.walkTo(place.standPoint);
   });
 
@@ -414,6 +430,7 @@ export function buildRoomShell(context: RoomContext, options: ShellOptions = {})
     }
     const arrival = options.arrivalFor?.(interactive, frame);
     const focus = frame ? options.focusFor?.(interactive, frame) : undefined;
+    if (frame && focus) placeFocus.set(frame.piece.id, focus);
     const hotspot = context.hotspots.register({
       id: interactive.id,
       // A stride past the stand point, so arriving counts and the screen next
@@ -436,16 +453,22 @@ export function buildRoomShell(context: RoomContext, options: ShellOptions = {})
                 context.unfocus();
                 return;
               }
-              // The camera comes in at once. Taking a place at the thing waits
-              // until the figure has stopped: the projection is orthographic,
-              // so a figure between the camera and a framed panel is the same
-              // size as the panel and covers it — walking up with the keys put
-              // the reader's own avatar across half the graph, which I watched
-              // happen — but walking *past* it and being dragged back is worse,
-              // and that is what an immediate walkTo here did.
+              // Arriving is stopping, not passing. Both halves of it wait for
+              // the figure to stand still:
+              //
+              //   the camera, because the way from the door to the wall of
+              //   screens goes within half a metre of the desk, so framing on
+              //   the crossing would lunge the view in and out every time the
+              //   reader walked the room;
+              //
+              //   and the figure's own place at the thing, because the
+              //   projection is orthographic — a figure between the camera and
+              //   a framed panel is the same size as the panel and covers it —
+              //   but being dragged back to a desk you were walking past is
+              //   worse than covering it, and that is what an immediate walkTo
+              //   here did. Both watched happen.
               takePlaceAt = frame;
               stillFor = 0;
-              void context.focus({ target: frame.centre.clone(), ...focus });
             },
           }
         : {}),

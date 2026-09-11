@@ -50,8 +50,10 @@ function at<T extends Mesh>(mesh: T, x: number, y: number, z: number): T {
 
 export const DESK = {
   /** Where the desk stands, and which way the monitor faces (+z: back at the
-   *  reader, the wall of takes beyond it). */
-  centre: new Vector3(-0.4, 0, 1.4),
+   *  reader, the wall of takes beyond it). Off centre and a third of the way
+   *  back, so the fit-out reads as a line across the middle of the shot rather
+   *  than a clump in one corner of an empty floor. */
+  centre: new Vector3(-0.85, 0, 0.1),
   top: 0.74,
   width: 1.8,
   depth: 0.8,
@@ -138,14 +140,26 @@ export function buildMonitor(kit: Kit, panelHeight: number): MonitorBuild {
 
 // ---------------------------------------------------------------- the tower
 
-/** A current mid-tower: 230 wide, 480 tall, 470 deep, glass on the side that
- *  faces the room. The numbers are the class of machine, not a machine. */
+/**
+ * A current mid-tower: 230 wide, 480 tall, 470 deep, glass on the side that
+ * faces the room. The numbers are the class of machine, not a machine.
+ *
+ * It used to live under the desk, which is where a tower goes and where this
+ * camera cannot see it: at 52° above the floor the desk top covers everything
+ * under it, and the tower was not dim or small in the resting shot, it was
+ * absent. So it stands beside the desk with its glass turned to the camera,
+ * which is also how a machine like this is actually photographed — 0.47 m of
+ * side on, 54 px at the room's own scale, with the card and the radiator and
+ * the light inside it all in shot.
+ */
 export const TOWER = {
   width: 0.23,
   height: 0.48,
   depth: 0.47,
   /** Relative to the desk group. */
-  centre: new Vector3(0.66, 0, 0.02),
+  centre: new Vector3(1.4, 0, 0.5),
+  /** Turned a quarter so the glass faces the camera rather than the wall. */
+  turn: -Math.PI / 2,
   /** A PCI slot's pitch, so a three-slot card is three of them. */
   slotPitch: 0.02032,
 };
@@ -159,6 +173,7 @@ export interface TowerBuild {
 export function buildTower(kit: Kit): TowerBuild {
   const group = new Group();
   group.position.copy(TOWER.centre);
+  group.rotation.y = TOWER.turn;
 
   const half = { x: TOWER.width / 2, y: TOWER.height / 2, z: TOWER.depth / 2 };
   const shellMaterial = kit.painter.lit("caseShell");
@@ -260,8 +275,10 @@ export function buildTower(kit: Kit): TowerBuild {
   }
 
   // Lit from inside, steady. Nothing in this room breathes.
-  const interior = kit.painter.lamp(new PointLight(undefined, 1.4, 0.95, 2), "caseGlow");
-  interior.position.set(0, 0.3, 0.02);
+  const interior = kit.painter.lamp(new PointLight(undefined, 1.4, 0.8, 1.6), "caseGlow");
+  // Behind the card rather than in the middle of the case, so what the glass
+  // shows is the card and the radiator lit from behind rather than a lamp.
+  interior.position.set(-0.05, 0.36, -0.12);
   group.add(interior);
 
   return { group, interior };
@@ -269,42 +286,58 @@ export function buildTower(kit: Kit): TowerBuild {
 
 // ---------------------------------------------------------------- the cables
 
-/** From the back of the desk down to the back of the tower, which is the one
- *  place in a room like this where cable is always visible. */
+/**
+ * From the back of the desk across the open floor to the tower.
+ *
+ * Two things had to change before this read at all. It ran behind the desk,
+ * where the desk top hides it from a camera 52° above the floor; it now crosses
+ * the gap between the desk and the tower, which is the one stretch of floor
+ * nothing else is standing on. And it was 8 mm — 0.9 px at the room's scale,
+ * which is not a cable, it is nothing. A power lead, a display lead and a USB
+ * lead taped together is about 24 mm, so that is what this is: 2.8 px, a line
+ * you can see.
+ */
+const CABLE_RADIUS = 0.012;
+
 export function buildCables(kit: Kit): Group {
   const cables = new Group();
   const material = kit.painter.lit("cable");
+  const toTower = TOWER.centre.x;
   const runs: Vector3[][] = [
+    // Monitor and power, off the desk's right end and along the floor.
     [
-      new Vector3(0, DESK.top - 0.02, -0.05),
-      new Vector3(0.2, DESK.top - 0.06, 0.1),
-      new Vector3(0.5, 0.52, 0.18),
-      new Vector3(0.64, 0.36, 0.24),
-      new Vector3(TOWER.centre.x, 0.3, TOWER.depth / 2 + 0.01),
+      new Vector3(0.62, DESK.top - 0.05, 0.12),
+      new Vector3(0.8, 0.52, 0.2),
+      new Vector3(0.96, 0.2, 0.3),
+      new Vector3(toTower - 0.28, 0.035, 0.46),
+      new Vector3(toTower - 0.1, 0.05, 0.52),
     ],
+    // The slack loop every desk has, on the floor where it is seen.
     [
-      new Vector3(TOWER.centre.x - 0.04, 0.16, TOWER.depth / 2 + 0.01),
-      new Vector3(0.8, 0.1, 0.34),
-      new Vector3(0.95, 0.02, 0.2),
-      new Vector3(0.86, 0.02, -0.16),
+      new Vector3(toTower - 0.12, 0.035, 0.58),
+      new Vector3(toTower - 0.42, 0.035, 0.72),
+      new Vector3(toTower - 0.5, 0.035, 0.44),
+      new Vector3(toTower - 0.24, 0.035, 0.36),
     ],
+    // Wall power, out of the back of the tower and away to the right.
     [
-      new Vector3(TOWER.centre.x + 0.05, 0.22, TOWER.depth / 2 + 0.01),
-      new Vector3(0.82, 0.26, 0.36),
-      new Vector3(0.72, 0.13, 0.42),
-      new Vector3(0.6, 0.02, 0.3),
+      new Vector3(toTower + 0.1, 0.08, 0.4),
+      new Vector3(toTower + 0.34, 0.035, 0.3),
+      new Vector3(toTower + 0.62, 0.035, 0.14),
     ],
   ];
   for (const run of runs) {
     const curve = new CatmullRomCurve3(run);
-    cables.add(new Mesh(kit.track(new TubeGeometry(curve, 40, 0.008, 7, false)), material));
+    cables.add(new Mesh(kit.track(new TubeGeometry(curve, 40, CABLE_RADIUS, 7, false)), material));
   }
   return cables;
 }
 
 // ----------------------------------------------------------------- the chair
 
-export const CHAIR = { centre: new Vector3(0.5, 0, 2.5), turn: 0.42 };
+/** Beside the desk rather than behind it: the camera looks down the room, so
+ *  anything tucked in behind another prop is a prop nobody sees. */
+export const CHAIR = { centre: new Vector3(1.25, 0, 0.8), turn: 0.55 };
 
 export interface ChairBuild {
   /** Positioned and turned. The jacket hangs off this, whatever is under it. */
@@ -456,20 +489,28 @@ export function buildMug(kit: Kit): Group {
   return mug;
 }
 
-/** A stack of storyboards, squared off badly, which is how a stack of paper
- *  someone has been through actually sits. */
-export function buildStoryboards(kit: Kit, sheets = 9): Group {
+/**
+ * A stack of storyboards, squared off badly, which is how a stack of paper
+ * someone has been through actually sits — leaned against the end of the desk
+ * rather than lying on it.
+ *
+ * Flat on the desk an A4 sheet is 0.297 × 0.21 m, and at 52° above the floor
+ * that foreshortens to about 34 × 15 px: a smudge. Leaned up, the same stack
+ * turns its face to the camera. A3 rather than A4 because that is the size a
+ * board is drawn at, and because 0.42 m reads and 0.297 m does not.
+ */
+export function buildStoryboards(kit: Kit, sheets = 12): Group {
   const stack = new Group();
-  const geometry = kit.track(new BoxGeometry(0.297, 0.0022, 0.21));
+  const geometry = kit.track(new BoxGeometry(0.42, 0.0024, 0.297));
   const paper = kit.painter.lit("paper");
   const edge = kit.painter.lit("paperEdge");
   for (let i = 0; i < sheets; i += 1) {
     const sheet = new Mesh(geometry, i % 4 === 3 ? edge : paper);
     // Deterministic, not random: a stack that reshuffles on every entry is a
     // stack nobody can recognise as the same stack.
-    const drift = Math.sin(i * 2.4) * 0.008;
-    sheet.position.set(drift, i * 0.0023, Math.cos(i * 1.7) * 0.007);
-    sheet.rotation.y = Math.sin(i * 1.1) * 0.05;
+    const drift = Math.sin(i * 2.4) * 0.009;
+    sheet.position.set(drift, i * 0.0026, Math.cos(i * 1.7) * 0.008);
+    sheet.rotation.y = Math.sin(i * 1.1) * 0.04;
     stack.add(sheet);
   }
   return stack;

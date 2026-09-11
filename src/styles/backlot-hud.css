@@ -61,7 +61,12 @@
   display: inline-flex;
   align-items: center;
   gap: var(--at-spacing-xs);
-  max-inline-size: 14rem;
+  /* Wide enough that nothing in the manifest is clipped. The longest label the
+     backlot has is "Play contradictory prompt (counter-example)"; at 14rem it
+     came back with an ellipsis, which is a design decision made by a default
+     rather than on purpose. The labels that would not fit anywhere are the
+     crowded ones, and those come down to their dot instead of being cut. */
+  max-inline-size: 20rem;
   padding: 0.25rem var(--at-spacing-sm);
   border: 1px solid var(--at-border);
   border-radius: 999px;
@@ -104,6 +109,58 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* ------------------------------------------------------------------- dense */
+
+/* Crowded: the engine found this button's label would land across a neighbour,
+   so it has come down to its dot. The name is unchanged in the DOM and so is
+   the accessible name — only the painted text goes, and it comes back below on
+   hover and on focus.
+
+   This is what replaced pushing the labels downwards until they stopped
+   colliding, which resolved the collision by laying every label across the
+   picture it named. A label that covers the thing it labels is worse than one
+   that is not painted at all, because the dot still says where the thing is and
+   the list under the stage still has every caption in words. */
+.backlot-hotspot[data-backlot-dense="true"] {
+  padding: var(--at-spacing-xs);
+}
+
+.backlot-hotspot[data-backlot-dense="true"] .backlot-hotspot__label {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* Back on demand, and floated beside the dot rather than inside the button:
+   growing the button would move the dot off the thing it marks, because the
+   button is centred on its own anchor. */
+.backlot-hotspot[data-backlot-dense="true"]:hover,
+.backlot-hotspot[data-backlot-dense="true"]:focus-visible {
+  z-index: 1;
+}
+
+.backlot-hotspot[data-backlot-dense="true"]:hover .backlot-hotspot__label,
+.backlot-hotspot[data-backlot-dense="true"]:focus-visible .backlot-hotspot__label {
+  inset-block-start: 50%;
+  inset-inline-start: 100%;
+  inline-size: max-content;
+  max-inline-size: 20rem;
+  block-size: auto;
+  margin: 0 0 0 var(--at-spacing-xs);
+  padding: 0.2rem var(--at-spacing-sm);
+  overflow: visible;
+  clip-path: none;
+  translate: 0 -50%;
+  border: 1px solid var(--at-border);
+  border-radius: 999px;
+  background: var(--at-bg);
+  color: var(--at-text);
 }
 
 .backlot-hotspot:hover {

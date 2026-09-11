@@ -18,10 +18,13 @@ import { MeshBasicMaterial, MeshLambertMaterial } from "three";
 
 /** Every surface in the room, and the token it is painted from. */
 export const TOKENS = {
-  // the shell
-  floor: "--at-bg",
+  // The shell. The floor takes the palette's lightest surface and the walls its
+  // middle one, which is the other way round from a real room and right for
+  // this one: the camera looks down, so the floor is most of what is on screen,
+  // and the walls are backing for pictures that are lit from inside themselves.
+  floor: "--at-bg-elevated",
   wall: "--at-bg-alt",
-  ceiling: "--at-bg-elevated",
+  ceiling: "--at-bg-alt",
   skirting: "--at-border",
 
   // a frame on a wall
@@ -29,13 +32,13 @@ export const TOKENS = {
   frameFill: "--at-bg-elevated",
 
   // the fit-out
-  deskTop: "--at-bg-elevated",
+  deskTop: "--at-divider",
   deskFrame: "--at-tertiary",
   caseShell: "--at-tertiary",
   casePanel: "--at-border",
   caseInterior: "--at-black",
   caseGlow: "--at-primary",
-  board: "--at-bg-alt",
+  board: "--at-divider",
   fan: "--at-divider",
   cable: "--at-divider",
   bezel: "--at-black",
@@ -43,7 +46,7 @@ export const TOKENS = {
   coffee: "--at-secondary",
   paper: "--at-bg-elevated",
   paperEdge: "--at-border",
-  jacket: "--at-secondary",
+  jacket: "--at-border",
 
   // light
   screenLight: "--at-white",

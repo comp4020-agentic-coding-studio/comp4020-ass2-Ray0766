@@ -40,6 +40,16 @@ const HUB_LABEL =
 /** How long a leaf is given to swing before the door does what it is for. */
 const OPEN_MILLISECONDS = 420;
 
+/** Metres of floor kept in shot past the nearest thing a room registered. */
+const NEAR_MARGIN = 0.4;
+/** And metres of wall kept above the highest of them, so a picture is not
+ *  guillotined by the top of the frame. */
+const HEAD_ROOM = 1.05;
+/** How far inside the near edge of the shot the figure is allowed to walk. */
+const EDGE_OF_SHOT = 0.6;
+/** And how far off a wall it stops, so it never stands inside one. */
+const WALL_CLEARANCE = 0.6;
+
 const wait = (milliseconds: number) => new Promise<void>((settle) => window.setTimeout(settle, milliseconds));
 
 /** "The machine room" mid-sentence is "the machine room". Only the first letter,
@@ -133,16 +143,28 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
   let aimPitch = 0;
   /** The label of whatever the camera is close on, or null for the wide view. */
   let framedLabel: string | null = null;
+  /** Something the reader has just backed out of. A room frames from a
+   *  hotspot's proximity, and a room also walks the figure to the thing it has
+   *  just been asked about — so an Esc pressed while that walk is still running
+   *  used to be undone by the arrival a moment later, and the reader could press
+   *  Esc twice and still be nose-first against the monitor. A request to frame
+   *  this again is ignored until the figure has actually been away from it. */
+  let refused: { at: Vector3; clear: number } | null = null;
 
   const announce = (message: string) => hotspots.announce(message);
 
   /** Back to the fixed god view, if there is anything to come back from. */
   function releaseFraming(speak: boolean): boolean {
     if (!camera.framed) return false;
+    const was = camera.framedTarget;
+    const reach = Math.max(camera.framedRadius * 6, 3);
     camera.release(motion.reduced);
     framingArmed = false;
     framedLabel = null;
     describeCanvas();
+    // Only a release the reader asked for countermands a pending arrival. The
+    // walk-away rule calls this too, and there the figure is already clear.
+    if (speak && was) refused = { at: was.clone(), clear: reach };
     if (speak) announce("Pulled back.");
     return true;
   }
@@ -175,6 +197,7 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
     camera.release(true);
     framingArmed = false;
     framedLabel = null;
+    refused = null;
     // A room that forgot to release a clip does not get to keep the decoder.
     layers.releaseVideos();
     hotspots.endScope();
@@ -209,7 +232,7 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
     // control in Tab order and so a room that builds nothing is still a room
     // you can leave.
     hotspots.beginScope();
-    const leave = hotspots.api.register({
+    const leave = hotspots.registerOwn({
       id: `${room.id}:leave`,
       label: "Back to the backlot",
       position: new Vector3(0, 1.7, 5.6),
@@ -228,6 +251,9 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
       player,
       announce,
       async focus(request) {
+        // Backed out of a moment ago and not left since: the reader's Esc wins
+        // over a proximity that is only now catching up with it.
+        if (refused && request.target.distanceTo(refused.at) < 0.5) return;
         await camera.focusOn(request.target, request.radius, request.normal, motion.reduced);
         framingArmed = false;
       },
@@ -261,19 +287,46 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
 
     hub.group.visible = false;
 
-    // The room decides its own size, so the camera is fitted to what the
-    // builder actually put in the group rather than to a number agreed in
-    // advance. An empty group falls back to the hub's framing.
+    // A room gets its own resting view rather than the hub's.
+    //
+    // The hub is a ring you look down into and its camera is fitted to a
+    // cylinder. A room is a box with its content on the walls and on one desk,
+    // and fitting it the hub's way spent the frame on three things nobody needs
+    // to see: the ceiling, the empty floor behind the reader, and — because a
+    // cylinder fit is symmetric about a floor-level pivot — as much empty air
+    // under the floor as there was room above it. Measured on the machine room
+    // at 1920x1080, the three together cost more than half the scale: 85 px per
+    // metre as it was against 128 with them taken out, which is the desk going
+    // from 153 px across to 231.
+    //
+    // What stays in shot: the room's full width, everything from the far wall
+    // to just past the furthest thing the room registered, and up to a head
+    // above the highest of them. What goes: the ceiling and the near floor.
     const box = new Box3().setFromObject(group);
     if (box.isEmpty()) {
       camera.frame(hub.bounds.centre, hub.bounds.radius, hub.bounds.height);
       player.setBounds(hub.walkableRadius);
     } else {
-      const centre = box.getCenter(new Vector3());
-      const size = box.getSize(new Vector3());
-      const radius = Math.max(Math.max(size.x, size.z) / 2, 1);
-      camera.frame(new Vector3(centre.x, 0, centre.z), radius, Math.max(size.y, 1));
-      player.setBounds(radius);
+      const min = box.min.clone();
+      const max = box.max.clone();
+      const marks = hotspots.scopedBounds();
+      if (marks) {
+        max.z = Math.min(max.z, marks.max.z + NEAR_MARGIN);
+        max.y = Math.min(max.y, marks.max.y + HEAD_ROOM);
+      }
+      camera.frameBox(min, max);
+      // Nothing walks out of the shot. The near edge of the composition is the
+      // near edge of the floor as far as the figure is concerned, which is what
+      // keeps this a god view of a room rather than a camera that follows.
+      //
+      // A box rather than a disc, and that is not tidiness: the pieces on a
+      // wall stand at the room's corners, and a disc inscribed in a square room
+      // stops 0.9 m short of them — the figure could not reach the outer two
+      // clips on the front wall at all.
+      player.setWalkableBox(
+        new Vector3(min.x + WALL_CLEARANCE, 0, min.z + WALL_CLEARANCE),
+        new Vector3(max.x - WALL_CLEARANCE, 0, max.z - EDGE_OF_SHOT),
+      );
     }
 
     // The engine's way out is a floor, not a second door. A room whose manifest
@@ -489,6 +542,9 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
     camera.update(delta);
     // Walking away puts the camera back on its own, which is what makes the
     // framing a place you stand rather than a mode you are stuck in.
+    if (refused && Math.hypot(refused.at.x - player.position.x, refused.at.z - player.position.z) > refused.clear) {
+      refused = null;
+    }
     const framedAt = camera.framedTarget;
     if (framedAt) {
       const away = Math.hypot(framedAt.x - player.position.x, framedAt.z - player.position.z);

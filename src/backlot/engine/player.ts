@@ -18,17 +18,35 @@ const ARRIVED = 0.18;
 /** Radians a second the figure turns to meet its heading. */
 const TURN_RATE = 9;
 
-const BODY_RADIUS = 0.34;
-const BODY_LENGTH = 0.82;
-const HEAD_Y = BODY_RADIUS * 2 + BODY_LENGTH + 0.06;
+// A standing adult: 1.75 m over about 0.44 m of shoulder, which is 3.98 : 1.
+//
+// It used to be 1.80 m over 0.68 m — 2.65 : 1, a bollard's proportion, and it
+// read as much bigger than it was because the eye takes the width for the scale
+// cue. Two numbers worth keeping next to each other when this is next touched:
+//
+//   - the god view foreshortens height by cos(52 deg) = 0.616, so whatever the
+//     figure is in the world it is squatter than that on screen. At 2.65 : 1 it
+//     came out 1.63 : 1 in every frame, hub and room alike; at 3.98 : 1 it comes
+//     out 2.46 : 1. A figure has to be *more* slender than a person to read as
+//     one from above.
+//   - the width is the thing that matters. Height barely moved (1.80 -> 1.75);
+//     the change that does the work is 0.68 -> 0.44 across.
+const BODY_RADIUS = 0.22;
+const BODY_LENGTH = 1.04;
+const HEAD_RADIUS = 0.17;
+/** Sat on the capsule with a little overlap, so the two read as one figure. */
+const HEAD_Y = BODY_RADIUS * 2 + BODY_LENGTH + 0.1;
 
 export interface Figure extends PlayerApi {
   /** Add this to the scene. */
   group: Group;
   /** Ground direction the controls are asking for; zero length means stop. */
   drive(direction: Vector3): void;
-  /** Nothing walks off the edge of the floor. */
+  /** Nothing walks off the edge of the floor. A disc, for the hub's ring. */
   setBounds(radius: number): void;
+  /** And a box, for a room: a disc inscribed in a rectangular room cannot reach
+   *  its corners, and the pieces on a wall are exactly where the corners are. */
+  setWalkableBox(min: Vector3, max: Vector3): void;
   update(delta: number, elapsed: number): void;
   /** True while a walk or a drive is moving it. */
   readonly moving: boolean;
@@ -50,19 +68,19 @@ export function createFigure(options: FigureOptions): Figure {
   const body = new Mesh(new CapsuleGeometry(BODY_RADIUS, BODY_LENGTH, 4, 14), palette.lit("--at-tertiary"));
   body.position.y = BODY_RADIUS + BODY_LENGTH / 2;
 
-  const head = new Mesh(new SphereGeometry(0.24, 16, 12), palette.lit("--at-text"));
+  const head = new Mesh(new SphereGeometry(HEAD_RADIUS, 16, 12), palette.lit("--at-text"));
   head.position.y = HEAD_Y;
 
   // A god view flattens a capsule into a dot, so the figure needs one feature
   // that survives being seen from above: a blade on the front, which reads as a
   // heading from straight down and as a nose from the side.
-  const nose = new Mesh(new BoxGeometry(0.11, 0.11, 0.3), palette.lit("--at-brand-ink"));
-  nose.position.set(0, HEAD_Y, 0.27);
+  const nose = new Mesh(new BoxGeometry(0.08, 0.08, 0.22), palette.lit("--at-brand-ink"));
+  nose.position.set(0, HEAD_Y, 0.19);
 
   // Not a shadow — there are no shadow maps in this scene and a fake one would
   // be the wrong colour in one of the two themes. A tinted patch at the feet,
   // painted from the divider token, grounds the figure in both.
-  const contact = new Mesh(new CircleGeometry(0.52, 24), palette.flat("--at-divider"));
+  const contact = new Mesh(new CircleGeometry(0.34, 24), palette.flat("--at-divider"));
   contact.rotation.x = -Math.PI / 2;
   contact.position.y = 0.012;
 
@@ -74,7 +92,20 @@ export function createFigure(options: FigureOptions): Figure {
   const driving = new Vector3();
   const step = new Vector3();
 
-  let bounds = Infinity;
+  /** Either a disc about the origin or a box, never both. */
+  let bounds: { kind: "disc"; radius: number } | { kind: "box"; min: Vector3; max: Vector3 } = {
+    kind: "disc",
+    radius: Infinity,
+  };
+
+  function hold(at: Vector3): void {
+    if (bounds.kind === "disc") {
+      if (at.length() > bounds.radius) at.setLength(bounds.radius);
+      return;
+    }
+    at.x = Math.min(Math.max(at.x, bounds.min.x), bounds.max.x);
+    at.z = Math.min(Math.max(at.z, bounds.min.z), bounds.max.z);
+  }
   let moving = false;
   let goal: { target: Vector3; settle: () => void } | null = null;
 
@@ -93,7 +124,7 @@ export function createFigure(options: FigureOptions): Figure {
   function place(target: Vector3, direction?: Vector3): void {
     clearGoal();
     position.copy(target).setY(0);
-    if (position.length() > bounds) position.setLength(bounds);
+    hold(position);
     if (direction) face(direction, true);
     group.position.copy(position);
     group.rotation.y = Math.atan2(facing.x, facing.z);
@@ -145,8 +176,12 @@ export function createFigure(options: FigureOptions): Figure {
       if (driving.lengthSq() > 1e-6) clearGoal();
     },
     setBounds(radius) {
-      bounds = radius;
-      if (position.length() > bounds) place(position);
+      bounds = { kind: "disc", radius };
+      place(position);
+    },
+    setWalkableBox(min, max) {
+      bounds = { kind: "box", min: min.clone(), max: max.clone() };
+      place(position);
     },
     update(delta, elapsed) {
       const still = reducedMotion();
@@ -169,7 +204,7 @@ export function createFigure(options: FigureOptions): Figure {
       moving = step.lengthSq() > 1e-10;
       if (moving) {
         position.add(step);
-        if (position.length() > bounds) position.setLength(bounds);
+        hold(position);
         face(step, still);
         group.position.copy(position);
       }

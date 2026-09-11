@@ -48,25 +48,31 @@ const FACING_INTERVAL = 0.25;
 /** What a screen's practical does between a poster and a clip, before exposure,
  *  and how long it takes about it when the reader has not asked for less
  *  motion. */
-const GLOW = { poster: 0.18, live: 1.1, seconds: 0.3 };
+const GLOW = { poster: 1.2, live: 3.5, seconds: 0.3 };
 
 /**
- * The room's exposure, from the floor's own token.
+ * The room's exposure, read off the brightest thing it paints a lit surface
+ * with rather than off the floor.
  *
- * The surfaces in here are the page's surfaces, which is the point — and the
- * page's dark surface is linear 0.005 where its light one is 0.92, a factor of
- * 180 between the two themes. One fixed set of intensities cannot serve both:
- * tuned for the dark theme the light one blows out, tuned for the light theme
- * the dark one is a black box, which is what it was. So the practicals are
- * scaled by what the floor actually reflects, which is what an exposure is.
- * Measured, in Chrome, both themes: --at-bg comes back linear 0.0045 dark and
- * 0.985 light.
+ * It used to target the floor, and that is the wrong end of the range to
+ * expose for. The palette's surfaces run from `--at-bg` at linear 0.0017 to
+ * `--at-tertiary` at 0.121 — a factor of 70 — so a level that lifts the floor
+ * to something you can see puts every other token past 1.0, and past 1.0 a
+ * colour stops being a colour. Measured in the resting shot: the floor read
+ * rgb(33–43), which is right, while the jacket, the coffee and the light inside
+ * the tower were all flat saturated gold with no shape left in them. You expose
+ * for the highlight; the shadows are allowed to be shadows, and in this room
+ * they are the page's own near-black, which is what the floor is meant to be.
  */
-const TARGET_REFLECTANCE = 0.1;
+const HIGHLIGHT = "--at-tertiary";
+/** Where that token should land, in linear light, with the stage's own three
+ *  lights already on it. Under 1.0 by enough that a specular-free Lambert never
+ *  reaches it. */
+const TARGET_HIGHLIGHT = 0.68;
 
 function exposureFrom(linear: [number, number, number]): number {
   const luminance = 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2];
-  return Math.min(40, Math.max(1, TARGET_REFLECTANCE / Math.max(luminance, 1e-4)));
+  return Math.min(40, Math.max(0.2, TARGET_HIGHLIGHT / Math.max(luminance, 1e-4)));
 }
 
 /**
@@ -110,17 +116,22 @@ function deskSurface(aspect: [number, number]): MountSurface {
     // room, and the smallest type on it is 12 px in a 2048 px drawing. And to
     // one side of it: the camera frames this panel, the projection is
     // orthographic, and a figure standing squarely in front of a framed panel
-    // is a figure covering it — watched happen, at the right-hand end of the
-    // desk the figure is beside the monitor and out of the framed shot.
-    standOff: 0.8,
-    standShift: new Vector3(0.8, 0, 0),
-    // Tighter than the default, and the number comes from two ground distances
-    // it has to sit between: the stand point is 1.13 m from under the panel
-    // (0.8 m out, 0.8 m to one side), so arriving has to be inside it; and the
-    // room's own entry point is 1.98 m away, so walking in has to be outside
-    // it, or the figure is already near at the moment the room seeds proximity
-    // and the arrival that frames the graph never happens. Watched happen.
-    reach: 1.5,
+    // is a figure covering it — watched happen. 0.75 m across clears the framed
+    // half-width of 0.74 m, so the figure stands at the end of the desk and out
+    // of the shot it just asked for.
+    standOff: 0.6,
+    standShift: new Vector3(0.75, 0, 0),
+    // Tighter than the default, and the number has three ground distances to
+    // sit between. The stand point is 0.96 m from under the panel, so arriving
+    // has to be inside it. The spot in front of the middle screen is 1.69 m
+    // away and the room's entry point 2.85 m, and neither may be inside it —
+    // the second because the figure would already be near when the room seeds
+    // proximity and the arrival that frames the graph would never happen, which
+    // I watched, and the first because standing at the wall of screens is not
+    // standing at the desk. The desk is off the middle screen's line in depth
+    // for the same reason: in line with it, those two distances came within
+    // 20 mm of each other and no reach could separate them.
+    reach: 1.3,
     edge: { margin: 0.022, depth: 0.03, role: "bezel" },
     heightHint: fitInside(aspect, box).height,
   };
@@ -170,13 +181,19 @@ export async function buildMachineRoom(context: RoomContext): Promise<void> {
   deskGroup.add(tower.group);
   deskGroup.add(buildCables(kit));
 
+  // On the near corner, in the monitor's own light. At the room's scale it is
+  // nine pixels across and reads as nothing; it is there for the close-up the
+  // desk gets when the camera comes in, and the receipt says so.
   const mug = buildMug(kit);
-  mug.position.set(DESK.width / 2 - 0.24, DESK.top, DESK.depth / 2 - 0.2);
+  mug.position.set(DESK.width / 2 - 0.26, DESK.top, DESK.depth / 2 - 0.18);
   deskGroup.add(mug);
 
+  // Leaned against the end of the desk, not lying on it: at 52° above the floor
+  // a sheet flat on a desk foreshortens to nothing, and the same stack stood up
+  // turns its face to the camera.
   const storyboards = buildStoryboards(kit);
-  storyboards.position.set(-DESK.width / 2 + 0.27, DESK.top, DESK.depth / 2 - 0.17);
-  storyboards.rotation.y = -0.18;
+  storyboards.position.set(-DESK.width / 2 - 0.11, 0.02, DESK.depth / 2 - 0.1);
+  storyboards.rotation.set(Math.PI * 0.43, 0.22, 0);
   deskGroup.add(storyboards);
 
   fitOut.add(deskGroup);
@@ -192,7 +209,7 @@ export async function buildMachineRoom(context: RoomContext): Promise<void> {
   // One lamp in front of every clip screen, so what the room is lit by is the
   // pictures on its walls, and one in front of the monitor, which is what puts
   // screen light on the desk top and the floor under it.
-  let exposure = exposureFrom(context.colours.get("--at-bg"));
+  let exposure = exposureFrom(context.colours.get(HIGHLIGHT));
   let live: string | null = null;
   const glow = new Map<string, { current: number; target: number }>();
 
@@ -213,41 +230,53 @@ export async function buildMachineRoom(context: RoomContext): Promise<void> {
   // that must not be is the panel's own bezel: at 0.3 m the inverse square put
   // the bezel and the stand at a hundred times the desk's irradiance, which was
   // invisible at 85 px per metre and a white halo the moment the camera came in.
-  const deskLamp = painter.lamp(new PointLight(undefined, 0.45 * exposure, 3, 1.7), "screenLight");
+  const deskLamp = painter.lamp(new PointLight(undefined, 1.6 * exposure, 3, 1.7), "screenLight");
   deskLamp.position.copy(monitor.screenCentre).add(new Vector3(0, 0.3, 0.48));
   context.root.add(deskLamp);
 
-  // Two overheads, so the far corners of the set are not flat. The stage's own
-  // three lights are tuned for the ring outside, which has no walls to fall on.
+  // Two overheads, low: enough that the far corners are not flat, and not so
+  // much that they drown the screens. What lights this room is the pictures on
+  // its walls, and a screen's pool only reads if it is at least the strength of
+  // whatever else is falling on the same floor — measured, the overheads at
+  // their old level put 7.8 on the floor against a screen's 1.1, which is a
+  // pool five counts deep and invisible.
   const overheads: PointLight[] = [];
   for (const z of [-ROOM.depth / 4, ROOM.depth / 4]) {
-    const lamp = painter.lamp(new PointLight(undefined, 2.2 * exposure, ROOM.width * 1.4, 1.25), "roomLight");
+    const lamp = painter.lamp(new PointLight(undefined, 0.7 * exposure, ROOM.width * 1.4, 1.25), "roomLight");
     lamp.position.set(0, ROOM.height - 0.4, z);
     context.root.add(lamp);
     overheads.push(lamp);
   }
 
-  tower.interior.intensity *= Math.min(exposure, 6);
+  // A quarter of the room's level, and no more: this light is 0.15 m from every
+  // surface it falls on, so the inverse square does the rest. At the room's own
+  // exposure the case was one flat gold rectangle with the card, the radiator
+  // and the fans all past 1.0 inside it.
+  tower.interior.intensity *= exposure * 0.14;
 
   // A theme flip changes every albedo in the room at once, so the exposure has
   // to move with it or one of the two themes is always wrong.
   const stopTheme = context.colours.onThemeChange(() => {
-    exposure = exposureFrom(context.colours.get("--at-bg"));
+    exposure = exposureFrom(context.colours.get(HIGHLIGHT));
     for (const [pieceId, level] of glow) {
       level.target = (live === pieceId ? GLOW.live : GLOW.poster) * exposure;
       level.current = level.target;
       const lamp = practicals.get(pieceId);
       if (lamp) lamp.intensity = level.current;
     }
-    deskLamp.intensity = 0.45 * exposure;
-    for (const lamp of overheads) lamp.intensity = 2.2 * exposure;
+    deskLamp.intensity = 1.6 * exposure;
+    for (const lamp of overheads) lamp.intensity = 0.7 * exposure;
   });
 
   // The figure arrives at the engine's own entry point, which is outside this
-  // room's back wall. Put it inside, at the back, looking at the ladder — and
-  // far enough back that the desk's own reach does not already contain it, or
-  // the room would frame the monitor the instant anyone walked in.
-  context.player.placeAt(new Vector3(0, 0, ROOM.depth / 2 - 0.55), new Vector3(0, 0, -1));
+  // room. Put it inside, looking at the ladder, and far enough from the desk
+  // that the desk's own reach does not already contain it — or the room would
+  // frame the monitor the instant anyone walked in.
+  // Down the open side, clear of the desk, the tower and the chair: the engine
+  // clamps the figure to the composition, so anywhere behind it is a figure
+  // standing in the desk, and anywhere in front of a prop is a figure covering
+  // one.
+  context.player.placeAt(new Vector3(1.9, 0, 0.75), new Vector3(0, 0, -1));
 
   // -------------------------------------------------------------- L2 state --
   // One decoder, and this room is what holds that true: `setLive` releases

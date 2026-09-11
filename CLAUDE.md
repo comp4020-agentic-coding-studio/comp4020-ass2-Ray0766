@@ -208,6 +208,33 @@ find the real one or state the technique generically.
 - A regression sentinel counts only once it has been seen red under the bug it
   guards against. Inject the bug, watch it fail for the right reason, then
   fix.
+- Watching it go red is also the only thing that catches a check which *cannot*
+  go red, and that is a different failure from a check that is merely wrong.
+  Three of them in one round, each green and each blind: a reduced-motion check
+  screenshotted two frames four seconds apart and asserted they were identical
+  — they were, and both were blown out to white, because "did anything move"
+  cannot see "everything clipped before it started"; the stage reservation's
+  sentinel asserted CLS and stayed green with the reservation deleted, because
+  the module hides the list in the same task it reveals the stage, so nothing
+  ever moves either way; and `spec/backlot-contrast.test.ts` collected **zero**
+  tests for a whole run, under a summary line that said 1210 passed, because a
+  backtick closed a `String.raw` probe early. The tell is that the check
+  answers a question next to the one being asked. Assert on the number the bug
+  would change — the list's own offset at first paint, the sampled channel
+  values, the count of tests and files a suite collected — and prove the
+  assertion can fail by making it fail.
+- The register's rule about the `--at-*` tokens has a trap on the way out of
+  the DOM. `astro-theme-university`'s `base.css` sets
+  `transition-duration: 0.01ms !important` on everything under
+  `prefers-reduced-motion` and leaves `transition-property` at its initial
+  `all` — so under that preference every element has a live transition on every
+  animatable property, `color` included, and reading a computed colour in the
+  same task returns the value it is transitioning **from**. A colour probe that
+  set one shared element's `color` to eleven tokens in turn and read each one
+  back got the same wrong answer eleven times, and the backlot booted painted
+  in `--at-text`. Resolve a token on a fresh element, coloured before it is
+  inserted — a transition never runs on an element's first style computation —
+  and read anything else you have just set on the next frame, not this one.
 - A branch nobody has ever watched execute is not a guard, it is a comment.
   Anything new that only runs in a condition — a fallback, a hand-over, an
   escape rule, a derived token — needs one observation of it actually running
@@ -237,6 +264,22 @@ find the real one or state the technique generically.
   check stayed green because the status bar's own module names it; `<dialog>`
   swapped for a `<div>` and the check stayed green because the module's opening
   comment says the word.
+- A check whose **scope** is a hand-kept list goes quiet exactly when the code
+  grows, and it goes quiet without saying so. `spec/palette.test.ts` enumerated
+  fourteen stylesheets by name; `backlot.css`, `backlot-hud.css`,
+  `decks-index.css`, `phase-colours.css` and `release-calendar.css` were never
+  in that list and were therefore never checked, and the day it became a
+  `globSync` it found an accent painted as an `outline` on the first run.
+  Derive the scope from the filesystem or from the data; if a check really must
+  be told what to look at, the list itself is a thing a test has to prove
+  complete.
+- The keyboard half of the harness has the same shape of trap as the focus
+  half: a CDP `Input.dispatchKeyEvent` with `type: "rawKeyDown"` and no `text`
+  never runs a focused button's activation behaviour, so a driver can report a
+  press that did not happen — one did, and reported a camera move that had not
+  occurred. `spec/lib/chrome.ts`'s `press` gets this right; use it rather than
+  dispatching by hand, and have any one-off driver assert on the state the
+  press was supposed to change rather than on the press having been sent.
 - When a check fails, read its output before you change anything. Never make
   a check pass by weakening it or by rewording honest copy; widen the check.
 - The phone viewport is not a smaller desktop: a scroll choreography gets its
@@ -256,6 +299,30 @@ find the real one or state the technique generically.
   new colour gets measured in a real browser, on the composite: read the
   rendered pixel, not the declared one. "58 pages, no accessibility
   violations" is silent about every one of them.
+- Three more things a sampler gets wrong, learned on the backlot's focus ring,
+  where every one of them produced a plausible number: a fixed pixel offset
+  reads a blend, because a `translate(-50%)` puts every band edge on a half
+  pixel — the gold measured 136,92,21 against a declared 185,125,28, which is a
+  reported 3.17:1 where the truth is 5.82:1; `elementFromPoint` is not a
+  clearance test, because an outline and a `box-shadow` paint outside the
+  border box and hit-test nowhere, so a neighbouring control's ring can sit on
+  the sample point invisibly; and an outline on a large `border-radius`
+  composites about a pixel wider than it declares, which is enough to eat a
+  2px band down to something no sampler can find. What makes a reading worth
+  believing is refusing it: read a column rather than computing band edges,
+  accept only a pixel that **equals** a declared colour exactly, and throw the
+  sample away otherwise. Four of twenty-seven were refused that way rather than
+  reported as numbers.
+- An indicator over a surface the palette does not own — a focus ring on a
+  canvas — needs two tones, and which two is arithmetic rather than taste. Two
+  tones leave no gap only where `9 × (Ldark + 0.05) ≤ Llight + 0.05`; the Slop
+  gold against `--at-bg` fails that in the dark theme, leaving scenes with
+  relative luminance between 0.0502 and 0.1049 able to defeat both at once, and
+  a mid grey in the hub sat at 0.0898. Bracket the brand stroke with `--at-bg`
+  and `--at-text`, which the theme already derives as opposites in both themes,
+  and the gold stays the stroke you see — still a fill's colour doing a fill's
+  job, not ink. Widening a single-tone ring cannot fix this, and the number
+  that proves it is the backing's own contrast against the same scene pixel.
 - A brand colour is a fill, not ink — and that one rule covers both the gold
   and the four phase colours. The Slop gold is 3.43:1 on the light theme's
   background and 5.81:1 on the dark one; `--phase-episode` is 8.60:1 on light
@@ -309,6 +376,21 @@ find the real one or state the technique generically.
   sequential-focus-start hides how bad it is — the next Tab lands somewhere
   reasonable — so check `document.activeElement` after the press, not where
   Tab goes next.
+- Two numbers, not one, whenever something heavy loads: what the reader can
+  read, and when the heavy thing arrives. On `/backlot/` a
+  `<link rel="modulepreload">` in the first bytes of the head takes the 3D's
+  first frame from 3586 ms to 2397 ms on Slow 4G and costs 380–460 ms of first
+  contentful paint — including the variant that preloads 7.4 kB, which rules
+  out bandwidth and leaves ordering. Preloading is not free and it is not local:
+  it spends the thing a reader sees first to buy the thing they see second. The
+  measurement to distrust here is my own, because a static server on HTTP/1.1
+  round-robins six connections and priority barely bites, while Pages serves
+  HTTP/2 on one, where a `VeryHigh` stylesheet genuinely outranks a `High`
+  module — so this one gets re-taken against the deployed site before it is
+  believed either way. Same for `loading="lazy"`: Chrome's threshold is about
+  3000px on a slow connection, so it holds back nothing on the first screen and
+  the first images down a long page land straight across whatever else is in
+  flight.
 - A section that ships `hidden` and is revealed by its own module has to have
   its space held open from first paint, or on a slow connection it shoves
   everything below it down the page seconds after the reader started reading.

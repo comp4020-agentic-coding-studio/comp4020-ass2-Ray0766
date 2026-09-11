@@ -27,8 +27,11 @@ export interface HotspotHooks {
 }
 
 /** Keep a parked button this far inside the canvas, so one at the edge of the
- *  frame is still a whole button and its focus ring is still on screen. */
-const EDGE_INSET = 14;
+ *  frame is still a whole button and its focus ring is still on screen. The
+ *  clamp is on the button's **box**, not on its centre: clamping the centre let
+ *  a 154 px control hang 63 px off the side of the canvas, which is a control
+ *  half outside the picture it belongs to. */
+const EDGE_INSET = 12;
 /** Clear space kept between two parked buttons before one is pushed down. */
 const GAP = 4;
 /** Roughly what a hotspot measures once its label has come down to the dot.
@@ -54,6 +57,14 @@ interface Parked {
   height: number;
 }
 
+/** A rectangle in canvas pixels. */
+export interface Rect {
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+}
+
 export interface HotspotDeck {
   api: HotspotApi;
   /** Register something the engine owns into the current scope. It behaves like
@@ -63,8 +74,13 @@ export interface HotspotDeck {
   registerOwn(spec: HotspotSpec): Hotspot;
   /** One polite sentence. Re-announced even when the words repeat. */
   announce(message: string): void;
-  /** Park every button over its point, in canvas pixels. Called each frame. */
-  park(width: number, height: number): void;
+  /** Park every button over its point, in canvas pixels. Called each frame.
+   *
+   *  `readable` is a rectangle no button may overlap — the thing the camera is
+   *  currently framed on. Buttons are pushed clear of it rather than hidden:
+   *  "Back to the backlot" and "Open the Studio" are how a reader leaves, and
+   *  Escape should not be the only way out anyone has. */
+  park(width: number, height: number, readable?: Rect | null): void;
   /** Fire the proximity transitions for where the figure is now.
    *
    *  `seed` records the near/far state and fires **nothing** — no announcement
@@ -211,9 +227,37 @@ export function createHotspots(hud: HTMLElement, camera: OrthographicCamera, hoo
 
     announce: announcer,
 
-    park(width, height) {
+    park(width, height, readable = null) {
       if (width <= 0 || height <= 0) return;
       placed.length = 0;
+
+      /** Somewhere this button can sit without covering what is being read.
+       *  Tries each of the four ways out and takes the shortest that still
+       *  leaves the whole control on the canvas. */
+      const clearOf = (x: number, y: number, boxWidth: number, boxHeight: number) => {
+        if (!readable) return { x, y };
+        const halfW = boxWidth / 2 + GAP;
+        const halfH = boxHeight / 2 + GAP;
+        const overlaps =
+          x + halfW > readable.left && x - halfW < readable.right && y + halfH > readable.top && y - halfH < readable.bottom;
+        if (!overlaps) return { x, y };
+        const ways = [
+          { x: readable.left - halfW, y },
+          { x: readable.right + halfW, y },
+          { x, y: readable.top - halfH },
+          { x, y: readable.bottom + halfH },
+        ].filter(
+          (way) =>
+            way.x - boxWidth / 2 >= 0 &&
+            way.x + boxWidth / 2 <= width &&
+            way.y - boxHeight / 2 >= 0 &&
+            way.y + boxHeight / 2 <= height,
+        );
+        if (ways.length === 0) return { x, y };
+        return ways.reduce((best, way) =>
+          Math.hypot(way.x - x, way.y - y) < Math.hypot(best.x - x, best.y - y) ? way : best,
+        );
+      };
 
       // Project everything first: where a label can go depends on where its
       // neighbours are, so nothing can be decided one button at a time.
@@ -267,23 +311,37 @@ export function createHotspots(hud: HTMLElement, camera: OrthographicCamera, hoo
         const dense = entry.button.dataset.backlotDense === "true";
         const boxWidth = dense ? DOT_BOX : entry.width;
         const boxHeight = dense ? DOT_BOX : entry.height;
-        let y = one.y;
+        // Out of the way of whatever is being read, first: everything below
+        // works from where the button can actually sit.
+        const room = clearOf(one.x, one.y, boxWidth, boxHeight);
+        let x = room.x;
+        let y = room.y;
         // Whatever is left after the labels have come down — two dots on top of
         // each other — still gets nudged apart, downwards, in registration
         // order so the arrangement is stable rather than a shuffle.
         for (let attempt = 0; attempt < 8; attempt++) {
           const clash = placed.find(
             (other) =>
-              Math.abs(other.x - one.x) < (other.width + boxWidth) / 2 + GAP &&
+              Math.abs(other.x - x) < (other.width + boxWidth) / 2 + GAP &&
               Math.abs(other.y - y) < (other.height + boxHeight) / 2 + GAP,
           );
           if (!clash) break;
           y = clash.y + (clash.height + boxHeight) / 2 + GAP;
+          // Being nudged down must not nudge it back over the thing it was
+          // just moved off.
+          const again = clearOf(x, y, boxWidth, boxHeight);
+          x = again.x;
+          y = again.y;
         }
-        y = Math.min(y, height - EDGE_INSET);
-        placed.push({ x: one.x, y, width: boxWidth, height: boxHeight });
+        // The box inside the canvas, not just its centre. A range that inverts
+        // — a control wider than the canvas has room for — centres instead.
+        const reachX = boxWidth / 2 + EDGE_INSET;
+        const reachY = boxHeight / 2 + EDGE_INSET;
+        x = reachX * 2 > width ? width / 2 : Math.min(Math.max(x, reachX), width - reachX);
+        y = reachY * 2 > height ? height / 2 : Math.min(Math.max(y, reachY), height - reachY);
+        placed.push({ x, y, width: boxWidth, height: boxHeight });
 
-        const roundedX = Math.round(one.x);
+        const roundedX = Math.round(x);
         const roundedY = Math.round(y);
         if (roundedX !== entry.x || roundedY !== entry.y) {
           entry.x = roundedX;

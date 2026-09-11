@@ -208,6 +208,18 @@ find the real one or state the technique generically.
 - A regression sentinel counts only once it has been seen red under the bug it
   guards against. Inject the bug, watch it fail for the right reason, then
   fix.
+- **A sentinel is verified against the code as it was, and when the thing it
+  keys on changes shape that verification expires.** The backlot's first-frame
+  check keyed on the stage losing its `hidden` attribute, which was exactly
+  right until the gallery moved inside the stage and `hidden` came off — after
+  which it fired at HTML parse, read 605ms against a 3700ms line, and was green
+  no matter what. The change that broke it was itself correct, and it happened
+  in the same round I wrote the rule below. So: prefer a probe that keys on
+  something the code sets **on purpose at the moment in question**, and pair it
+  with an invariant the bug would violate, so the expiry is caught on the next
+  run instead of by somebody remembering. Here that invariant is that the first
+  frame cannot precede the arrival of the chunk that draws it, and it fails on
+  its own under the old probe.
 - Watching it go red is also the only thing that catches a check which *cannot*
   go red, and that is a different failure from a check that is merely wrong.
   Three of them in one round, each green and each blind: a reduced-motion check

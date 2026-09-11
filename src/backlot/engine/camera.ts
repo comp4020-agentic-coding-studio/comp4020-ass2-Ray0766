@@ -93,6 +93,11 @@ export interface GodCamera {
   /** CSS pixels per world metre for a canvas of this height. The number the
    *  "can you read it" question is actually about. */
   pixelsPerMetre(canvasHeight: number): number;
+  /** The thing being framed, as a rectangle in canvas pixels, or null when the
+   *  camera is on its resting view. The HUD keeps its buttons out of it: this
+   *  is the one moment in the backlot where a reader is being asked to read
+   *  something, and a control over the top of it is a control in the way. */
+  framedRect(width: number, height: number): { left: number; top: number; right: number; bottom: number } | null;
 }
 
 export function createGodCamera(): GodCamera {
@@ -131,6 +136,9 @@ export function createGodCamera(): GodCamera {
   const flat = new Vector3();
   const slide = new Vector3();
 
+  const across = new Vector3();
+  const upward = new Vector3();
+  const rectCorner = new Vector3();
   const godPosition = new Vector3();
   const godRotation = new Quaternion();
   const focusPosition = new Vector3();
@@ -385,6 +393,36 @@ export function createGodCamera(): GodCamera {
 
     pixelsPerMetre(canvasHeight) {
       return halfHeight > 0 ? canvasHeight / (2 * halfHeight) : 0;
+    },
+
+    framedRect(width, height) {
+      if (!framing || travel <= 0 || width <= 0 || height <= 0) return null;
+      // The radius is the thing's own half-width, so the four corners of a
+      // camera-aligned square of that size are the rectangle the framing
+      // promised to fill. Projected rather than derived from the frustum, so it
+      // stays right while the camera is still travelling.
+      across.set(1, 0, 0).applyQuaternion(camera.quaternion);
+      upward.set(0, 1, 0).applyQuaternion(camera.quaternion);
+      let left = Infinity;
+      let top = Infinity;
+      let right = -Infinity;
+      let bottom = -Infinity;
+      for (const sideways of [-framing.radius, framing.radius]) {
+        for (const vertical of [-framing.radius, framing.radius]) {
+          rectCorner
+            .copy(framing.target)
+            .addScaledVector(across, sideways)
+            .addScaledVector(upward, vertical)
+            .project(camera);
+          const x = (rectCorner.x * 0.5 + 0.5) * width;
+          const y = (-rectCorner.y * 0.5 + 0.5) * height;
+          left = Math.min(left, x);
+          right = Math.max(right, x);
+          top = Math.min(top, y);
+          bottom = Math.max(bottom, y);
+        }
+      }
+      return { left, top, right, bottom };
     },
   };
 }

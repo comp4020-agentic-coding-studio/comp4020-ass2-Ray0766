@@ -568,7 +568,7 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
     // After the render, not before: `render` is what brings the camera's world
     // matrices up to date, and parking off the previous frame's matrices would
     // leave every button one frame behind the picture it sits on.
-    hotspots.park(sizer.width, sizer.height);
+    hotspots.park(sizer.width, sizer.height, camera.framedRect(sizer.width, sizer.height));
 
     if (sizer.width > 0 && sizer.height > 0) {
       presented += 1;

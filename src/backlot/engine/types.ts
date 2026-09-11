@@ -15,9 +15,15 @@
 //   - The page owns the route, the no-JS gallery, and the two entry links.
 
 import type { Object3D, Group, Texture, Vector3 } from "three";
-import type { BacklotManifest, BacklotRoom, BacklotPiece } from "../rooms/manifest";
+import type {
+  BacklotManifest,
+  BacklotRoom,
+  BacklotPiece,
+  BacklotDoor,
+  BacklotInteractive,
+} from "../rooms/manifest";
 
-export type { BacklotManifest, BacklotRoom, BacklotPiece };
+export type { BacklotManifest, BacklotRoom, BacklotPiece, BacklotDoor, BacklotInteractive };
 
 // ------------------------------------------------------------------- payload
 
@@ -64,6 +70,25 @@ export interface ColourReader {
  * path through the backlot: the buttons are the backlot, and the canvas is how
  * they look.
  */
+/**
+ * How close the camera has to come for something to be readable.
+ *
+ * The god view is fixed, and at 1920×1080 it resolves about 85 px per metre —
+ * which puts the monitor's panel at 52 px across, measured. A workflow graph
+ * drawn at any resolution is unreadable at 52 px, so "walk up and read it" is
+ * not a texture problem and no amount of canvas resolution fixes it: the camera
+ * has to come in. This is the only thing that moves the camera off its fixed
+ * frame, and it always goes back.
+ */
+export interface FocusRequest {
+  /** World-space centre of what has to become readable. */
+  target: Vector3;
+  /** Radius in metres of the thing being framed. The camera fits this, plus margin. */
+  radius: number;
+  /** The face's outward normal, so the camera arrives in front of it rather than edge-on. */
+  normal?: Vector3;
+}
+
 export interface HotspotSpec {
   /** Stable; matches the manifest id it came from, so the gallery and the 3D agree. */
   id: string;
@@ -71,6 +96,12 @@ export interface HotspotSpec {
   label: string;
   /** Where it lives, so the button can be parked over it and the figure can walk to it. */
   position: Vector3;
+  /**
+   * When set, activating this hotspot frames it before anything else happens —
+   * which is what makes a keyboard reader's Enter equivalent to walking up to
+   * the thing. Esc backs out of the framing first and leaves the room second.
+   */
+  focus?: Omit<FocusRequest, "target">;
   /** How close the figure has to be for a walk to count as arriving. Metres. */
   radius?: number;
   /** What the live region says when the figure arrives, if anything. */
@@ -161,6 +192,15 @@ export interface RoomContext {
   player: PlayerApi;
   /** Polite live-region announcement. One sentence, no punctuation games. */
   announce(message: string): void;
+  /**
+   * Bring the camera in until `radius` fills the frame, and resolve once it is
+   * there. Under reduced motion it arrives in one frame instead of travelling.
+   * A room calls this from a hotspot's proximity so walking up to something is
+   * what makes it readable; the hotspot's own `focus` does the same for Enter.
+   */
+  focus(request: FocusRequest): Promise<void>;
+  /** Back to the fixed god view. Walking away does this on its own. */
+  unfocus(): void;
   /** True when the reader asked for less motion: no idle animation, no drifting light. */
   reducedMotion: boolean;
   /** Per-frame work. Returns an unsubscribe. Keep it cheap. */

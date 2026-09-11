@@ -3,5 +3,247 @@
    scene.
 
    Every hotspot is a real button parked over the thing it acts on, so this file
-   is what makes a button that sits on top of a 3D scene still look like a
-   control and still show a ring. Owned by the engine half. */
+   is what makes a button sitting on top of a 3D scene still look like a control
+   and still show a ring. Owned by the engine half.
+
+   Unlayered, like the rest of this project's CSS — site.css says why. That
+   matters more here than usual: the theme's own `:focus-visible` lives in
+   `@layer at.base` and its button reset in `@layer at.components`, a later
+   layer, so anything that resets a button inside a layer wins over the ring and
+   the ring cannot come back on its own (CLAUDE.md §7). Nothing in this file
+   uses `all: unset` for exactly that reason, and the ring below is written out
+   rather than inherited so it is visible in the source as well as on screen.
+
+   No colour literal in here either: every value is a `--at-*` token, the same
+   way the scene gets its colours through ColourReader. */
+
+/* The layer itself is laid out by backlot.css, which owns the stage. All this
+   adds is the two behaviours the engine needs from it: clicks fall through to
+   the canvas everywhere except on a control, and a finger dragged across the
+   canvas steers the figure instead of scrolling the page away underneath it.
+
+   Selected by the data attributes rather than by the page's class names. Those
+   attributes are the contract — boot.ts finds the canvas and the HUD by them —
+   so a class rename on the page's side cannot quietly unstick the input. */
+[data-backlot-hud] {
+  pointer-events: none;
+}
+
+[data-backlot-canvas] {
+  touch-action: none;
+}
+
+/* The colour probe: one element, in the document so it inherits `color-scheme`
+   and can resolve `light-dark()`, and out of the way of everything else. Zero
+   sized at the corner of the viewport, so it can never open a scrollbar. */
+.backlot-colour-probe {
+  position: fixed;
+  inset-block-start: 0;
+  inset-inline-start: 0;
+  inline-size: 0;
+  block-size: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+/* --------------------------------------------------------------- a hotspot */
+
+/* Parked by the engine, which writes only the two projected coordinates and
+   leaves the rest of the styling here. The translate is on the button so the
+   point it names is the middle of the control, not its top-left corner. */
+.backlot-hotspot {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: 0;
+  translate: calc(var(--backlot-x, 0px) - 50%) calc(var(--backlot-y, 0px) - 50%);
+  pointer-events: auto;
+
+  display: inline-flex;
+  align-items: center;
+  gap: var(--at-spacing-xs);
+  max-inline-size: 14rem;
+  padding: 0.25rem var(--at-spacing-sm);
+  border: 1px solid var(--at-border);
+  border-radius: 999px;
+  background: var(--at-bg);
+  color: var(--at-text);
+  font: inherit;
+  font-size: var(--at-font-size-xs);
+  line-height: 1.3;
+  text-align: start;
+  cursor: pointer;
+  transition:
+    border-color 0.15s,
+    color 0.15s,
+    background-color 0.15s;
+}
+
+/* The escape rule, and it is not optional. `display: inline-flex` above is an
+   author declaration and `[hidden] { display: none }` is the user agent's, so
+   the author one wins and a button the engine hid goes on being painted over
+   the scene. Seen: inside the machine room, all six hub doors were still drawn
+   across the walls with `hidden` set on every one of them. Same shape as the
+   three-second-demo button in CLAUDE.md §7 — anything here that sets `display`
+   owes `[hidden]` its way out. */
+.backlot-hotspot[hidden] {
+  display: none;
+}
+
+.backlot-hotspot__dot {
+  flex: 0 0 auto;
+  inline-size: 0.5rem;
+  block-size: 0.5rem;
+  border-radius: 50%;
+  /* A fill, never ink — the Slop gold is 3.43:1 on the light theme and is not
+     allowed to be a letter or a line (CLAUDE.md §7). */
+  background: var(--at-accent);
+}
+
+.backlot-hotspot__label {
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.backlot-hotspot:hover {
+  border-color: var(--at-brand-ink);
+  color: var(--at-brand-ink);
+}
+
+/* The ring, written out rather than left to be inherited, and taking the ink
+   token rather than the accent.
+
+   A ring is a line, and a brand colour is a fill, not ink (CLAUDE.md §7). The
+   Slop gold measures 3.43:1 on the light theme's background, which is under the
+   3:1 a non-text indicator needs once it is sitting on anything lighter than
+   `--at-bg` — and this one sits on a 3D scene, which can be any colour at all.
+   `--at-brand-ink` is gold in the dark theme and the brand's own copper in the
+   light one, and it is the token for exactly this. The dot four rules up is a
+   fill and stays gold; the two are not the same decision and used to be made
+   as if they were.
+
+   Three bands, because this ring sits over a scene whose colour nothing can
+   predict. Measured out from the button's edge: `--at-bg` fills 0-5 px, the
+   outline covers 3-5, and `--at-text` fills 5-7. A box-shadow painted earlier
+   in the list is painted on top, which is why the 5 px one is listed first.
+
+   The offset is 3 rather than 2 because an outline on a `border-radius: 999px`
+   box composites about a pixel wider than it declares — at a border-box top of
+   225.73 the gold ran from 221.77 to 224.73, not to 223.73. At offset 2 that
+   ate the `--at-bg` band down to about a pixel, and a band that thin has no
+   whole pixel in it: the sampler could not find one to read on two buttons out
+   of three, and a band nobody can sample is a band nobody can see either.
+
+   The two outer tones are the page's own background and the page's own ink, and
+   that pair is not a preference — it is the only one in this palette that
+   covers every scene. A two-tone indicator leaves no gap only when
+   `9 x (Ldark + 0.05) <= Llight + 0.05`. Measured off the rendered pixels:
+
+     dark   --at-brand-ink + --at-bg   scenes with L in (0.050, 0.105) defeat both
+     light  --at-brand-ink + --at-bg   scenes with L in (0.295, 0.493) defeat both
+     dark   --at-text      + --at-bg   covers everything
+     light  --at-text      + --at-bg   covers everything
+
+   The gold and the background are too close together at the dark end to bracket
+   a mid grey, and the two samples that used to fail — a lit door frame at
+   L 0.0898 and a wall at L 0.0585 — both land inside that first window. No
+   amount of widening fixes it, because the failing scene is *between* the two
+   tones; only a tone at the other end of the range does.
+
+   `--at-brand-ink` stays the stroke you see, which is what CLAUDE.md §7 asks of
+   anything that is ink or a line. It is bracketed rather than replaced. */
+.backlot-hotspot:focus-visible {
+  outline: 2px solid var(--at-brand-ink);
+  outline-offset: 3px;
+  box-shadow:
+    0 0 0 5px var(--at-bg),
+    0 0 0 7px var(--at-text);
+}
+
+/* The figure is standing at this one. Set by the engine on a proximity
+   crossing; it is a state of the world, not a hover. */
+.backlot-hotspot[data-backlot-near="true"] {
+  border-color: var(--at-brand-ink);
+  background: var(--at-bg-elevated);
+}
+
+/* Clamped to the edge of the frame because the thing it names is off screen.
+   Quieter, but still a button and still in the tab order: a control that leaves
+   the tab order when the camera moves is a control that vanished under the
+   reader's hand. */
+.backlot-hotspot[data-backlot-edge="true"] {
+  border-style: dashed;
+  color: var(--at-text-secondary);
+}
+
+/* Busy, not gone. `aria-disabled` rather than `disabled` — `disabled` blurs the
+   element it is set on, and the reader loses the ring on the control they just
+   pressed. The theme styles its own disabled buttons the same way. */
+.backlot-hotspot[aria-disabled="true"] {
+  color: var(--at-text-muted);
+  cursor: progress;
+}
+
+/* --------------------------------------------------------- the live region */
+
+/* Read, never seen. Not `display: none` and not `hidden`: either would take it
+   out of the accessibility tree and the announcements would stop. */
+.backlot-live {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ------------------------------------------------------------------- phone */
+
+/* 390×844 is a pass, not a design target. The labels stop being sentences
+   parked over a 3D scene at that width — six of them would cover the ring — so
+   they come down to their dot, and the accessible name goes on the button
+   itself. The control is the same size it was; only the text goes. */
+@media (max-width: 640px) {
+  /* 2.75rem is 44px at the theme's root size, which is the smallest a target
+     has any business being under a thumb. The dot is what you see; the button
+     is what you hit. */
+  .backlot-hotspot {
+    max-inline-size: none;
+    min-inline-size: 2.75rem;
+    min-block-size: 2.75rem;
+    padding: var(--at-spacing-xs);
+    justify-content: center;
+  }
+
+  .backlot-hotspot__label {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .backlot-hotspot__dot {
+    inline-size: 0.75rem;
+    block-size: 0.75rem;
+  }
+}
+
+/* ------------------------------------------------------------ less motion */
+
+/* The scene's own reduced-motion branches are in the engine, where the state
+   change still happens and only the animation goes. This is the DOM's half of
+   the same bargain: a button that slides to a new position every frame as the
+   camera drifts is motion too, and under the preference the camera does not
+   drift, so there is nothing left for the transition to smooth. */
+@media (prefers-reduced-motion: reduce) {
+  .backlot-hotspot {
+    transition: none;
+  }
+}

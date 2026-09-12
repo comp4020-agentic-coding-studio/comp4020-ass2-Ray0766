@@ -6,7 +6,17 @@
 // do, and under reduced motion it does not even do that: `walkTo` puts the
 // figure at the target and resolves, because the state change still has to
 // happen, it just arrives instantly.
-import { BoxGeometry, CapsuleGeometry, CircleGeometry, Group, MathUtils, Mesh, SphereGeometry, Vector3 } from "three";
+import {
+  BoxGeometry,
+  CapsuleGeometry,
+  CircleGeometry,
+  Group,
+  MathUtils,
+  Mesh,
+  RingGeometry,
+  SphereGeometry,
+  Vector3,
+} from "three";
 import type { PlayerApi } from "./types";
 import type { Palette } from "./scene";
 
@@ -68,7 +78,22 @@ export function createFigure(options: FigureOptions): Figure {
   const body = new Mesh(new CapsuleGeometry(BODY_RADIUS, BODY_LENGTH, 4, 14), palette.lit("--at-tertiary"));
   body.position.y = BODY_RADIUS + BODY_LENGTH / 2;
 
-  const head = new Mesh(new SphereGeometry(HEAD_RADIUS, 16, 12), palette.lit("--at-text"));
+  // The head is a surface, and `--at-text` is the page's ink. That one
+  // substitution is the whole of the bug: painting a lit sphere in the ink token
+  // puts the palette's brightest value on the roundest thing in the scene, and
+  // it came out the brightest thing on screen — measured on the composite in the
+  // machine room, a 40x40 cell on the head read 211 mean luminance where the two
+  // front-wall screens, which are what the room is about, read 139 and 135. The
+  // token is 240,238,235; a lit up-facing surface keeps about 0.89 of that.
+  //
+  // `--at-text-muted` is 138,135,133, which lands the same cell at 122 — under
+  // the screens in both directions, still well clear of the body's
+  // `--at-tertiary` at 98, so the head is still a head and not a second shoulder.
+  // What the figure loses in brightness it gets back on the floor: the contact
+  // ring below is the brand fill, which is the same language the hotspot dots
+  // use for "this is a thing", and it is what your eye finds when you are
+  // looking for yourself.
+  const head = new Mesh(new SphereGeometry(HEAD_RADIUS, 16, 12), palette.lit("--at-text-muted"));
   head.position.y = HEAD_Y;
 
   // A god view flattens a capsule into a dot, so the figure needs one feature
@@ -84,7 +109,16 @@ export function createFigure(options: FigureOptions): Figure {
   contact.rotation.x = -Math.PI / 2;
   contact.position.y = 0.012;
 
-  group.add(body, head, nose, contact);
+  // And a ring round it, in the brand fill: the mark that says which of the
+  // things on the floor is you. It replaces the brightness the head gave up.
+  // A fill and not ink — it is a band, never a letter and never a stroke on a
+  // control — so the gold is allowed to be the gold here (CLAUDE.md §7). Unlit,
+  // so it is the same mark wherever the figure walks out of the key light.
+  const mark = new Mesh(new RingGeometry(0.36, 0.45, 28), palette.flat("--at-accent"));
+  mark.rotation.x = -Math.PI / 2;
+  mark.position.y = 0.014;
+
+  group.add(body, head, nose, contact, mark);
 
   const position = new Vector3();
   const facing = new Vector3(0, 0, 1);
@@ -223,7 +257,7 @@ export function createFigure(options: FigureOptions): Figure {
     },
     dispose() {
       clearGoal();
-      for (const mesh of [body, head, nose, contact]) mesh.geometry.dispose();
+      for (const mesh of [body, head, nose, contact, mark]) mesh.geometry.dispose();
       group.clear();
     },
   };

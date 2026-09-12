@@ -91,7 +91,7 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
 
   stage.scene.add(camera.rig);
 
-  const hub = createHub(manifest.doors, stage.palette);
+  const hub = createHub(manifest.doors, stage.palette, { colours, layers });
   stage.scene.add(hub.group);
 
   const player = createFigure({
@@ -103,7 +103,7 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
   player.setBounds(hub.walkableRadius);
   player.placeAt(hub.middle, new Vector3(0, 0, -1));
 
-  camera.frame(hub.bounds.centre, hub.bounds.radius, hub.bounds.height);
+  camera.frame(hub.bounds.centre, hub.bounds.radius, hub.bounds.height, hub.bounds.standRadius);
 
   // The canvas is a picture with a description, not a control: every control
   // over it is a real button in the HUD.
@@ -304,7 +304,7 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
     // above the highest of them. What goes: the ceiling and the near floor.
     const box = new Box3().setFromObject(group);
     if (box.isEmpty()) {
-      camera.frame(hub.bounds.centre, hub.bounds.radius, hub.bounds.height);
+      camera.frame(hub.bounds.centre, hub.bounds.radius, hub.bounds.height, hub.bounds.standRadius);
       player.setBounds(hub.walkableRadius);
     } else {
       const min = box.min.clone();
@@ -361,7 +361,7 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
     hotspots.setBaseHidden(false);
     unmount();
 
-    camera.frame(hub.bounds.centre, hub.bounds.radius, hub.bounds.height);
+    camera.frame(hub.bounds.centre, hub.bounds.radius, hub.bounds.height, hub.bounds.standRadius);
     player.setBounds(hub.walkableRadius);
     if (door) {
       player.placeAt(door.standing, new Vector3().copy(door.outward).multiplyScalar(-1));
@@ -441,6 +441,11 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
         },
       }),
     );
+    // What the door's button marks the surface of. A door hotspot is parked on
+    // the leaf's middle, which is not the window, and the window is the only
+    // part of a door that carries a colour worth measuring — a still, a
+    // workflow, or a plate with the door's name on it.
+    hotspots.trackSurface(entry.door.id, entry.pane);
   }
 
   // ------------------------------------------------------------------ input
@@ -516,6 +521,18 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
   let settleReady: () => void = () => {};
   const ready = new Promise<void>((settle) => {
     settleReady = settle;
+  });
+
+  // Layer 1 for the hub: the six door windows. Deliberately after `ready` and
+  // not before it — a still off the network, a graph reader pulled in on a
+  // dynamic import and six canvases drawn with type on them are none of them
+  // things the first frame owes anybody, and the budget's 2 s is measured
+  // against a frame that is geometry and lights only. Every one of them may
+  // come back empty, and empty leaves the window the flat fill it was built
+  // with, the same bargain the rest of `layers` strikes.
+  void ready.then(() => {
+    if (disposed) return;
+    void hub.dress().catch((error) => console.warn("backlot: a door window did not land", error));
   });
 
   function tick(now: number): void {

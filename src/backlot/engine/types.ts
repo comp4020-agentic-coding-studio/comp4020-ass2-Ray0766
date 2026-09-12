@@ -117,6 +117,24 @@ export interface Hotspot {
   readonly button: HTMLButtonElement;
   setLabel(label: string): void;
   setEnabled(enabled: boolean): void;
+  /**
+   * Publish where the thing this hotspot marks actually is on screen, as
+   * `data-backlot-rect="x,y,w,h"` in CSS pixels on the button.
+   *
+   * This exists because a colour on a surface in this scene cannot otherwise be
+   * measured. The repo's rule is that any new colour is read off the composite
+   * rather than off the declaration, and the only handle a check has on a door
+   * is its hotspot — which is a control parked *near* the door, not the door's
+   * face. A check that sampled a strip through the button's centre would cross
+   * two doors and report a number that looks like a measurement.
+   *
+   * Two things make it worth publishing rather than reconstructing: it comes
+   * from the same projection the renderer uses, so it cannot drift from what is
+   * drawn; and it updates in the same pass that parks the button, so it is
+   * right while the camera is still travelling. Pass `null` for a hotspot that
+   * marks a point rather than a surface, and the attribute comes off.
+   */
+  setRect(rect: { x: number; y: number; width: number; height: number } | null): void;
   dispose(): void;
 }
 

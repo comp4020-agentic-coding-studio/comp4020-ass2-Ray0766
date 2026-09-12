@@ -15,7 +15,7 @@
 //   - The list is never re-rendered. Registration appends; leaving a room
 //     removes only what that room added, after focus has been moved somewhere
 //     deliberate.
-import { Vector3, type OrthographicCamera } from "three";
+import { Box3, Vector3, type Object3D, type OrthographicCamera } from "three";
 import type { Hotspot, HotspotApi, HotspotSpec } from "./types";
 
 /** What the deck needs from the engine that it cannot do itself. */
@@ -42,6 +42,10 @@ interface Parked {
   spec: HotspotSpec;
   handle: Hotspot;
   button: HTMLButtonElement;
+  /** The thing in the world this hotspot marks the *surface* of, if it marks a
+   *  surface at all. Projected in `park`, never cached: a door's window swings
+   *  with its leaf and the camera can be mid-travel. */
+  surface: Object3D | null;
   /** Belongs to a room rather than to the hub. */
   scoped: boolean;
   /** Registered by the engine into the room's scope rather than by the room.
@@ -97,6 +101,18 @@ export interface HotspotDeck {
    *  park — needed when the CSS that sizes them changes, which is what a
    *  viewport crossing the phone breakpoint does. */
   remeasure(): void;
+  /**
+   * Say that this hotspot marks the surface of `object`, so every `park` can
+   * publish where that surface is on screen (`Hotspot.setRect` in types.ts says
+   * why it has to be published rather than reconstructed).
+   *
+   * An object rather than a rectangle, and that is the whole point: the rect is
+   * projected from the object's own world matrix in the pass that runs after
+   * `render`, so a door's window follows its leaf as it swings and stays right
+   * while the camera is still travelling. `null` stops tracking and takes the
+   * attribute off.
+   */
+  trackSurface(id: string, object: Object3D | null): void;
   locate(id: string): Vector3 | null;
   /** The extent of everything **the room itself** registered, or null when the
    *  room has registered nothing. This is what a room says is worth reaching, so
@@ -128,6 +144,8 @@ export function createHotspots(hud: HTMLElement, camera: OrthographicCamera, hoo
   /** Boxes already placed this frame, for the de-collision pass in `park`. */
   const placed: { x: number; y: number; width: number; height: number }[] = [];
   const projected = new Vector3();
+  const bounds = new Box3();
+  const corner = new Vector3();
   let scoping = false;
   let liveTimer = 0;
 
@@ -143,6 +161,47 @@ export function createHotspots(hud: HTMLElement, camera: OrthographicCamera, hoo
 
   function apply(entry: Parked): void {
     entry.button.setAttribute("aria-disabled", entry.enabled ? "false" : "true");
+  }
+
+  /** An object's world-space extent, as a rectangle in canvas pixels.
+   *
+   *  Every corner is projected and the extremes taken, rather than projecting a
+   *  centre and a size: the projection of a tilted box is not its plan, and the
+   *  hub is seen at 52 degrees. Returns null for anything with nothing in it, so
+   *  a caller that tracked the wrong object gets no attribute rather than a
+   *  rectangle of infinities. */
+  function projectBox(
+    object: Object3D,
+    width: number,
+    height: number,
+  ): { x: number; y: number; width: number; height: number } | null {
+    if (width <= 0 || height <= 0) return null;
+    bounds.setFromObject(object);
+    if (bounds.isEmpty()) return null;
+    let left = Infinity;
+    let top = Infinity;
+    let right = -Infinity;
+    let bottom = -Infinity;
+    for (const x of [bounds.min.x, bounds.max.x]) {
+      for (const y of [bounds.min.y, bounds.max.y]) {
+        for (const z of [bounds.min.z, bounds.max.z]) {
+          corner.set(x, y, z).project(camera);
+          const px = (corner.x * 0.5 + 0.5) * width;
+          const py = (-corner.y * 0.5 + 0.5) * height;
+          left = Math.min(left, px);
+          right = Math.max(right, px);
+          top = Math.min(top, py);
+          bottom = Math.max(bottom, py);
+        }
+      }
+    }
+    // Clamped to the canvas, because a door on the far side of a framing can
+    // project outside it and a rectangle nobody can sample is worse than none.
+    const x = Math.max(0, Math.min(left, width));
+    const y = Math.max(0, Math.min(top, height));
+    const w = Math.max(0, Math.min(right, width) - x);
+    const h = Math.max(0, Math.min(bottom, height) - y);
+    return w > 0 && h > 0 ? { x, y, width: w, height: h } : null;
   }
 
   function register(spec: HotspotSpec, own = false): Hotspot {
@@ -167,6 +226,7 @@ export function createHotspots(hud: HTMLElement, camera: OrthographicCamera, hoo
       button,
       scoped: scoping,
       own,
+      surface: null,
       near: false,
       enabled: true,
       busy: false,
@@ -184,6 +244,19 @@ export function createHotspots(hud: HTMLElement, camera: OrthographicCamera, hoo
         setEnabled(enabled) {
           entry.enabled = enabled;
           apply(entry);
+        },
+        setRect(rect) {
+          if (!rect) {
+            delete button.dataset.backlotRect;
+            return;
+          }
+          // Rounded, and in the canvas's own coordinates — the same space the
+          // parked buttons are positioned in, so a reader of this attribute
+          // adds the canvas's own client rect exactly as they already do for a
+          // button's box.
+          button.dataset.backlotRect = [rect.x, rect.y, rect.width, rect.height]
+            .map((value) => Math.round(value))
+            .join(",");
         },
         dispose() {
           const at = parked.indexOf(entry);
@@ -358,6 +431,29 @@ export function createHotspots(hud: HTMLElement, camera: OrthographicCamera, hoo
         if (one.clamped) entry.button.dataset.backlotEdge = "true";
         else delete entry.button.dataset.backlotEdge;
       }
+
+      // And, for anything that marks a surface rather than a point, where that
+      // surface is. In this pass rather than a pass of its own, and off the
+      // object's own world matrix rather than off a remembered number, which is
+      // the pair of properties `Hotspot.setRect` exists for. `park` runs after
+      // `render`, so every matrix here is the one the frame was drawn with.
+      for (const entry of parked) {
+        if (!entry.surface) continue;
+        if (entry.button.hidden) {
+          // A door inside a room is not on screen, and a rect for it would be a
+          // stale number that still parses.
+          entry.handle.setRect(null);
+          continue;
+        }
+        entry.handle.setRect(projectBox(entry.surface, width, height));
+      }
+    },
+
+    trackSurface(id, object) {
+      const entry = parked.find((candidate) => candidate.spec.id === id);
+      if (!entry) return;
+      entry.surface = object;
+      if (!object) entry.handle.setRect(null);
     },
 
     remeasure() {

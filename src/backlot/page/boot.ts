@@ -151,7 +151,20 @@ async function boot(): Promise<void> {
   enterBacklot();
 }
 
+// `error`, not `warn`, and the difference is the size of what has gone wrong. A
+// room that throws is a warning: the hub is still standing and the reader still
+// has the backlot. This is the whole 3D experience failing, and the failure is
+// silent by design — the gallery is real, the box is given back, and the page a
+// reader gets is a correct page. That is exactly what makes it expensive: an
+// island that throws on every load presents as a healthy static gallery, and
+// twice this round a signature mismatch did precisely that for minutes.
+//
+// It is still not an uncaught error, so a probe watching `window.onerror` sees
+// nothing either way — and the absence of a logged error is not evidence the
+// island booted. The check for that is the positive one, on the
+// `data-backlot-ready` attribute the engine sets on purpose once it has a frame.
+// This line is what makes the cause findable after that check has gone red.
 boot().catch((error) => {
-  console.warn("backlot: staying on the gallery", error);
+  console.error("backlot: the island did not start, so the page stays on the gallery", error);
   releaseBox();
 });

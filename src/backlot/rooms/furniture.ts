@@ -338,6 +338,47 @@ export function buildTower(kit: Kit): TowerBuild {
   group.add(at(card, 0.03, 0.245, -0.03));
   const backplate = slab(kit, [0.142, 0.004, 0.34], "caseInterior");
   group.add(at(backplate, 0.03, 0.245 - cardThickness / 2 - 0.002, -0.03));
+  // The card's own light, down the edge that faces the glass — and it is *lit*
+  // geometry rather than a surface the interior lamp shines on, for the same
+  // reason the bar down the front is.
+  //
+  // The lamp is theme-stable: its intensity is the room's exposure, which is
+  // read off `--at-tertiary`, which is 107,97,84 in both themes. What is not
+  // theme-stable is everything it lands on. `Painter` stops every lit albedo in
+  // the room by `min(1, 0.13 / luminance(--at-bg))` — 1.0 dark, 0.132 light —
+  // so the glow measured rgb(82,57,33) through the glass under the dark theme
+  // and rgb(29,19,8) under the light one: a factor of 7.1 in linear light,
+  // which is that stop to two figures. A light that is a seventh of itself in
+  // one theme is not being a light, it is being a shade of the case.
+  //
+  // Unstopping the interior does not fix it, and I tried that first and
+  // measured it: nothing in the backlot casts a shadow, so the two overheads
+  // and the stage's key pass straight through the steel, and an unstopped fan
+  // came out at rgb(178,178,159) under the light theme — next to a floor at
+  // 186. The stop is not wrong about the inside of the case; there is no inside
+  // of the case as far as the lights are concerned.
+  //
+  // So the glow is emitted rather than reflected, and then it is the same in
+  // both themes by construction. The reflected pool on the shroud stays what it
+  // is: extra, in the theme whose exposure can afford it.
+  // The card's whole glass-facing flank, not a hairline: at this rake the glass
+  // shows about 40 px and a 2 px line inside it is the mistake the 8 mm cables
+  // were. 50 mm of the card's own 61 mm thickness, its full length.
+  //
+  // No level on this one, and the reason is the panel rather than taste: the
+  // smoked glass in front of it already takes it to 0.7 of its own linear
+  // value, which lands it at rgb(129,88,20) — luminance 92, against the bar on
+  // the front at 99, and the same in both themes to the count. Two lights of
+  // the same kind, the one behind glass six counts the dimmer. It has to clear
+  // the *dark* theme's reflected pool on the same panel — 66 — or it is a light
+  // that reads darker than the surface it is on, which is what a level of 0.3
+  // gave: 51 against 67, measured, a dark line down a lit panel.
+  const cardLight = new Mesh(
+    kit.track(new BoxGeometry(0.006, 0.05, 0.32)),
+    kit.painter.flat("caseGlow"),
+  );
+  group.add(at(cardLight, 0.03 - 0.07 - 0.004, 0.245, -0.03));
+
   // Three fans on the underside of the card, which is the side you see through
   // glass with the card mounted the usual way up.
   const cardFanGeometry = kit.track(new CylinderGeometry(0.044, 0.044, 0.012, 14));

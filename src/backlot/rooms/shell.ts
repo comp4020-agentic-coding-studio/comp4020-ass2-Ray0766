@@ -190,6 +190,19 @@ export interface PieceFrame {
   readonly normal: Vector3;
   readonly width: number;
   readonly height: number;
+  /**
+   * The piece's own face, for `HotspotSpec.surface` — the engine projects it and
+   * publishes the box as `data-backlot-rect`, which is the only handle a check
+   * has on a colour in this scene.
+   *
+   * It is the **fill**, not the picture. The two are coplanar and the same
+   * `width × height`, but the picture ships `visible = false` and only turns on
+   * if a texture lands, so a rect taken from it would be absent exactly when a
+   * check most wants to know what the frame is showing — and a piece whose file
+   * never arrives would have no rect at all, when a flat fill is still a colour
+   * somebody has to be able to measure.
+   */
+  readonly face: Mesh;
   /** Where the figure stands to read it, on the floor. */
   readonly standPoint: Vector3;
   /** Hands the frame a picture. Null leaves the fill showing. */
@@ -251,6 +264,7 @@ function frameAt(
     normal: surface.normal.clone(),
     width,
     height,
+    face: fill,
     standPoint,
     show(texture: Texture | null) {
       if (!texture) {
@@ -440,6 +454,13 @@ export function buildRoomShell(context: RoomContext, options: ShellOptions = {})
       radius: frame ? reachOf(surfaces[frame.piece.wall]) : 1.8,
       label: interactive.label,
       position,
+      // What the button is parked near, and separately what it is *about*. A
+      // control sits near the thing; a check needs the thing. Without this the
+      // only way to find a piece is a radius around its control, which is 130 px
+      // at 1920×1080 with the nearest stray 439 px off, and 26 px at 390×844
+      // with three brighter cells 27, 29 and 35 px off — one cell of error, on
+      // the screens' own edges (engine/types.ts carries the same note).
+      ...(frame ? { surface: frame.face } : {}),
       ...(arrival ? { arrival } : {}),
       ...(focus ? { focus } : {}),
       ...(focus && frame

@@ -122,6 +122,10 @@ const THRESHOLD_RADIUS = 1.15;
 /** How far into the ring the pool of light from a window reaches. */
 const SPILL_DEPTH = 5.6;
 const SPILL_WIDTH = DOOR_WIDTH + 2.4;
+/** How far above the frame the name board floats, and how far it sits back over
+ *  the lintel. Small: it reads as fixed to the head of the door, not hung. */
+const SIGN_LIFT = 0.05;
+
 /**
  * The radius the six names are painted at, inside the ring the doors stand on.
  *
@@ -385,20 +389,39 @@ export function createHub(doors: BacklotDoor[], palette: Palette, options: HubOp
     // than to the door's, so all six read left to right on screen: this is a
     // god view of a ring, and a name that is upside down at six o'clock is a
     // name nobody reads.
-    const name = signs.floorName(door.label);
-    if (name) {
+    // The name over the door.
+    //
+    // This is where a sign goes — every stage door, every corridor, every room
+    // numbered by somebody who wanted it found — and it took failing at it on
+    // the door's face to see that. A word on a vertical face is foreshortened to
+    // cos(52) = 0.616 and then turned away by the ring: at 60 degrees of yaw the
+    // letters shear about 54 degrees and their across-the-run extent halves, and
+    // POLICIES does not resolve as a word at any size the opening can carry.
+    // The lintel's top face is **horizontal**, so the camera keeps sin(52) =
+    // 0.788 of it at *every* angle on the ring, and it is never turned away.
+    // Same cap height as the floor marking and the same layout, because a god
+    // view treats every horizontal surface alike.
+    //
+    // Laid out to the world's axes rather than to the door, so all six read left
+    // to right: this is a god view of a ring, and a name that is upside down at
+    // six o'clock is a name nobody reads. That floats the board free of the
+    // lintel's own footprint on the four turned doors, which is the price and
+    // is worth it — a board over a door that you can read beats a board aligned
+    // to a door that you cannot.
+    const sign = signs.lintelSign(door.label);
+    if (sign) {
       const material = palette.flat("--at-white");
-      material.map = name.texture;
+      material.map = sign.texture;
       material.transparent = true;
       material.depthWrite = false;
       material.needsUpdate = true;
-      const nameGeometry = new PlaneGeometry(name.metresWide, name.metresTall);
-      perDoor.push(nameGeometry);
-      const plate = new Mesh(nameGeometry, material);
-      plate.rotation.x = -Math.PI / 2;
-      plate.position.copy(outward).multiplyScalar(NAME_RADIUS).setY(LIFT * 2.5);
-      plate.renderOrder = 2;
-      group.add(plate);
+      const signGeometry = new PlaneGeometry(sign.metresWide, sign.metresTall);
+      perDoor.push(signGeometry);
+      const board = new Mesh(signGeometry, material);
+      board.rotation.x = -Math.PI / 2;
+      board.position.copy(outward).multiplyScalar(RING_RADIUS).setY(FRAME_HEIGHT + SIGN_LIFT);
+      board.renderOrder = 3;
+      group.add(board);
     }
 
     const anchor = new Vector3().copy(outward).multiplyScalar(RING_RADIUS).setY(DOOR_HEIGHT * 0.62);
@@ -492,9 +515,15 @@ export function createHub(doors: BacklotDoor[], palette: Palette, options: HubOp
     bounds: {
       centre: new Vector3(0, 0, 0),
       radius: FLOOR_RADIUS,
-      height: FRAME_HEIGHT,
-      // The outside face of a jamb, which is the furthest out anything stands.
-      standRadius: RING_RADIUS + JAMB_DEPTH / 2,
+      // The frame, plus the room the name board over it needs. The board is flat
+      // and adds no height of its own, but it is laid to the world's axes, so on
+      // the far door its back edge is about half a metre further out than the
+      // frame — which the god view lifts by 0.788 of that and would otherwise
+      // guillotine. Costs about 1% of the ring's share of the frame; measured.
+      height: FRAME_HEIGHT + 0.6,
+      // The outside face of a jamb, or the board's own overhang, whichever is
+      // further out.
+      standRadius: RING_RADIUS + Math.max(JAMB_DEPTH / 2, 0.5),
     },
     walkableRadius: FLOOR_RADIUS - 0.6,
     middle: new Vector3(0, 0, 0),

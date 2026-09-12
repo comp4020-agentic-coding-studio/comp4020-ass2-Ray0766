@@ -50,6 +50,37 @@ const EDGE_OF_SHOT = 0.6;
 /** And how far off a wall it stops, so it never stands inside one. */
 const WALL_CLEARANCE = 0.6;
 
+/**
+ * How far the figure's lit surfaces are held under their own tokens while it is
+ * inside a room.
+ *
+ * A room adds practical lights the hub does not have, and it puts the figure
+ * four times closer to the camera, so a level chosen against the ring does not
+ * survive the crossing. Measured on the composite at 1920x1080, dark, HUD
+ * hidden, 40x40 cells — the metric the room's own brightness line is written in:
+ *
+ *   the head's cell      145.3, rank 2 of 1104, tying the brightest front-wall
+ *                        screen and beating the other four
+ *   the front wall       145.3 / 143.7 / 143.6 / 143.1 / 134.6
+ *
+ * The contract says the five screens are the brightest thing in the room and
+ * nothing painted may out-shine them, and at 1.0 the figure does. 0.55 is the
+ * factor that lands the head's cell at 110.2 — rank 8, with the six cells above
+ * it all front wall — which is clear of the dimmest screen by a wider margin
+ * than the drift the idle camera puts on the reading. It is a measurement rather
+ * than a taste; the runs are in receipts/rig-3d/a2-hub.md.
+ *
+ * The first explanation for this was that the figure lacked the room Painter's
+ * exposure gain. That was never tested and it was wrong: in the dark theme that
+ * gain computes to min(1, 0.13 / 0.0016) = 1, so the room's own surfaces are not
+ * stopped down either and matching it would change nothing.
+ *
+ * Only the lit surfaces move; the gold ring at the figure's feet is unlit and
+ * keeps its value, which is what stops "not the brightest" turning into "not
+ * findable".
+ */
+const ROOM_EXPOSURE = 0.55;
+
 const wait = (milliseconds: number) => new Promise<void>((settle) => window.setTimeout(settle, milliseconds));
 
 /** "The machine room" mid-sentence is "the machine room". Only the first letter,
@@ -286,6 +317,10 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
     if (disposed || mounted?.group !== group) return;
 
     hub.group.visible = false;
+    // The figure crosses into a differently lit place, so its exposure crosses
+    // with it. Set here rather than at construction because the hub and a room
+    // are two different lighting states for one object.
+    player.setExposure(ROOM_EXPOSURE);
 
     // A room gets its own resting view rather than the hub's.
     //
@@ -359,6 +394,7 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
 
     hub.group.visible = true;
     hotspots.setBaseHidden(false);
+    player.setExposure(1);
     unmount();
 
     camera.frame(hub.bounds.centre, hub.bounds.radius, hub.bounds.height, hub.bounds.standRadius);

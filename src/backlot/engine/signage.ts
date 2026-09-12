@@ -50,10 +50,24 @@ const TRACKING = 0.16;
  *  need much of it, because the line it is set along is already generous. */
 const PLATE_TRACKING = 0.06;
 
-/** The narrowest a plate's word will be set, as a fraction of the face's own
- *  advance. Condensed type is how a narrow sign has always bought height, and
- *  0.72 is about where a real condensed cut sits — far enough to be worth 1.39x
- *  of cap, not so far that the counters close up at eight or nine pixels. */
+/**
+ * The narrowest a plate's word will be set, as a fraction of the face's own
+ * advance. 0.72 is about where a real condensed cut sits.
+ *
+ * Worth being honest about what this buys, because it was introduced chasing a
+ * number that turned out to be the wrong target. Cap height is a **proxy** for
+ * readability, and on the four doors the ring turns 60° from the camera the
+ * proxy passes while the word fails: the glyph's cap direction projects to
+ * (cos θ, sin 52 · sin θ), so the letters are sheared about 54° and their
+ * across-the-run extent is |cos θ| = 0.5 of the cap. Looked at 1:1 and at 6x
+ * nearest-neighbour, POLICIES and PEOPLE do not resolve as words at **either**
+ * 0.72 or 1.0 — the condensing is not what breaks them, the shear is.
+ *
+ * It is kept because it is worth 1.39x of cap on the one plate that can be
+ * read — Assessment, at six o'clock, square on to the camera, which goes from
+ * about 8.9 px to 12.3 px — and costs nothing on the two that cannot. Its only
+ * beneficiary is that door, and that is the whole of the case for it.
+ */
 const CONDENSE_MIN = 0.72;
 
 /**
@@ -88,6 +102,9 @@ export interface Signwriter {
   /** The door's name painted on the floor in front of it, at a fixed cap height
    *  so every door's name is equally readable however long the word is. */
   floorName(label: string): Sign | null;
+  /** The same name on a board over the door. Same cap, same layout, a ground
+   *  under it — a sign above a door is where a sign goes. */
+  lintelSign(label: string): Sign | null;
   /** The pool a lit window throws on the floor. Alpha only — the colour is the
    *  material's, so a theme flip repaints it without a redraw. */
   spill(): Texture | null;
@@ -150,6 +167,69 @@ export function createSignwriter(colours: ColourReader): Signwriter {
   });
 
   const ink = (token: string) => css(colours, token);
+
+  /**
+   * The door's name, set at a fixed cap height, for a **horizontal** surface.
+   *
+   * One drawing serves the floor and the lintel because the god view treats
+   * every horizontal surface the same: it keeps sin(52) = 0.788 of a depth, at
+   * every angle on the ring, and unlike a door's face it is never turned away.
+   * That is the whole reason the name ended up above the door — see the note in
+   * hub.ts — and it is why the two places share a cap height and a layout.
+   *
+   * `board` puts a washed ground under the word, which is what a sign screwed to
+   * a lintel has and what a marking painted on a floor does not.
+   */
+  function name(label: string, board: boolean): Sign | null {
+    const measure = context(8, 8);
+    if (!measure) return null;
+    const word = label.toUpperCase();
+    const capPx = FLOOR_CAP_METRES * PX_PER_METRE;
+    const ratio = capRatio(measure.ctx, word);
+    const size = capPx / ratio;
+    measure.ctx.font = `700 ${size}px ${SANS}`;
+    const extra = capPx * TRACKING;
+    const run = trackedWidth(measure.ctx, word, extra);
+    const padX = capPx * (board ? 0.75 : 0.6);
+    const padY = capPx * (board ? 0.6 : 0.5);
+
+    const made = context(run + padX * 2, capPx + padY * 2);
+    if (!made) return null;
+    const { canvas, ctx } = made;
+
+    const draw = () => {
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      if (board) {
+        // The same ground as the plate in the window, washed the same amount, so
+        // a door's two signs are one material at two sizes rather than two
+        // decisions. `--at-bg` under `--at-text` is the pair the theme
+        // guarantees in both directions; the wash is what makes it read as lit.
+        ctx.fillStyle = ink("--at-bg");
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = ink("--at-primary");
+        ctx.globalAlpha = PLATE_WASH;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.globalAlpha = 1;
+        ctx.strokeStyle = ink("--at-border");
+        ctx.lineWidth = Math.max(2, canvas.height * 0.04);
+        ctx.strokeRect(padX * 0.3, padY * 0.3, canvas.width - padX * 0.6, canvas.height - padY * 0.6);
+      }
+      // Ink is `--at-text` rather than the brand fill, because this is a word
+      // and CLAUDE.md §7 keeps the gold off anything that is ink.
+      ctx.font = `700 ${size}px ${SANS}`;
+      ctx.textBaseline = "alphabetic";
+      ctx.fillStyle = ink("--at-text");
+      trackedText(ctx, word, padX, padY + capPx, extra);
+    };
+
+    return {
+      texture: bake(canvas, draw),
+      metresWide: canvas.width / PX_PER_METRE,
+      metresTall: canvas.height / PX_PER_METRE,
+      capPixels: capPx,
+    };
+  }
 
   /** Wrap a texture so it is disposed with the writer and redrawn with the
    *  theme. `draw` is called once here and again on every flip. */
@@ -297,43 +377,11 @@ export function createSignwriter(colours: ColourReader): Signwriter {
     },
 
     floorName(label) {
-      const measure = context(8, 8);
-      if (!measure) return null;
-      const word = label.toUpperCase();
-      const capPx = FLOOR_CAP_METRES * PX_PER_METRE;
-      const ratio = capRatio(measure.ctx, word);
-      const size = capPx / ratio;
-      measure.ctx.font = `700 ${size}px ${SANS}`;
-      const extra = capPx * TRACKING;
-      const run = trackedWidth(measure.ctx, word, extra);
-      const padX = capPx * 0.6;
-      const padY = capPx * 0.5;
+      return name(label, false);
+    },
 
-      const made = context(run + padX * 2, capPx + padY * 2);
-      if (!made) return null;
-      const { canvas, ctx } = made;
-
-      const draw = () => {
-        ctx.setTransform(1, 0, 0, 1, 0, 0);
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        // Painted straight onto the floor, with no plate under it: a plate is a
-        // second rectangle to light and the name is what the reader is here for.
-        // Ink is `--at-text` rather than the brand fill, because this is a word
-        // and CLAUDE.md §7 keeps the gold off anything that is ink — and because
-        // `--at-text` on `--at-bg-alt` is the one pair the theme guarantees in
-        // both directions.
-        ctx.font = `700 ${size}px ${SANS}`;
-        ctx.textBaseline = "alphabetic";
-        ctx.fillStyle = ink("--at-text");
-        trackedText(ctx, word, padX, padY + capPx, extra);
-      };
-
-      return {
-        texture: bake(canvas, draw),
-        metresWide: canvas.width / PX_PER_METRE,
-        metresTall: canvas.height / PX_PER_METRE,
-        capPixels: capPx,
-      };
+    lintelSign(label) {
+      return name(label, true);
     },
 
     spill() {

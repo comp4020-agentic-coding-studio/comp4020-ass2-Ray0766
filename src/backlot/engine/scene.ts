@@ -30,17 +30,38 @@ export interface Palette {
   lit(token: string, options?: { opacity?: number }): MeshLambertMaterial;
   /** Unlit. For rules, rims and anything that should not take the key light. */
   flat(token: string, options?: { opacity?: number }): MeshBasicMaterial;
+  /**
+   * Hold a material under its own token, by a factor, and keep it there across
+   * a theme flip.
+   *
+   * A token says what something is made of. It does not say how much light is
+   * falling on it, and in this scene that is not fixed: the hub has the stage's
+   * three lights and a room adds its own practicals on top of them. A surface
+   * whose albedo was chosen against the first is over-lit under the second, and
+   * `repaint` would undo any correction applied by hand — which is why this is
+   * the palette's business rather than the caller's.
+   *
+   * `rooms/palette.ts` reached the same answer independently and calls it
+   * `level`; this is the engine's half of the same idea.
+   */
+  setLevel(material: Material & { color: Color }, level: number): void;
   /** Re-reads every token. Called on a theme flip. */
   repaint(): void;
   dispose(): void;
 }
 
 export function createPalette(colours: ColourSource): Palette {
-  const bound: { material: Material & { color: Color }; token: string }[] = [];
+  const bound: { material: Material & { color: Color }; token: string; level: number }[] = [];
+
+  const paint = (entry: { material: Material & { color: Color }; token: string; level: number }): void => {
+    entry.material.color.setHex(colours.hex(entry.token));
+    if (entry.level !== 1) entry.material.color.multiplyScalar(entry.level);
+  };
 
   const remember = <T extends Material & { color: Color }>(material: T, token: string): T => {
-    material.color.setHex(colours.hex(token));
-    bound.push({ material, token });
+    const entry = { material, token, level: 1 };
+    paint(entry);
+    bound.push(entry);
     return material;
   };
 
@@ -57,8 +78,14 @@ export function createPalette(colours: ColourSource): Palette {
       );
       return remember(material, token);
     },
+    setLevel(material, level) {
+      const entry = bound.find((candidate) => candidate.material === material);
+      if (!entry || entry.level === level) return;
+      entry.level = level;
+      paint(entry);
+    },
     repaint() {
-      for (const entry of bound) entry.material.color.setHex(colours.hex(entry.token));
+      for (const entry of bound) paint(entry);
     },
     dispose() {
       for (const entry of bound) entry.material.dispose();

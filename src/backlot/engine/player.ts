@@ -1,6 +1,26 @@
 // The figure: a capsule, a head and a short blade of a nose so which way it is
 // pointing is readable from directly above.
 //
+// --- two things to know before measuring anything in this scene --------------
+//
+// Both were paid for here, both produced plausible numbers, and both will be
+// repeated by whoever measures the figure next.
+//
+//   **A single snapshot of a drifting scene is not a measurement.** The idle
+//   camera yaws +-1.4 degrees and the fill light breathes +-12%, and in a room
+//   the wall's clip is playing as well. The same 40x40 cell on this figure's
+//   head, sampled twelve times over thirteen seconds, swung 117.8 to 144.9 and
+//   its rank among 1104 cells swung 8 to 2. The number that got reported was the
+//   first sample. Measure with `prefers-reduced-motion: reduce` and say so — it
+//   pins all three and the reading repeats to the decimal — or take a range.
+//
+//   **Segmenting a thing by brightness discards the pixels that make it
+//   bright.** "The head's own pixels" was found by matching the token's hue
+//   within 0.78..1.06 of its level, which throws away everything the room's
+//   practicals lifted above the token, and reported 125.7 for a cell that reads
+//   145.3. Segment by *moving* the figure a step and diffing: it cannot select
+//   for value, and it said the cell was 1600 of 1600 pixels figure.
+//
 // It is the reader's position in the world and nothing else — it carries no
 // state about doors, rooms or pages. Walking is the only thing it knows how to
 // do, and under reduced motion it does not even do that: `walkTo` puts the
@@ -60,6 +80,21 @@ export interface Figure extends PlayerApi {
   update(delta: number, elapsed: number): void;
   /** True while a walk or a drive is moving it. */
   readonly moving: boolean;
+  /**
+   * Hold the figure's lit surfaces under their own tokens, by a factor.
+   *
+   * The figure is the engine's and is the same object in both places, but the
+   * two places are not lit the same: the hub has the stage's three lights and a
+   * room adds practicals on top of them. An albedo that reads correctly under
+   * the first is over-lit under the second — measured, and the whole of the
+   * failure this exists to fix: a 40x40 cell on the head reads 50.5 in the hub
+   * and 145.3 in the machine room, off the same material.
+   *
+   * Only the lit surfaces move. The contact ring is unlit and does not: it is
+   * the mark that says which thing on the floor is you, and dimming the figure
+   * must not dim the one part of it that is there to be found.
+   */
+  setExposure(level: number): void;
   dispose(): void;
 }
 
@@ -75,7 +110,8 @@ export function createFigure(options: FigureOptions): Figure {
 
   const group = new Group();
 
-  const body = new Mesh(new CapsuleGeometry(BODY_RADIUS, BODY_LENGTH, 4, 14), palette.lit("--at-tertiary"));
+  const bodyMaterial = palette.lit("--at-tertiary");
+  const body = new Mesh(new CapsuleGeometry(BODY_RADIUS, BODY_LENGTH, 4, 14), bodyMaterial);
   body.position.y = BODY_RADIUS + BODY_LENGTH / 2;
 
   // The head is a surface, and `--at-text` is the page's ink. That one
@@ -93,13 +129,15 @@ export function createFigure(options: FigureOptions): Figure {
   // ring below is the brand fill, which is the same language the hotspot dots
   // use for "this is a thing", and it is what your eye finds when you are
   // looking for yourself.
-  const head = new Mesh(new SphereGeometry(HEAD_RADIUS, 16, 12), palette.lit("--at-text-muted"));
+  const headMaterial = palette.lit("--at-text-muted");
+  const head = new Mesh(new SphereGeometry(HEAD_RADIUS, 16, 12), headMaterial);
   head.position.y = HEAD_Y;
 
   // A god view flattens a capsule into a dot, so the figure needs one feature
   // that survives being seen from above: a blade on the front, which reads as a
   // heading from straight down and as a nose from the side.
-  const nose = new Mesh(new BoxGeometry(0.08, 0.08, 0.22), palette.lit("--at-brand-ink"));
+  const noseMaterial = palette.lit("--at-brand-ink");
+  const nose = new Mesh(new BoxGeometry(0.08, 0.08, 0.22), noseMaterial);
   nose.position.set(0, HEAD_Y, 0.19);
 
   // Not a shadow — there are no shadow maps in this scene and a fake one would
@@ -208,6 +246,9 @@ export function createFigure(options: FigureOptions): Figure {
     drive(direction) {
       driving.copy(direction).setY(0);
       if (driving.lengthSq() > 1e-6) clearGoal();
+    },
+    setExposure(level) {
+      for (const material of [bodyMaterial, headMaterial, noseMaterial]) palette.setLevel(material, level);
     },
     setBounds(radius) {
       bounds = { kind: "disc", radius };

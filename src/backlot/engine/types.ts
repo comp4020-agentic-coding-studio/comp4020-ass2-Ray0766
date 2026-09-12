@@ -102,6 +102,20 @@ export interface HotspotSpec {
    * the thing. Esc backs out of the framing first and leaves the room second.
    */
   focus?: Omit<FocusRequest, "target">;
+  /**
+   * The object this hotspot marks, when it marks a surface rather than a point.
+   * The engine publishes its projected box through `Hotspot.setRect`, with the
+   * caveat documented there.
+   *
+   * It is here because of what its absence did, not for completeness. Without a
+   * rect, a check can only locate a thing by taking a radius around its
+   * control: 130 px at 1920×1080, where the nearest stray was 439 px away, but
+   * 26 px at 390×844, where the three brightest off-surface cells sat 27, 29
+   * and 35 px out — one cell of error, on the screens' own edges. So the room's
+   * checks could be shown to go red at one marking viewport and not at the
+   * other, which is the failure this whole round has been about.
+   */
+  surface?: Object3D;
   /** How close the figure has to be for a walk to count as arriving. Metres. */
   radius?: number;
   /** What the live region says when the figure arrives, if anything. */

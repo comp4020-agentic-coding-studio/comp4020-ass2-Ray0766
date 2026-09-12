@@ -226,7 +226,11 @@ export function createHotspots(hud: HTMLElement, camera: OrthographicCamera, hoo
       button,
       scoped: scoping,
       own,
-      surface: null,
+      // A spec that names its surface gets its rect published from the moment it
+      // registers, with no second call: the hub's doors hand theirs over through
+      // `trackSurface` because the engine builds them, and a room hands its own
+      // over here because the room builds those. Same projection, same pass.
+      surface: spec.surface ?? null,
       near: false,
       enabled: true,
       busy: false,

@@ -126,20 +126,6 @@ const SPILL_WIDTH = DOOR_WIDTH + 2.4;
  *  the lintel. Small: it reads as fixed to the head of the door, not hung. */
 const SIGN_LIFT = 0.05;
 
-/**
- * The radius the six names are painted at, inside the ring the doors stand on.
- *
- * Two things put them here rather than at the foot of the door. A name is laid
- * out to the world's axes (see below), so a long word beside an angled door
- * sprawls across the ring and runs under the leaf — at the foot of the 60°
- * door, "Assessment" reached a corner 0.2 m outside the ring. And the figure
- * stands 2 m off the door, which is exactly where the foot of the door is: a
- * reader walking up to a door would be standing on its name. At 7.2 the six of
- * them make an inner ring of words, each 4.3 m in front of its own door and
- * 3.8 m clear of its neighbours.
- */
-const NAME_RADIUS = 7.2;
-
 /** Close enough for a walk to count as arriving, and to push the door open. */
 export const DOOR_REACH = 2.1;
 /** How far a leaf swings. Radians. */

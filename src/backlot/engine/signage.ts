@@ -19,22 +19,23 @@
 import { CanvasTexture, SRGBColorSpace, type Texture } from "three";
 import type { ColourReader } from "./types";
 
-/** Texture pixels per world metre. The largest thing drawn here is a floor
- *  name about 3.4 m wide, which lands around 150 px across at 1920 — so 160
- *  px/m is a little over 3x the screen size a 2x display asks for, and the
- *  whole set of them is well under a megabyte of texture memory. */
+/** Texture pixels per world metre. The largest thing drawn here is a name board
+ *  about 3.4 m wide, which lands around 150 px across at 1920 — so 160 px/m is a
+ *  little over 3x the screen size a 2x display asks for, and the whole set of
+ *  them is well under a megabyte of texture memory. */
 const PX_PER_METRE = 160;
 
-/** Cap height of a door's name on the floor, in metres.
+/** Cap height of a door's name on the board over its lintel, in metres.
  *
  *  This is the number the legibility target is actually made of. The god view
  *  is fixed at 52 degrees, so a horizontal surface keeps sin(52) = 0.788 of its
  *  depth on screen while a vertical one keeps only cos(52) = 0.616 of its
- *  height — and the floor, unlike a door face, is never turned away from the
- *  camera by the ring. At 1920x1080 the hub resolves about 41.7 px per metre,
- *  so 0.36 m of cap comes out at 0.36 x 41.7 x 0.788 = 11.8 px, which is a word
- *  you read rather than a word you recognise. */
-const FLOOR_CAP_METRES = 0.36;
+ *  height — and a horizontal surface, unlike a door's face, is never turned away
+ *  from the camera by the ring. At 1920x1080 the hub resolves about 41 px per
+ *  metre, so 0.36 m of cap comes out around 12 px, which reads at 1:1 on all six
+ *  doors in both themes. Verified by looking at the pixels, not by this
+ *  arithmetic: cap height is a proxy and it passed once while the word failed. */
+const SIGN_CAP_METRES = 0.36;
 
 /** The stack, not a face. See the note at the top of the file. */
 const SANS = 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
@@ -99,11 +100,8 @@ export interface Signwriter {
    *  name. `metres` is the window opening, so the drawing is made at the size it
    *  will be seen at rather than at a round number. */
   nameplate(label: string, metres: { wide: number; tall: number }): Sign | null;
-  /** The door's name painted on the floor in front of it, at a fixed cap height
-   *  so every door's name is equally readable however long the word is. */
-  floorName(label: string): Sign | null;
-  /** The same name on a board over the door. Same cap, same layout, a ground
-   *  under it — a sign above a door is where a sign goes. */
+  /** The door's name on a board over its lintel, at a fixed cap height so every
+   *  door's name is equally readable however long the word is. */
   lintelSign(label: string): Sign | null;
   /** The pool a lit window throws on the floor. Alpha only — the colour is the
    *  material's, so a theme flip repaints it without a redraw. */
@@ -177,21 +175,23 @@ export function createSignwriter(colours: ColourReader): Signwriter {
    * That is the whole reason the name ended up above the door — see the note in
    * hub.ts — and it is why the two places share a cap height and a layout.
    *
-   * `board` puts a washed ground under the word, which is what a sign screwed to
-   * a lintel has and what a marking painted on a floor does not.
+   * It used to take a `board` flag, because the floor markings drew the same
+   * word with no ground under it. They came out when the boards went up — one
+   * place that reads beats three that hedge — and the flag came out with them
+   * rather than being left as a branch nothing takes.
    */
-  function name(label: string, board: boolean): Sign | null {
+  function name(label: string): Sign | null {
     const measure = context(8, 8);
     if (!measure) return null;
     const word = label.toUpperCase();
-    const capPx = FLOOR_CAP_METRES * PX_PER_METRE;
+    const capPx = SIGN_CAP_METRES * PX_PER_METRE;
     const ratio = capRatio(measure.ctx, word);
     const size = capPx / ratio;
     measure.ctx.font = `700 ${size}px ${SANS}`;
     const extra = capPx * TRACKING;
     const run = trackedWidth(measure.ctx, word, extra);
-    const padX = capPx * (board ? 0.75 : 0.6);
-    const padY = capPx * (board ? 0.6 : 0.5);
+    const padX = capPx * 0.75;
+    const padY = capPx * 0.6;
 
     const made = context(run + padX * 2, capPx + padY * 2);
     if (!made) return null;
@@ -200,21 +200,19 @@ export function createSignwriter(colours: ColourReader): Signwriter {
     const draw = () => {
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      if (board) {
-        // The same ground as the plate in the window, washed the same amount, so
-        // a door's two signs are one material at two sizes rather than two
-        // decisions. `--at-bg` under `--at-text` is the pair the theme
-        // guarantees in both directions; the wash is what makes it read as lit.
-        ctx.fillStyle = ink("--at-bg");
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.fillStyle = ink("--at-primary");
-        ctx.globalAlpha = PLATE_WASH;
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.globalAlpha = 1;
-        ctx.strokeStyle = ink("--at-border");
-        ctx.lineWidth = Math.max(2, canvas.height * 0.04);
-        ctx.strokeRect(padX * 0.3, padY * 0.3, canvas.width - padX * 0.6, canvas.height - padY * 0.6);
-      }
+      // The same ground as the plate in the window, washed the same amount, so
+      // a door's two signs are one material at two sizes rather than two
+      // decisions. `--at-bg` under `--at-text` is the pair the theme guarantees
+      // in both directions; the wash is what makes it read as lit.
+      ctx.fillStyle = ink("--at-bg");
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = ink("--at-primary");
+      ctx.globalAlpha = PLATE_WASH;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.globalAlpha = 1;
+      ctx.strokeStyle = ink("--at-border");
+      ctx.lineWidth = Math.max(2, canvas.height * 0.04);
+      ctx.strokeRect(padX * 0.3, padY * 0.3, canvas.width - padX * 0.6, canvas.height - padY * 0.6);
       // Ink is `--at-text` rather than the brand fill, because this is a word
       // and CLAUDE.md §7 keeps the gold off anything that is ink.
       ctx.font = `700 ${size}px ${SANS}`;
@@ -376,12 +374,8 @@ export function createSignwriter(colours: ColourReader): Signwriter {
       return { texture: bake(canvas, draw), metresWide: metres.wide, metresTall: metres.tall, capPixels: cap };
     },
 
-    floorName(label) {
-      return name(label, false);
-    },
-
     lintelSign(label) {
-      return name(label, true);
+      return name(label);
     },
 
     spill() {

@@ -65,7 +65,7 @@ const WALL_CLEARANCE = 0.6;
  *
  * The contract says the five screens are the brightest thing in the room and
  * nothing painted may out-shine them, and at 1.0 the figure does. 0.55 is the
- * factor that lands the head's cell at 110.2 — rank 8, with the six cells above
+ * factor that lands the head's cell at 110.2 — rank 8, with the seven cells above
  * it all front wall — which is clear of the dimmest screen by a wider margin
  * than the drift the idle camera puts on the reading. It is a measurement rather
  * than a taste; the runs are in receipts/rig-3d/a2-hub.md.

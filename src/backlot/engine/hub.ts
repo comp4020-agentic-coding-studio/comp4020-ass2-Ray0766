@@ -156,6 +156,9 @@ export interface HubDoor {
    * rectangle. It hangs off the pivot, so the rect follows the leaf as it opens.
    */
   pane: Object3D;
+  /** The name board over the lintel. Not the window, so it is not what the door
+   *  publishes — but a control parked on it is a control over the door's name. */
+  board: Object3D | null;
 }
 
 export interface Hub {
@@ -394,6 +397,7 @@ export function createHub(doors: BacklotDoor[], palette: Palette, options: HubOp
     // lintel's own footprint on the four turned doors, which is the price and
     // is worth it — a board over a door that you can read beats a board aligned
     // to a door that you cannot.
+    let board: Object3D | null = null;
     const sign = signs.lintelSign(door.label);
     if (sign) {
       const material = palette.flat("--at-white");
@@ -403,11 +407,12 @@ export function createHub(doors: BacklotDoor[], palette: Palette, options: HubOp
       material.needsUpdate = true;
       const signGeometry = new PlaneGeometry(sign.metresWide, sign.metresTall);
       perDoor.push(signGeometry);
-      const board = new Mesh(signGeometry, material);
-      board.rotation.x = -Math.PI / 2;
-      board.position.copy(outward).multiplyScalar(RING_RADIUS).setY(FRAME_HEIGHT + SIGN_LIFT);
-      board.renderOrder = 3;
-      group.add(board);
+      const plate = new Mesh(signGeometry, material);
+      plate.rotation.x = -Math.PI / 2;
+      plate.position.copy(outward).multiplyScalar(RING_RADIUS).setY(FRAME_HEIGHT + SIGN_LIFT);
+      plate.renderOrder = 3;
+      group.add(plate);
+      board = plate;
     }
 
     const anchor = new Vector3().copy(outward).multiplyScalar(RING_RADIUS).setY(DOOR_HEIGHT * 0.62);
@@ -423,6 +428,7 @@ export function createHub(doors: BacklotDoor[], palette: Palette, options: HubOp
       target: 0,
       panes,
       pane: panes[0]!,
+      board,
       windowMetres: { wide, tall },
       lit: null,
     });

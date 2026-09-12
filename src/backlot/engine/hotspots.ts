@@ -113,6 +113,16 @@ export interface HotspotDeck {
    * attribute off.
    */
   trackSurface(id: string, object: Object3D | null): void;
+  /**
+   * Things a parked button must stay off that are nobody's surface to publish.
+   *
+   * A door's rect is the window, because that is what a check samples. The name
+   * board over the lintel is not the window and should not be in that rect — but
+   * a control parked on it is just as bad, and the first version of the
+   * keep-out moved two buttons off their windows straight onto their boards.
+   * Replaces the whole list; pass an empty one to clear it.
+   */
+  keepClear(objects: Object3D[]): void;
   locate(id: string): Vector3 | null;
   /** The extent of everything **the room itself** registered, or null when the
    *  room has registered nothing. This is what a room says is worth reaching, so
@@ -143,6 +153,12 @@ export function createHotspots(hud: HTMLElement, camera: OrthographicCamera, hoo
   const parked: Parked[] = [];
   /** Boxes already placed this frame, for the de-collision pass in `park`. */
   const placed: { x: number; y: number; width: number; height: number }[] = [];
+  /** Everything a parked button has to stay off this frame: the thing the camera
+   *  is framed on, every surface a hotspot has said it marks, and anything else
+   *  the scene has asked to be kept clear. */
+  const keepOut: Rect[] = [];
+  /** Objects in that last category — kept clear, never published. */
+  const clearances: Object3D[] = [];
   const projected = new Vector3();
   const bounds = new Box3();
   const corner = new Vector3();
@@ -308,30 +324,64 @@ export function createHotspots(hud: HTMLElement, camera: OrthographicCamera, hoo
       if (width <= 0 || height <= 0) return;
       placed.length = 0;
 
-      /** Somewhere this button can sit without covering what is being read.
-       *  Tries each of the four ways out and takes the shortest that still
-       *  leaves the whole control on the canvas. */
+      // Where every surface is, before anything is parked.
+      //
+      // This used to run after the parking, because the only keep-out was the
+      // one rectangle the camera was framed on. It runs first now because a
+      // door's button was parking on the door's own window — 46% of the picture
+      // at 1920 and **100% of it at 390**, where the control is 50 px and the
+      // window is 11 to 28 — so the round's recorded stills were, at one of the
+      // two marking viewports, not visible at all. A picture nobody can see is
+      // not a smaller picture.
+      keepOut.length = 0;
+      if (readable) keepOut.push(readable);
+      for (const entry of parked) {
+        if (!entry.surface || entry.button.hidden) {
+          if (entry.surface) entry.handle.setRect(null);
+          continue;
+        }
+        const rect = projectBox(entry.surface, width, height);
+        entry.handle.setRect(rect);
+        if (rect) keepOut.push({ left: rect.x, top: rect.y, right: rect.x + rect.width, bottom: rect.y + rect.height });
+      }
+      for (const object of clearances) {
+        if (!object.visible) continue;
+        const rect = projectBox(object, width, height);
+        if (rect) keepOut.push({ left: rect.x, top: rect.y, right: rect.x + rect.width, bottom: rect.y + rect.height });
+      }
+
+      /** Somewhere this button can sit without covering a thing worth seeing.
+       *  Tries each of the four ways out of each rectangle it lands on and takes
+       *  the shortest that is clear of **all** of them and still leaves the whole
+       *  control on the canvas. All of them, not the one it started on: moving a
+       *  button off its own window and onto its neighbour's is not a fix. */
       const clearOf = (x: number, y: number, boxWidth: number, boxHeight: number) => {
-        if (!readable) return { x, y };
+        if (keepOut.length === 0) return { x, y };
         const halfW = boxWidth / 2 + GAP;
         const halfH = boxHeight / 2 + GAP;
-        const overlaps =
-          x + halfW > readable.left && x - halfW < readable.right && y + halfH > readable.top && y - halfH < readable.bottom;
-        if (!overlaps) return { x, y };
-        const ways = [
-          { x: readable.left - halfW, y },
-          { x: readable.right + halfW, y },
-          { x, y: readable.top - halfH },
-          { x, y: readable.bottom + halfH },
-        ].filter(
-          (way) =>
-            way.x - boxWidth / 2 >= 0 &&
-            way.x + boxWidth / 2 <= width &&
-            way.y - boxHeight / 2 >= 0 &&
-            way.y + boxHeight / 2 <= height,
-        );
-        if (ways.length === 0) return { x, y };
-        return ways.reduce((best, way) =>
+        const hits = (at: { x: number; y: number }) =>
+          keepOut.some(
+            (rect) =>
+              at.x + halfW > rect.left && at.x - halfW < rect.right && at.y + halfH > rect.top && at.y - halfH < rect.bottom,
+          );
+        const onCanvas = (at: { x: number; y: number }) =>
+          at.x - boxWidth / 2 >= 0 &&
+          at.x + boxWidth / 2 <= width &&
+          at.y - boxHeight / 2 >= 0 &&
+          at.y + boxHeight / 2 <= height;
+        if (!hits({ x, y })) return { x, y };
+        const ways: { x: number; y: number }[] = [];
+        for (const rect of keepOut) {
+          ways.push(
+            { x: rect.left - halfW, y },
+            { x: rect.right + halfW, y },
+            { x, y: rect.top - halfH },
+            { x, y: rect.bottom + halfH },
+          );
+        }
+        const clear = ways.filter((way) => onCanvas(way) && !hits(way));
+        if (clear.length === 0) return { x, y };
+        return clear.reduce((best, way) =>
           Math.hypot(way.x - x, way.y - y) < Math.hypot(best.x - x, best.y - y) ? way : best,
         );
       };
@@ -436,21 +486,11 @@ export function createHotspots(hud: HTMLElement, camera: OrthographicCamera, hoo
         else delete entry.button.dataset.backlotEdge;
       }
 
-      // And, for anything that marks a surface rather than a point, where that
-      // surface is. In this pass rather than a pass of its own, and off the
-      // object's own world matrix rather than off a remembered number, which is
-      // the pair of properties `Hotspot.setRect` exists for. `park` runs after
-      // `render`, so every matrix here is the one the frame was drawn with.
-      for (const entry of parked) {
-        if (!entry.surface) continue;
-        if (entry.button.hidden) {
-          // A door inside a room is not on screen, and a rect for it would be a
-          // stale number that still parses.
-          entry.handle.setRect(null);
-          continue;
-        }
-        entry.handle.setRect(projectBox(entry.surface, width, height));
-      }
+    },
+
+    keepClear(objects) {
+      clearances.length = 0;
+      clearances.push(...objects);
     },
 
     trackSurface(id, object) {

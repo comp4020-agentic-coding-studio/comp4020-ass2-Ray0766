@@ -483,6 +483,9 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
     // workflow, or a plate with the door's name on it.
     hotspots.trackSurface(entry.door.id, entry.pane);
   }
+  // And the six name boards, which are not anybody's published surface but are
+  // the one part of a door that has to stay readable without hovering.
+  hotspots.keepClear(hub.doors.map((entry) => entry.board).filter((board): board is NonNullable<typeof board> => board !== null));
 
   // ------------------------------------------------------------------ input
 

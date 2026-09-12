@@ -223,6 +223,35 @@ const HOVERED = (selector: string) => String.raw`
     // the wash, alpha and all.
     declaredComposite: compositeOver(getComputedStyle(bar).backgroundColor, style.backgroundColor),
     washAlpha: style.backgroundColor,
+    // What the theme says the wash is, resolved the way the browser resolves it
+    // rather than parsed. getPropertyValue on the custom property hands back the
+    // raw declaration and a fillStyle that cannot parse it leaves the probe on
+    // opaque black; setting the custom property as a background on a fresh
+    // element and reading the computed value is the browser doing the work.
+    //
+    // No backticks in this comment, and that is not fussiness: it sits inside a
+    // String.raw template, and a backtick here closes it. The file stops
+    // parsing, contributes zero tests, and the summary line still says the suite
+    // passed. That has happened four times in this repo now, three of them in
+    // this round's own probes, which is why spec/suite-integrity.test.ts exists.
+    //
+    // Fresh, and coloured before it is inserted, for the reason CLAUDE.md §7
+    // gives: under prefers-reduced-motion the theme leaves a live transition on
+    // every animatable property, and a computed read on an element that is
+    // already in the document returns the value it is moving away from. A
+    // transition never runs on an element's first style computation.
+    declaredWash: (() => {
+      const probe = document.createElement("span");
+      probe.style.backgroundColor = "var(--at-accent-soft)";
+      probe.style.position = "absolute";
+      probe.style.inlineSize = "1px";
+      probe.style.blockSize = "1px";
+      probe.style.insetBlockStart = "-9999px";
+      bar.append(probe);
+      const resolved = getComputedStyle(probe).backgroundColor;
+      probe.remove();
+      return resolved;
+    })(),
     ink: resolveColour(style.color),
     point: point,
     box: [Math.round(box.left), Math.round(box.top), Math.round(box.width), Math.round(box.height)].join(","),
@@ -234,6 +263,7 @@ interface Control {
   background: string;
   declaredComposite: Resolved;
   washAlpha: string;
+  declaredWash: string;
   ink: Resolved;
   point: { x: number; y: number } | null;
   box: string;
@@ -566,6 +596,21 @@ describe("the space held open for a section JavaScript is about to reveal", () =
 // order: the two assertions are the same fact read twice, and the cheaper one
 // says what is wrong without a screenshot. The pixel reading behind it is
 // #201607 for the button and #070504 for the link in the dark theme.
+//
+// And seen red a second time, under the injection an independent review used to
+// break this block while it stayed green: `.studio-status__list:hover,
+// .studio-status__away:hover { background: none }` — *both* controls lose the
+// theme's wash, which is the old button moving, which is the one thing this
+// round forbids. The block asserted that the two agree and never asserted what
+// they agree on, so agreeing on nothing passed at 38 of 38. With the wash
+// anchored to the theme's own token first:
+//
+//   AssertionError: the list button's hover paints rgba(0, 0, 0, 0) where the
+//   theme's --at-accent-soft resolves to color(srgb 0.72549 0.490196 0.109804 /
+//   0.14). This is the shipping control and it does not move: it takes the
+//   theme's outline-button wash, and a hover that clears it is a restyle, not a
+//   fix.: expected 'rgba(0, 0, 0, 0)' to be 'color(srgb 0.72549 0.490196 …'
+//   (6 failed | 32 passed)
 describe("the status bar's link and its button take the same hover", () => {
   const both = cases.filter((one) => one.scripts && one.list && one.away);
 
@@ -586,10 +631,29 @@ describe("the status bar's link and its button take the same hover", () => {
       expect(list.hover, "the list button was not hovered, so its reading is of its resting state").toBe(true);
       expect(away.hover, "the link was not hovered, so its reading is of its resting state").toBe(true);
 
+      // Agreement first, and then what they agree **on**. The review broke this
+      // block by giving *both* controls `background: none` on hover — the old
+      // button moved, which is the one thing this round forbids — and the file
+      // stayed green at 38 of 38, because agreeing on nothing is agreeing. So
+      // the wash is anchored to the theme's own token before the two are
+      // compared with each other.
+      expect(
+        list.background,
+        `the list button's hover paints ${list.background} where the theme's --at-accent-soft resolves to ` +
+          `${list.declaredWash}. This is the shipping control and it does not move: it takes the theme's ` +
+          `outline-button wash, and a hover that clears it is a restyle, not a fix.`,
+      ).toBe(list.declaredWash);
       expect(
         away.background,
         "the status bar's link and its button hover differently as declared",
       ).toBe(list.background);
+
+      // And the wash is visible at all. Two controls that both resolve the token
+      // to something transparent would satisfy every line above.
+      expect(
+        list.declaredWash,
+        `--at-accent-soft resolves to ${list.declaredWash}, which paints nothing`,
+      ).not.toMatch(/(^|,\s*)0\s*\)$/);
 
       expect(list.point, `no point inside the list button is its own fill (box ${list.box})`).not.toBeNull();
       expect(away.point, `no point inside the link is its own fill (box ${away.box})`).not.toBeNull();

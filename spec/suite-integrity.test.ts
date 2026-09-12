@@ -19,6 +19,16 @@
 // templates, and backticks inside their comments have closed those templates
 // three separate times. It is a cheap mistake to make and an expensive one to
 // notice.
+//
+// Four, now, and the fourth is the reason this file should not be deleted the
+// day it looks like overhead. It was introduced while *fixing* a check that an
+// independent review had shown could not go red — a comment explaining how to
+// resolve a token, with the function name in backticks, inside a String.raw
+// probe. The file stopped parsing, contributed zero tests, and the runner's
+// summary line would have said the suite passed. This check named the file and
+// the line before the runner got there. It has now paid for itself three times
+// in one round, twice on somebody's careful work and once on somebody's fix to
+// a check about checks that cannot go red.
 
 // Seen red by putting a backtick back inside one of those probe comments and
 // reverting:

@@ -220,6 +220,34 @@ find the real one or state the technique generically.
   run instead of by somebody remembering. Here that invariant is that the first
   frame cannot precede the arrival of the chunk that draws it, and it fails on
   its own under the old probe.
+- **The harness that injects the bug expires too, and it expires more quietly
+  than the check does.** Two plate sentinels went from red to 75/75 on a
+  re-take with nothing wrong: a sign built from the same recipe had landed 489
+  bytes earlier in the bundle, so an injection matching "the first occurrence in
+  the file" patched the sign instead of the plate; a third keyed on `s[0] ===
+  "P"` and the minified label's name had moved from `s` to `o`, which turned the
+  injection into a no-op that reads exactly like a check gone blind. An
+  injection that matches a bare pattern is fed by whatever else is in the file,
+  in the same way a check that matches a bare substring of source is — anchor it
+  inside the function it is breaking, and read the names it needs out of the
+  bundle rather than assuming them. The only reason any of it surfaced is that
+  reds get re-taken after the tree moves, which is what the expiry rule above
+  looks like in practice.
+- **A proxy can pass while the thing it stands for fails, and it will not tell
+  you.** A door's nameplate was signed off on cap height — 12, 9 and 8 px,
+  honestly measured and matching the claim — while the word itself could not be
+  read at 1:1 or at 2×. Cap height was silent about stroke separation, which is
+  what the condensing had actually spent. The instrument that settles a question
+  about reading is a 1:1 capture and somebody saying whether they can read it;
+  everything else is a stand-in, and a stand-in gets checked against the real
+  thing at least once before it is trusted to stand in.
+- **Two ways to measure a moving scene wrongly, both of which produce a
+  confident number.** A single snapshot of a scene with an idle camera is not a
+  measurement: twelve samples over thirteen seconds swung 27 points, and the one
+  that got reported was the first. Measure with motion off and say so, or give a
+  range. And segmenting an object by brightness discards exactly the pixels that
+  make it bright — a head sampled that way read 125.7 for a cell that reads
+  145.3. Segment by moving the object and diffing the frames.
 - Watching it go red is also the only thing that catches a check which *cannot*
   go red, and that is a different failure from a check that is merely wrong.
   Three of them in one round, each green and each blind: a reduced-motion check

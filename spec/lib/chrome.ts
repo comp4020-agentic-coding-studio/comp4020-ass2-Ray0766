@@ -652,13 +652,35 @@ export interface Raster {
   readonly height: number;
   /** Channels in 0..1, the shape the theme's contrast helpers take. */
   at(x: number, y: number): Rgb;
-  /** WCAG relative luminance at one pixel, 0..1. */
+  /** WCAG relative luminance at one pixel, 0..1. Linear light: this is the
+   *  number a contrast ratio is made of, and it is dominated by bright pixels. */
   luminanceAt(x: number, y: number): number;
   /** Mean relative luminance over a rectangle, clipped to the raster. Zero
    *  pixels in range is an error rather than a zero: a cell outside the picture
    *  is a bug in the caller's grid, and returning 0 would make it the darkest
    *  thing on screen. */
   meanLuminance(x: number, y: number, width: number, height: number): number;
+  /** Rec. 709 luma at one pixel, **gamma-encoded**, 0..255.
+   *
+   *  Not the same statistic as `luminanceAt`, and the difference is not
+   *  academic. `receipts/rig-3d/CONTRACT-A2.md` states the machine room's
+   *  brightness as "mean luminance of a 40x40 cell, 0-255", and that is this
+   *  one — a mean of the encoded values, which is roughly perceptual. A mean of
+   *  *linear* luminance is a different ranking: it is pulled up by a few very
+   *  bright pixels and down by a lot of dark ones, and the two disagree about
+   *  which cell is brightest. Measured: the figure in the machine room sits at
+   *  rank 2 of 1104 under this metric and rank 6 under the linear one. A check
+   *  that says it is using the contract's number has to use the contract's
+   *  arithmetic. */
+  lumaAt(x: number, y: number): number;
+  /** Mean Rec. 709 luma over a rectangle, 0..255 — the contract's own cell
+   *  reading. Same clipping and the same refusal to report an empty cell. */
+  meanLuma(x: number, y: number, width: number, height: number): number;
+  /** The brightest single pixel in a rectangle, as luma 0..255, and where it is.
+   *  A cell mean cannot see a small bright thing: a 5x48 px bar of pure white
+   *  inside a 40x40 cell moves that cell's mean by about seven counts and moves
+   *  nothing in a ranking. 233 pixels is what one looks like. */
+  peakLuma(x: number, y: number, width: number, height: number): { luma: number; x: number; y: number };
 }
 
 /** sRGB relative luminance, WCAG 2.2's own arithmetic, on channels in 0..1. */
@@ -666,6 +688,9 @@ const relativeLuminance = (rgb: Rgb): number => {
   const linear = rgb.map((channel) => (channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4));
   return 0.2126 * linear[0]! + 0.7152 * linear[1]! + 0.0722 * linear[2]!;
 };
+
+/** Rec. 709 luma on the gamma-encoded channels, 0..255. The contract's number. */
+const luma = (rgb: Rgb): number => (0.2126 * rgb[0]! + 0.7152 * rgb[1]! + 0.0722 * rgb[2]!) * 255;
 
 /** A whole PNG, as Chrome hands it over.
  *
@@ -762,26 +787,61 @@ export function decodePng(bytes: Buffer): Raster {
     return [pixels[offset]! / 255, pixels[offset + 1]! / 255, pixels[offset + 2]! / 255];
   };
 
+  /** The clipped bounds of a rectangle, refusing an empty one. */
+  const bounds = (x: number, y: number, boxWidth: number, boxHeight: number) => {
+    const left = Math.max(0, Math.round(x));
+    const top = Math.max(0, Math.round(y));
+    const right = Math.min(width, Math.round(x + boxWidth));
+    const bottom = Math.min(height, Math.round(y + boxHeight));
+    if (right <= left || bottom <= top) {
+      throw new Error(`the cell at (${x}, ${y}) ${boxWidth}x${boxHeight} is outside the raster`);
+    }
+    return { left, top, right, bottom };
+  };
+
+  const average = (
+    measure: (rgb: Rgb) => number,
+    x: number,
+    y: number,
+    boxWidth: number,
+    boxHeight: number,
+  ): number => {
+    const { left, top, right, bottom } = bounds(x, y, boxWidth, boxHeight);
+    let total = 0;
+    let count = 0;
+    for (let row = top; row < bottom; row++) {
+      for (let column = left; column < right; column++) {
+        total += measure(at(column, row));
+        count++;
+      }
+    }
+    return total / count;
+  };
+
   return {
     width,
     height,
     at,
     luminanceAt: (x, y) => relativeLuminance(at(x, y)),
-    meanLuminance: (x, y, boxWidth, boxHeight) => {
-      const left = Math.max(0, Math.round(x));
-      const top = Math.max(0, Math.round(y));
-      const right = Math.min(width, Math.round(x + boxWidth));
-      const bottom = Math.min(height, Math.round(y + boxHeight));
-      let total = 0;
-      let count = 0;
+    meanLuminance: (x, y, boxWidth, boxHeight) => average(relativeLuminance, x, y, boxWidth, boxHeight),
+    lumaAt: (x, y) => luma(at(x, y)),
+    meanLuma: (x, y, boxWidth, boxHeight) => average(luma, x, y, boxWidth, boxHeight),
+    peakLuma: (x, y, boxWidth, boxHeight) => {
+      const { left, top, right, bottom } = bounds(x, y, boxWidth, boxHeight);
+      let best = -1;
+      let bestX = left;
+      let bestY = top;
       for (let row = top; row < bottom; row++) {
         for (let column = left; column < right; column++) {
-          total += relativeLuminance(at(column, row));
-          count++;
+          const value = luma(at(column, row));
+          if (value > best) {
+            best = value;
+            bestX = column;
+            bestY = row;
+          }
         }
       }
-      if (count === 0) throw new Error(`the cell at (${x}, ${y}) ${boxWidth}x${boxHeight} is outside the raster`);
-      return total / count;
+      return { luma: best, x: bestX, y: bestY };
     },
   };
 }

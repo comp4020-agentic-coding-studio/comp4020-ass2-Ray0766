@@ -69,6 +69,24 @@ export interface BacklotRoom {
   interactives: BacklotInteractive[];
 }
 
+/**
+ * What is behind a door's vertical window.
+ *
+ * Three of the six have a recorded image the course actually made, so they get
+ * one. The other three do not, and the rule that matters here is that they get
+ * a lit nameplate rather than a picture: an invented still standing in for
+ * /people/ or /policies/ would be the site inventing an artefact to make the
+ * fiction look furnished, which is the one thing CLAUDE.md §3 rules out. A
+ * nameplate carries the nav's own word and nothing else.
+ */
+export type DoorWindow =
+  /** A real file under public/studio/, with its real pixel size. */
+  | { kind: "still"; file: string; aspect: [number, number] }
+  /** A ComfyUI workflow graph, drawn to a texture at window size. */
+  | { kind: "graph"; file: string }
+  /** No image exists, so the door is lit and says its own name. */
+  | { kind: "nameplate" };
+
 export interface BacklotDoor {
   /** Stable id, from the href, e.g. "lectures". Hotspot id and gallery anchor. */
   id: string;
@@ -83,6 +101,8 @@ export interface BacklotDoor {
   roomId?: string;
   /** One line under the door in the static gallery. */
   blurb: string;
+  /** What is in the door's window. */
+  window: DoorWindow;
 }
 
 export interface BacklotManifest {
@@ -102,31 +122,42 @@ export interface BacklotManifest {
  * table, since a ring that silently drops a nav link is the failure this is
  * built to make impossible.
  */
-const doorKinds: Record<string, { kind: "page" | "room"; roomId?: string; blurb: string }> = {
+const doorKinds: Record<string, { kind: "page" | "room"; roomId?: string; blurb: string; window: DoorWindow }> = {
   "/lectures/": {
     kind: "page",
     blurb: "Twelve teaching weeks, four phases, one technique added to the rig each week.",
+    // Week 5's third rung: the four-sentence prompt, which is the clearest single
+    // frame the teaching ladder produced.
+    window: { kind: "still", file: "week05-t3.avif", aspect: [576, 1024] },
   },
   "/sessions/": {
     kind: "page",
     blurb: "The Wednesday screening: what to bring, and what gets said about it.",
+    // The reference episode, which is the thing Dailies screens.
+    window: { kind: "still", file: "reference-episode.avif", aspect: [1080, 1920] },
   },
   "/studio/": {
     kind: "room",
     roomId: "machine-room",
     blurb: "The machine the recordings came off. Push this one and you are inside it.",
+    // The same graph that is on the monitor inside, drawn small enough to read as
+    // a workflow from across the floor and not pretending to be readable there.
+    window: { kind: "graph", file: "week07-t1.graph.json" },
   },
   "/assessments/": {
     kind: "page",
     blurb: "Ten pieces, weights summing to 100, each asking for something an earlier week produced.",
+    window: { kind: "nameplate" },
   },
   "/people/": {
     kind: "page",
     blurb: "Who teaches the course, and when they are in the room.",
+    window: { kind: "nameplate" },
   },
   "/policies/": {
     kind: "page",
     blurb: "Late work, equipment and compute, academic integrity, and where to get help.",
+    window: { kind: "nameplate" },
   },
 };
 
@@ -161,6 +192,7 @@ export const backlotDoors: BacklotDoor[] = navLinks.map((link, order) => {
     kind: entry.kind,
     ...(entry.roomId ? { roomId: entry.roomId } : {}),
     blurb: entry.blurb,
+    window: entry.window,
   };
 });
 

@@ -409,6 +409,17 @@ interface Reveal {
 
 const reveals: Record<string, Reveal | null> = {};
 
+/** Whether the island got far enough for any of this to be about a 3D scene.
+ *  Recorded per combination rather than thrown, and the reason is in the
+ *  describe below. */
+interface Mount {
+  viewport: string;
+  theme: ColourScheme;
+  mounted: boolean;
+}
+
+const mounts: Mount[] = [];
+
 async function sweep(): Promise<Reading[]> {
   const site = await serveBuild("dist", base);
   const tab = await Tab.launch();
@@ -434,7 +445,17 @@ async function sweep(): Promise<Reading[]> {
         );
         await tab.goto(url);
         const mounted = await tab.evaluate<string | null>(`return (async () => { ${MOUNTED} })();`);
-        if (!mounted) throw new Error(`the backlot never mounted at ${viewport.name} in the ${theme} theme`);
+        mounts.push({ viewport: viewport.name, theme, mounted: mounted === "mounted" });
+        // Recorded and skipped, not thrown. A throw here happens during module
+        // evaluation, so the runner reports a file that failed to load: no test
+        // names, none of the 68 readings below, and a summary line that has
+        // nothing to say about which page, which size or which theme — which is
+        // the exact shape spec/suite-integrity.test.ts exists to break up. The
+        // island falls back to the static gallery when the engine throws, and
+        // that gallery is correct, so nothing on the page says the 3D never ran
+        // either. The describe at the bottom of this file is where that gets
+        // said, by name, with the combination in the message.
+        if (!mounted) continue;
 
         for (const place of PLACES) {
           if (place.name === "the machine room") {
@@ -518,7 +539,17 @@ describe.each(PLACES)("$name", ({ name: place, expect: expected }) => {
 
       for (const id of expected()) {
         it(`the ${id} control`, () => {
-          const reading = at(place, viewport, theme).find((r) => r.id === id)!;
+          const found = at(place, viewport, theme).find((r) => r.id === id);
+          // Named, rather than a TypeError two lines down. The one way this is
+          // missing is the island not mounting, and the describe at the bottom
+          // of the file says so with the combination in it; this keeps the
+          // per-control failures readable while that is true.
+          expect(
+            found,
+            `no reading for ${id} in ${place} at ${viewport} in the ${theme} theme — see "the island booted" ` +
+              `below, which names the combination that did not mount`,
+          ).toBeDefined();
+          const reading = found!;
 
           // Every coordinate above was read in the page and sampled from Node a
           // moment later. If the page moved in between, nothing below is about
@@ -627,6 +658,62 @@ describe.each(PLACES)("$name", ({ name: place, expect: expected }) => {
       }
     });
   });
+});
+
+// ---------------------------------------------------------------------------
+// The island booted, said positively and said by name.
+// ---------------------------------------------------------------------------
+//
+// This used to be a `throw` inside `sweep()`. It read as the careful thing to do
+// and it was the wrong shape: a throw at module evaluation takes the whole file
+// down, so the run prints a file that failed to load with no test names, after
+// up to four twenty-second waits, and every one of the 68 readings above is
+// simply absent — under a summary line that still counts the rest of the suite
+// as passing. A suite that cannot name what failed is a suite somebody re-runs
+// instead of reads.
+//
+// Keyed on the mount having happened rather than on an error having been
+// logged. A dead island on /backlot/ presents as a healthy static gallery —
+// that fallback is the designed behaviour and it is correct — so there is
+// nothing on the page to notice, and `boot()`'s own log line is a decision in
+// another file that a check should not depend on.
+//
+// Seen red by making the engine throw where lane 2's signature mismatch made it
+// throw — `createBacklot(...)` replaced with a thrower in the built bundle, so
+// boot() catches, the page falls back to the static gallery and looks perfectly
+// healthy — and reverting:
+//
+//   AssertionError: the backlot never mounted at desktop 1920×1080 in the dark
+//   theme, so nothing above is about a 3D scene. The static gallery would still
+//   be on screen and still correct, which is why this is asserted rather than
+//   inferred.: expected false to be true
+//   (74 failed | 2 passed)
+//
+// 74 of the 76 fail, and that is the improvement rather than a problem with it:
+// under the old `throw` the run printed a file that failed to load, zero test
+// names and none of these 76 at all. Now the first thing in the failure list
+// says which combination did not mount and why the page looks fine anyway.
+describe("the island booted before any of this was measured", () => {
+  it("tried every combination", () => {
+    expect(mounts.length, "the sweep did not reach every viewport and theme").toBe(
+      VIEWPORTS.length * THEMES.length,
+    );
+  });
+
+  for (const viewport of VIEWPORTS) {
+    for (const theme of THEMES) {
+      it(`mounted at ${viewport.name} in the ${theme} theme`, () => {
+        const mount = mounts.find((one) => one.viewport === viewport.name && one.theme === theme);
+        expect(mount, `the sweep never got as far as ${viewport.name} in the ${theme} theme`).toBeDefined();
+        expect(
+          mount!.mounted,
+          `the backlot never mounted at ${viewport.name} in the ${theme} theme, so nothing above is about a 3D ` +
+            `scene. The static gallery would still be on screen and still correct, which is why this is ` +
+            `asserted rather than inferred.`,
+        ).toBe(true);
+      });
+    }
+  }
 });
 
 // The failure mode of everything above is a layout change that hides every

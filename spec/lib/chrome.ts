@@ -510,6 +510,29 @@ export class Tab {
     await this.#connection.send("Input.dispatchKeyEvent", { type: "keyUp", ...descriptor });
   }
 
+  /** Move the pointer to a point in **viewport** CSS pixels, and leave it there.
+   *
+   *  `:hover` is the one state a probe cannot reach from inside the page: there
+   *  is no API that sets it, and a class that stands in for it is a check of the
+   *  stand-in. So the pointer is moved the way a pointer moves, and the
+   *  hover-only declarations — the theme washes an outline button with
+   *  `--at-accent-soft` on `:hover` and on nothing else — are then readable as
+   *  computed style and as composited pixels.
+   *
+   *  A `mouseMoved` with `buttons: 0` is a move, not a press: nothing is
+   *  clicked, and the hover survives until the next move. Call it at (-1, -1)
+   *  to take the pointer off everything. */
+  async hover(x: number, y: number): Promise<void> {
+    await this.#connection.send("Input.dispatchMouseEvent", {
+      type: "mouseMoved",
+      x,
+      y,
+      button: "none",
+      buttons: 0,
+      clickCount: 0,
+    });
+  }
+
   async evaluate<T>(source: string): Promise<T> {
     const result = (await this.#connection.send("Runtime.evaluate", {
       expression: `(() => { ${source} })()`,
@@ -547,6 +570,17 @@ export class Tab {
    *  own PNG rather than reaching for a library. */
   async pixel(x: number, y: number): Promise<Rgb> {
     return decodeSinglePixelPng(Buffer.from(await this.screenshot({ x, y, width: 1, height: 1 }), "base64"));
+  }
+
+  /** A whole region of the composite, decoded once, in **viewport** CSS pixels.
+   *
+   *  `pixel()` is a protocol round trip each, which is the right shape for the
+   *  handful of points a control's fill needs and the wrong one for a scene: a
+   *  40x40 cell profile of a 1920x923 canvas is fourteen thousand readings, and
+   *  at a round trip apiece that is not a check anybody runs. One screenshot and
+   *  one inflate is the same information in about a second. */
+  async raster(region?: { x: number; y: number; width: number; height: number }): Promise<Raster> {
+    return decodePng(Buffer.from(await this.screenshot(region), "base64"));
   }
 
   async close(): Promise<void> {
@@ -608,6 +642,149 @@ export async function whileStill<T extends { scroll: { x: number; y: number } }>
 // ---------------------------------------------------------------------------
 
 const SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+
+/** A decoded region of the composite. Coordinates are relative to the region
+ *  that was captured, not to the viewport, so a caller that clipped has to
+ *  subtract the clip's own origin — which is exactly the arithmetic a sampler
+ *  gets wrong silently, so `at` throws rather than returning an edge pixel. */
+export interface Raster {
+  readonly width: number;
+  readonly height: number;
+  /** Channels in 0..1, the shape the theme's contrast helpers take. */
+  at(x: number, y: number): Rgb;
+  /** WCAG relative luminance at one pixel, 0..1. */
+  luminanceAt(x: number, y: number): number;
+  /** Mean relative luminance over a rectangle, clipped to the raster. Zero
+   *  pixels in range is an error rather than a zero: a cell outside the picture
+   *  is a bug in the caller's grid, and returning 0 would make it the darkest
+   *  thing on screen. */
+  meanLuminance(x: number, y: number, width: number, height: number): number;
+}
+
+/** sRGB relative luminance, WCAG 2.2's own arithmetic, on channels in 0..1. */
+const relativeLuminance = (rgb: Rgb): number => {
+  const linear = rgb.map((channel) => (channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4));
+  return 0.2126 * linear[0]! + 0.7152 * linear[1]! + 0.0722 * linear[2]!;
+};
+
+/** A whole PNG, as Chrome hands it over.
+ *
+ *  `decodeSinglePixelPng` below stays as it is: at 1x1 every filter predicts
+ *  from pixels outside the picture, so the stored bytes are the values whatever
+ *  filter was picked, and it needs none of this. A region has neighbours, so all
+ *  five filters have to be undone for real. Non-interlaced 8-bit RGB or RGBA is
+ *  everything `Page.captureScreenshot` produces; anything else is refused rather
+ *  than guessed at. */
+export function decodePng(bytes: Buffer): Raster {
+  if (!bytes.subarray(0, 8).equals(SIGNATURE)) throw new Error("the screenshot is not a PNG");
+
+  let header: { width: number; height: number; depth: number; colour: number; interlace: number } | undefined;
+  const parts: Buffer[] = [];
+  for (let offset = 8; offset + 8 <= bytes.length; ) {
+    const length = bytes.readUInt32BE(offset);
+    const type = bytes.subarray(offset + 4, offset + 8).toString("latin1");
+    const chunk = bytes.subarray(offset + 8, offset + 8 + length);
+    if (type === "IHDR") {
+      header = {
+        width: chunk.readUInt32BE(0),
+        height: chunk.readUInt32BE(4),
+        depth: chunk[8]!,
+        colour: chunk[9]!,
+        interlace: chunk[12]!,
+      };
+    } else if (type === "IDAT") parts.push(Buffer.from(chunk));
+    else if (type === "IEND") break;
+    offset += 12 + length;
+  }
+
+  if (!header) throw new Error("the screenshot has no IHDR");
+  if (header.depth !== 8 || header.interlace !== 0 || (header.colour !== 2 && header.colour !== 6)) {
+    throw new Error(`unhandled PNG: depth ${header.depth}, colour type ${header.colour}, interlace ${header.interlace}`);
+  }
+
+  const { width, height } = header;
+  const channels = header.colour === 6 ? 4 : 3;
+  const stride = width * channels;
+  const raw = inflateSync(Buffer.concat(parts));
+  if (raw.length < height * (stride + 1)) {
+    throw new Error(`the screenshot is short: ${raw.length} bytes for ${height} scanlines of ${stride}`);
+  }
+
+  // Every filter predicts from the byte `channels` to the left (a) and the byte
+  // above (b), with (c) above-left for Paeth. Outside the picture they are zero.
+  const pixels = Buffer.alloc(height * stride);
+  for (let row = 0; row < height; row++) {
+    const filter = raw[row * (stride + 1)]!;
+    const source = row * (stride + 1) + 1;
+    const target = row * stride;
+    for (let index = 0; index < stride; index++) {
+      const x = raw[source + index]!;
+      const a = index >= channels ? pixels[target + index - channels]! : 0;
+      const b = row > 0 ? pixels[target + index - stride]! : 0;
+      const c = row > 0 && index >= channels ? pixels[target + index - stride - channels]! : 0;
+      let value: number;
+      switch (filter) {
+        case 0:
+          value = x;
+          break;
+        case 1:
+          value = x + a;
+          break;
+        case 2:
+          value = x + b;
+          break;
+        case 3:
+          value = x + ((a + b) >> 1);
+          break;
+        case 4: {
+          const p = a + b - c;
+          const pa = Math.abs(p - a);
+          const pb = Math.abs(p - b);
+          const pc = Math.abs(p - c);
+          value = x + (pa <= pb && pa <= pc ? a : pb <= pc ? b : c);
+          break;
+        }
+        default:
+          throw new Error(`unknown PNG filter ${filter} on scanline ${row}`);
+      }
+      pixels[target + index] = value & 0xff;
+    }
+  }
+
+  const at = (x: number, y: number): Rgb => {
+    if (!Number.isInteger(x) || !Number.isInteger(y) || x < 0 || y < 0 || x >= width || y >= height) {
+      throw new Error(`(${x}, ${y}) is outside the ${width}x${height} raster`);
+    }
+    const offset = y * stride + x * channels;
+    if (channels === 4 && pixels[offset + 3] !== 255) {
+      throw new Error(`the pixel at (${x}, ${y}) is not opaque (alpha ${pixels[offset + 3]})`);
+    }
+    return [pixels[offset]! / 255, pixels[offset + 1]! / 255, pixels[offset + 2]! / 255];
+  };
+
+  return {
+    width,
+    height,
+    at,
+    luminanceAt: (x, y) => relativeLuminance(at(x, y)),
+    meanLuminance: (x, y, boxWidth, boxHeight) => {
+      const left = Math.max(0, Math.round(x));
+      const top = Math.max(0, Math.round(y));
+      const right = Math.min(width, Math.round(x + boxWidth));
+      const bottom = Math.min(height, Math.round(y + boxHeight));
+      let total = 0;
+      let count = 0;
+      for (let row = top; row < bottom; row++) {
+        for (let column = left; column < right; column++) {
+          total += relativeLuminance(at(column, row));
+          count++;
+        }
+      }
+      if (count === 0) throw new Error(`the cell at (${x}, ${y}) ${boxWidth}x${boxHeight} is outside the raster`);
+      return total / count;
+    },
+  };
+}
 
 export function decodeSinglePixelPng(bytes: Buffer): Rgb {
   if (!bytes.subarray(0, 8).equals(SIGNATURE)) throw new Error("the screenshot is not a PNG");

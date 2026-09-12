@@ -149,6 +149,10 @@ interface Measured extends Ring {
 }
 
 interface Sweep {
+  /** Whether the island got as far as a HUD. Everything else in here is about a
+   *  3D scene and is meaningless without it, so it is recorded rather than
+   *  thrown — see "the island booted" at the bottom of the file. */
+  mounted: boolean;
   hub: Button[];
   hubTabOrder: string[];
   hubRings: Measured[];
@@ -161,6 +165,24 @@ interface Sweep {
   escapes: { press: number; inRoom: boolean; announced: string }[];
   doorNavigation: { from: string; landedOn: string };
 }
+
+/** What comes back when there is no 3D to drive. Every field is present and
+ *  empty, so the assertions below fail on their own terms with their own
+ *  messages rather than on a missing property. */
+const EMPTY: Sweep = {
+  mounted: false,
+  hub: [],
+  hubTabOrder: [],
+  hubRings: [],
+  roomButtons: [],
+  roomTabOrder: [],
+  roomRings: [],
+  enteredBy: "",
+  focusAfterEnter: null,
+  afterEscape: { buttons: [], focus: null, announced: "" },
+  escapes: [],
+  doorNavigation: { from: "", landedOn: "" },
+};
 
 const pause = (milliseconds: number) => new Promise<void>((done) => setTimeout(done, milliseconds));
 
@@ -269,7 +291,15 @@ async function sweep(): Promise<Sweep> {
     await tab.media({ colourScheme: "dark", reducedMotion: true });
     await tab.goto(url);
     const mounted = await tab.evaluate<string | null>(`return (async () => { ${MOUNTED} })();`);
-    if (!mounted) throw new Error("the backlot never mounted, so there is no HUD to drive");
+    // Returned empty, not thrown. A throw here runs during module evaluation and
+    // the runner reports a file that failed to load: no test names, none of the
+    // assertions below, and a summary line that counts the rest of the suite as
+    // passing. Every check in this file then has nothing to say about why, and
+    // the page itself says nothing either — a dead island falls back to the
+    // static gallery, which is correct and looks healthy. So the sweep comes
+    // back with `mounted: false` and empty arrays, and the describe at the
+    // bottom of the file names it.
+    if (!mounted) return EMPTY;
 
     // Parenthesised, and that is not a style choice: `return` followed by a
     // newline is a `return;`, and the first version of this handed every
@@ -353,6 +383,7 @@ async function sweep(): Promise<Sweep> {
     const landedOn = await tab.evaluate<string>(`return location.pathname;`);
 
     return {
+      mounted: true,
       hub,
       hubTabOrder: hubWalk.seen,
       hubRings,
@@ -597,5 +628,40 @@ describe("every hotspot shows a focus ring", () => {
 
   it("measured a ring on every control in both places", () => {
     expect(all().length).toBe(doors.length + room.interactives.length);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The island booted, said positively and said by name.
+// ---------------------------------------------------------------------------
+//
+// This used to be a `throw` inside `sweep()`, and it was the wrong shape for the
+// same reason the one in spec/backlot-contrast.test.ts was: a throw at module
+// evaluation prints a file that failed to load, with no test names, after a
+// twenty-second wait, and every assertion above is absent under a summary that
+// still counts the rest of the suite as passing.
+//
+// It is asserted on the attribute the engine sets when it has the box, not on
+// the absence of a logged error: the fallback to the static gallery is the
+// designed behaviour and it is correct, so a dead island looks like a healthy
+// page from the outside, and the level `boot.ts` logs at is a decision in
+// another file that a check should not be built on.
+//
+// Seen red the same way spec/backlot-contrast.test.ts's is — `createBacklot(...)`
+// replaced with a thrower in the built bundle — and reverting:
+//
+//   AssertionError: the backlot never mounted, so there was no HUD to drive and
+//   nothing above is about a 3D scene. The static gallery would still be on
+//   screen and still correct, which is why this is asserted rather than
+//   inferred.: expected false to be true
+//   (105 failed | 2 passed, across this file and backlot-contrast together)
+describe("the island booted before any of this was driven", () => {
+  it("mounted, so there was a HUD to drive", () => {
+    expect(
+      driven.mounted,
+      "the backlot never mounted, so there was no HUD to drive and nothing above is about a 3D scene. The " +
+        "static gallery would still be on screen and still correct, which is why this is asserted rather " +
+        "than inferred.",
+    ).toBe(true);
   });
 });

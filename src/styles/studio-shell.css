@@ -17,6 +17,45 @@
   --studio-status-height: 2.25rem;
 }
 
+/* The escape rule for `[hidden]`, for both stages at once.
+   -----------------------------------------------------------------------
+   `[hidden] { display: none }` is in the *user agent's* stylesheet, and an
+   author declaration beats a UA one whatever cascade layer the author put it
+   in — so the theme's `.at-button { display: inline-flex }`, sitting in
+   `@layer at.components`, wins over it and a button that is `hidden` goes on
+   being painted. A cascade layer reorders author rules against each other; it
+   does nothing to the origin ordering, which is where this fight actually is.
+
+   Measured on /studio/ at 966a762, dark and light both, before this rule:
+
+     1920x1080, JS off   .studio-canvas[hidden]      1920x923  display block
+                         .studio-status__list[hidden]   96x27  display inline-flex
+     390x844,   JS on    [data-form-restore][hidden]   227x47  display flex
+                         [data-form-download][hidden]  242x47  display inline-flex
+
+   The first two are the pair backlot.css already names from the other side: an
+   empty rectangle above the list, and a control that did nothing — "Show as a
+   list" with no script to hear it. The second pair is the desk's own two
+   buttons at the phone viewport, which the audit turned up and which is the
+   same bug in the same page.
+
+   `!important` because the declaration it has to beat is whatever the next
+   component stylesheet happens to declare, and an escape rule that can be
+   out-specified is the bug again. Scoped to the two stages rather than written
+   globally, so it is a rule about this layout and not about the site.
+
+   `:not([data-reserve])` is load-bearing, not tidiness. site.css holds space
+   for a section JS is about to reveal with `[data-reserve][hidden] { display:
+   block }`, keyed on `[hidden]` exactly so it releases itself; `!important`
+   here without the carve-out would delete that reservation and hand /studio/
+   back the 0.11-0.13 CLS it was built to remove. `data-reserve` is set by an
+   inline script during parsing, so a reader with JS off never matches it and
+   gets the escape rule instead — which is the case the 1920x923 rectangle
+   above was. */
+.studio-body [hidden]:not([data-reserve]) {
+  display: none !important;
+}
+
 /* base.css draws a 1px accent rule down the page as `body::after`. Against
    prose it is a margin rule; down a full-bleed canvas it is a stray line
    through the artwork, and it paints over everything because it is the last
@@ -101,25 +140,40 @@
   white-space: nowrap;
 }
 
+/* Both controls, one treatment, and that is now true of the hover as well.
+   -----------------------------------------------------------------------
+   The link used to clear the theme's `--at-accent-soft` wash with a
+   `background: none` of its own while the button kept it, so two controls
+   sitting in the same row lit differently under the same pointer. The comment
+   that stood here said the difference was unsettled and guessed the button was
+   the one that was wrong: gold ink over an accent wash is the brand colour
+   doing a fill's job and ink's job at once, which CLAUDE.md 7 spends a
+   paragraph on. It is the one thing in this file nobody had measured, so it
+   was a suspicion standing in for a reading.
+
+   Measured, on the composite, hovering with a real pointer (Chrome over CDP,
+   /studio/ at 1920x1080 and 390x844, both themes, `--at-accent-soft` resolving
+   to the gold at alpha 0.14 dark / 0.10 light):
+
+     dark    ink #b97d1c on the washed pill #201607   5.10:1   (unwashed 5.82:1)
+     light   ink #8a5c13 on the washed pill #f8f0e4   5.13:1   (unwashed 5.71:1)
+
+   So the suspicion was wrong and the button was right. The wash costs about
+   0.6 of a ratio point and the ink still clears AA body text by a margin in
+   both themes — `--at-brand-ink` is the theme's sanctioned ink (gold on dark,
+   the brand's copper on light) rather than `--at-accent` used as type, which
+   is the thing the rule in 7 actually forbids. The link takes the button's
+   hover, the button does not move, and there is nothing left unmeasured here.
+
+   Nothing under `:focus-visible` changes either way: the theme declares the
+   wash on `:hover` only, so the old rule's `:focus-visible` half was clearing
+   a background that was never set. */
 .studio-status__list.at-button:hover,
 .studio-status__list.at-button:focus-visible,
 .studio-status__away.at-button:hover,
 .studio-status__away.at-button:focus-visible {
   border-color: var(--at-brand-ink);
   color: var(--at-brand-ink);
-}
-
-/* The one place the two controls differ, and it is not settled. The theme
-   washes an outline button on hover with `--at-accent-soft`; the link clears
-   it, the button does not. Gold ink over the accent wash is the brand colour
-   doing both jobs at once, which is the thing CLAUDE.md 7 rules out, so the
-   suspicion is that the button is the one that is wrong rather than the link.
-   Neither has been measured on the composite. Left as found rather than made
-   consistent by guessing, because whichever way it goes it changes a control
-   that has been shipping on /studio/. */
-.studio-status__away.at-button:hover,
-.studio-status__away.at-button:focus-visible {
-  background: none;
 }
 
 /* Deliberately not the theme's `.at-footer-theme-toggle`. That class carries

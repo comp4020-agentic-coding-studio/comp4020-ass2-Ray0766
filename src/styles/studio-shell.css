@@ -64,10 +64,47 @@
   display: none;
 }
 
+/* Where the three parts of this layout sit, said explicitly.
+   -----------------------------------------------------------------------
+   base.css gives the body `grid-template-rows: auto auto 1fr auto` and lets
+   every child place itself, which works exactly as long as the body has the
+   children it had when that template was written. It does not: this layout
+   also carries two `<script>` elements and a colour probe, and **Astro's
+   ClientRouter appends `<div class="astro-route-announcer">` on every soft
+   navigation**. Auto-placement then hands the rows out differently and the
+   stage loses the one it was sized by.
+
+   Measured by walking the status bar's own links, /backlot/ to /studio/ and
+   back — which is the route this shell exists to serve:
+
+     390x844   /backlot/   stage 699 -> 204 px, canvas 699 -> 195
+     1920x1080 /backlot/   stage 923 -> 969
+     1920x1080 /studio/    main  923 -> 42,759
+
+   The phone lands at 28% of its fresh-load height with the engine alive and
+   drawing into the letterbox, which is why nothing looks broken. It is stable
+   at six seconds, survives a scroll to the top, and a full resize round trip
+   does not recover it. A hard load has no announcer, so the only way to reach
+   any of it is the route the status bar advertises.
+
+   So the three real children are placed by name and nothing else can take
+   their rows. Anything the router or the theme appends lands in an implicit
+   row below, where a 1x1 absolute announcer costs nothing. Written as
+   `> nav` / the two classes rather than as `> *:nth-child(n)`, so a fourth
+   script or a second probe cannot move anything either. */
+.studio-body {
+  grid-template-rows: auto 1fr auto;
+}
+
+.studio-body > nav {
+  grid-row: 1;
+}
+
 /* The theme's <main> is a subgrid pinned to the content column with its own
    vertical padding and a 100dvh floor. None of that is wanted here: the stage
    is the page, and the body grid's own `1fr` row is what gives it its height. */
 .studio-shell {
+  grid-row: 2;
   grid-column: full;
   display: block;
   padding-block: 0;
@@ -78,6 +115,7 @@
 
 .studio-status {
   grid-column: full;
+  grid-row: 3;
   position: sticky;
   inset-block-end: 0;
   /* Above the canvas and its React Flow panels, below the theme's nav (100). */

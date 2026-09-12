@@ -281,7 +281,13 @@ function frameOf(piece: BacklotPiece): string | undefined {
     </div>
   </section>
 
-  <script is:inline>
+  {/* `data-astro-rerun` because a client-side navigation parses nothing, so an
+      inline script that runs during parsing never runs again — and this one
+      sets the attribute the stage's height rule matches on. Without it the
+      backlot came back from a swap at 195px of canvas on a phone, drawing a
+      full scene into a letterbox, with the engine alive and nothing looking
+      broken. */}
+  <script is:inline data-astro-rerun>
     // The box, during parsing: the stage becomes one viewport tall with its own
     // scroller, so the gallery inside it is the loading state rather than a
     // hole. Set from here rather than in the stylesheet so that with JavaScript

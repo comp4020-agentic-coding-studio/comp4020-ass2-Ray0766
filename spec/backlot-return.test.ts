@@ -34,9 +34,12 @@
 //                    has presented a frame.
 //   one engine       a return that boots a **second** engine beside a live first
 //                    one satisfies `ready` and is a worse bug than the one it
-//                    fixes. Counted as WebGL contexts that have drawn recently,
-//                    not as a frame rate: two engines is two contexts, and that
-//                    is a number with no threshold in it.
+//                    fixes. Counted as WebGL **contexts**, not as a frame rate:
+//                    two engines is two contexts, a number with no threshold in
+//                    it. And counted twice over — what drew, and what is still
+//                    alive — because a context whose frame loop was cancelled
+//                    but which was never released draws nothing and is invisible
+//                    to the first count.
 //   the box back     on a return that boots, the gallery ends up hidden again,
 //                    the way it does on a first load. A stage that is ready with
 //                    the gallery still over it is ready about nothing.
@@ -120,26 +123,56 @@ const DRAW_COUNTER = String.raw`
   })();
 `;
 
-/** How many contexts have drawn in the last `window` ms, and how many draws
- *  between them. */
+/** Three different questions, and the difference between them is the whole of
+ *  what this file got wrong the first time.
+ *
+ *    drawing   contexts that drew inside the sample window
+ *    alive     contexts that exist and have not been lost
+ *    attached  of those, the ones whose canvas is still in the document
+ *
+ *  Counting what **drew** answers "is something rendering", which is not "is
+ *  something still here". A teardown that cancels the animation frame and stops
+ *  there leaves a live context bound to a canvas that has left the document: it
+ *  draws nothing, `drawing` reads 0 and 1 exactly as it does on a clean tree,
+ *  and a whole root cause is invisible. Measured on a build with
+ *  `forceContextLoss()` and the observer disconnect removed: **alive 1, attached
+ *  0** while the reader is on the other page, and live contexts climbing 1, 2, 3
+ *  across two laps — under fourteen passing tests.
+ *
+ *  `isContextLost()` is the one call that tells them apart, and lane 1 had to
+ *  make the same distinction to find the bug at all. */
 const DRAWING = (window_: number) => String.raw`
   const seen = window.__drawWatch;
   if (!seen) return null;
   const now = performance.now();
-  let contexts = 0;
+  let drawing = 0;
+  let alive = 0;
+  let attached = 0;
   let draws = 0;
-  for (const entry of seen.values()) {
+  for (const [context, entry] of seen.entries()) {
     if (now - entry.last <= ${window_}) {
-      contexts += 1;
+      drawing += 1;
       draws += entry.draws;
     }
+    let lost = true;
+    try {
+      lost = context.isContextLost();
+    } catch {
+      lost = true;
+    }
+    if (lost) continue;
+    alive += 1;
+    const canvas = context.canvas;
+    if (canvas && canvas.isConnected) attached += 1;
   }
-  return { contexts, draws, known: seen.size };
+  return { drawing, alive, attached, draws, known: seen.size };
 `;
 
 const STATE = String.raw`
   const stage = document.querySelector("[data-backlot-stage]");
   const canvas = document.querySelector("[data-backlot-stage] canvas");
+  const main = document.querySelector("main");
+  const shell = main ? main.getBoundingClientRect() : null;
   const gallery = document.querySelector("[data-studio-fallback]");
   const box = canvas ? canvas.getBoundingClientRect() : null;
   return {
@@ -151,6 +184,11 @@ const STATE = String.raw`
     galleryHidden: Boolean(gallery && gallery.hidden),
     galleryInDocument: Boolean(gallery),
     canvas: box ? Math.round(box.width) + "x" + Math.round(box.height) : "none",
+    // The shell's own height, which is the thing a letterbox actually moves, and
+    // the attribute the page's inline script sets during parsing to say the
+    // layout may exist at all.
+    shell: shell ? Math.round(shell.width) + "x" + Math.round(shell.height) : "none",
+    boxed: Boolean(stage && stage.hasAttribute("data-backlot-box")),
   };
 `;
 
@@ -163,11 +201,19 @@ interface State {
   galleryHidden: boolean;
   galleryInDocument: boolean;
   canvas: string;
+  shell: string;
+  boxed: boolean;
 }
 
 interface Drawing {
-  contexts: number;
+  /** Drew inside the sample window. */
+  drawing: number;
+  /** Exists and has not been lost. */
+  alive: number;
+  /** Alive, and its canvas is still in the document. */
+  attached: number;
   draws: number;
+  /** Every context ever created in this document, lost or not. */
   known: number;
 }
 
@@ -334,8 +380,12 @@ describe.each(VIEWPORTS)("coming back to the backlot at $name", ({ name }) => {
     ).toBe(true);
     expect(one.first.galleryHidden, "the gallery still had the box on a fresh load").toBe(true);
     expect(
-      one.firstDrawing?.contexts,
-      `${one.firstDrawing?.contexts} WebGL contexts were drawing on a fresh load`,
+      one.firstDrawing?.drawing,
+      `${one.firstDrawing?.drawing} WebGL contexts were drawing on a fresh load`,
+    ).toBe(1);
+    expect(
+      one.firstDrawing?.alive,
+      `${one.firstDrawing?.alive} WebGL contexts were alive on a fresh load`,
     ).toBe(1);
   });
 
@@ -382,6 +432,45 @@ describe.each(VIEWPORTS)("coming back to the backlot at $name", ({ name }) => {
     expect(one.back.mode, "the stage did not go back into backlot mode").toBe("backlot");
   });
 
+  // Seen red by walking the route: /backlot/ -> /studio/ -> /backlot/ through
+  // the status bar's own links, which is the journey this shell exists to serve.
+  //
+  //     390x844    stage 699 -> 204 px, canvas 699 -> 195
+  //     1920x1080  stage 923 -> 969
+  //
+  // The phone comes back at 28% of its fresh-load height with the engine alive
+  // and drawing 5,880 calls a second into the letterbox, which is why nothing
+  // looks broken. Stable at six seconds, after a scroll to the top, and after a
+  // full resize round trip.
+  //
+  // The old assertion here was `canvas !== "0x0"`, and 390x195 is not 0x0. A
+  // check that asks whether a thing exists cannot see a thing that came back the
+  // wrong size, and "the size it left" is the only version of this question with
+  // no threshold in it.
+  it("comes back the size it left", () => {
+    const one = at(name);
+    expect(
+      one.back.shell,
+      `the shell measured ${one.first.shell} on a fresh load and ${one.back.shell} after returning through ` +
+        `the status bar's links. A stage that comes back short is a 3D scene letterboxed into a strip with ` +
+        `the engine still drawing into it, which looks like nothing at all.`,
+    ).toBe(one.first.shell);
+    expect(
+      one.back.canvas,
+      `the canvas measured ${one.first.canvas} on a fresh load and ${one.back.canvas} after the return`,
+    ).toBe(one.first.canvas);
+    // And the reason, asserted rather than left for the next person to find:
+    // `data-backlot-box` is set by the page's own inline script during parsing,
+    // and a soft navigation does not parse anything. Without it the stage loses
+    // the rule that sizes it and falls back to its content.
+    expect(
+      one.back.boxed,
+      `the stage lost data-backlot-box on the return. The page's inline script sets it during parsing and a ` +
+        `soft navigation never parses, so the rule that gives the stage its height stops matching and the ` +
+        `stage sizes to its content instead.`,
+    ).toBe(true);
+  });
+
   it("runs one engine after the return, not two", () => {
     const one = at(name);
     // The failure a re-entry invites: boot a second engine beside a live first
@@ -390,10 +479,25 @@ describe.each(VIEWPORTS)("coming back to the backlot at $name", ({ name }) => {
     // two contexts, which is a number with nothing to tune.
     expect(one.backDrawing, "the draw counter did not survive the return").not.toBeNull();
     expect(
-      one.backDrawing!.contexts,
-      `${one.backDrawing!.contexts} WebGL contexts were still drawing after the return, of ` +
+      one.backDrawing!.drawing,
+      `${one.backDrawing!.drawing} WebGL contexts were still drawing after the return, of ` +
         `${one.backDrawing!.known} ever created. One engine leaves one; a return that boots a second beside ` +
         `a live first one satisfies every other assertion here.`,
+    ).toBe(1);
+    // And **alive**, which is the different question. A first engine whose frame
+    // loop was cancelled but whose context was never released draws nothing and
+    // is invisible to the line above: the count that catches it is how many
+    // contexts still exist, not how many are rendering.
+    expect(
+      one.backDrawing!.alive,
+      `${one.backDrawing!.alive} WebGL contexts are alive after the return, of ${one.backDrawing!.known} ` +
+        `ever created, ${one.backDrawing!.attached} of them still attached to a canvas in the document. One ` +
+        `engine leaves one alive and one attached; a context that outlives its canvas draws nothing and ` +
+        `costs everything.`,
+    ).toBe(1);
+    expect(
+      one.backDrawing!.attached,
+      `${one.backDrawing!.attached} of the live contexts are attached to a canvas in the document`,
     ).toBe(1);
   });
 
@@ -404,10 +508,21 @@ describe.each(VIEWPORTS)("coming back to the backlot at $name", ({ name }) => {
     // the canvas out of the document, and 0 after their dispose: an engine that
     // keeps drawing into a detached canvas is invisible and expensive.
     expect(
-      one.awayDrawing!.contexts,
-      `${one.awayDrawing!.contexts} WebGL contexts were still drawing while the reader was on ` +
+      one.awayDrawing!.drawing,
+      `${one.awayDrawing!.drawing} WebGL contexts were still drawing while the reader was on ` +
         `${one.away.path}. The canvas is out of the document by then, so the frames go nowhere and cost ` +
         `everything.`,
+    ).toBe(0);
+    // The half that the drawing count cannot see. A teardown that cancels the
+    // frame and stops there reads 0 here and leaves the context alive: measured
+    // as `alive 1, attached 0` on a build with the context loss and the observer
+    // disconnect removed, under a fully green suite.
+    expect(
+      one.awayDrawing!.alive,
+      `${one.awayDrawing!.alive} WebGL contexts are still alive while the reader is on ${one.away.path}, ` +
+        `${one.awayDrawing!.attached} of them attached to a canvas in the document. Stopping the frame loop ` +
+        `is not letting go: a live context bound to a detached canvas draws nothing and is invisible to ` +
+        `every count of what drew.`,
     ).toBe(0);
   });
 });

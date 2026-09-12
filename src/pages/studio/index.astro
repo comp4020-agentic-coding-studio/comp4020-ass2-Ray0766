@@ -318,7 +318,11 @@ const referenceSection = boardSection("reference");
 
   </div>
 
-  <script is:inline>
+  {/* `data-astro-rerun` for the same reason the backlot's box script carries it:
+      a client-side navigation parses nothing, so this never ran again and the
+      reservations were missing on any soft arrival. Measured at 1920: main went
+      923px to 42,759px on a soft return, which is the list becoming the page. */}
+  <script is:inline data-astro-rerun>
     // See studio-canvas.css and site.css: hold each section's space open
     // during parsing so revealing it on a slow connection doesn't shove the
     // list down. Inline, so a JS-off reader gets neither a reservation nor an

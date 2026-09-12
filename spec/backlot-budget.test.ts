@@ -428,6 +428,7 @@ let withoutScripts: Gallery | null = null;
 /** Every take's first frame, in order, so the message can show the spread the
  *  median came out of rather than one number with no provenance. */
 const spreads: Record<string, number[]> = {};
+const gallerySpreads: Record<string, number[]> = {};
 
 async function time(): Promise<Record<string, Timing>> {
   const site = await serveBuild("dist", base);
@@ -459,10 +460,28 @@ async function time(): Promise<Record<string, Timing>> {
         await tab.goto(`${site.origin}${prefix}backlot/`);
         takes.push(await tab.evaluate<Timing>(READ));
       }
+      // Two medians from the same three loads, one per metric, and that is a
+      // correction rather than a flourish. Taking the median by `firstFrame` and
+      // then reading *that take's* gallery number hands the gallery a single
+      // sample riding along on another metric's median — which is how the
+      // gallery line flaked at 1512 and 1520 ms against 1500 while the
+      // first-frame line beside it, measured the same way, never moved. The two
+      // numbers do not even share a gate: the gallery waits on three
+      // render-blocking stylesheets and the first frame waits on the island.
+      //
+      // It was also not suite contention, which is what both of us assumed. Run
+      // alone the gallery failed twice in four and the whole forty-file suite
+      // passed twice, so serialising would have saved neither failure. Outside
+      // spec/ nothing in range had changed but nine files of island JS — no CSS,
+      // no .astro, no layout — and the check's own message says the stylesheets
+      // gate it. Host contention, and the answer to host contention is to stop
+      // reporting one wall-clock sample.
       const ordered = [...takes].sort((a, b) => (a.firstFrame ?? 0) - (b.firstFrame ?? 0));
+      const byGallery = [...takes].sort((a, b) => (a.gallery?.at ?? 0) - (b.gallery?.at ?? 0));
       const median = ordered[1]!;
       spreads[viewport.name] = ordered.map((take) => Math.round(take.firstFrame ?? -1));
-      readings[viewport.name] = median;
+      gallerySpreads[viewport.name] = byGallery.map((take) => Math.round(take.gallery?.at ?? -1));
+      readings[viewport.name] = { ...median, gallery: byGallery[1]!.gallery };
     }
 
     await tab.viewport(1920, 1080);
@@ -555,7 +574,8 @@ describe.each(VIEWPORTS)("the static gallery at $name", ({ name }) => {
         `the line is ${GALLERY_BUDGET} ms. ${gallery!.doors} doors and ${gallery!.captions} captions were ` +
         `already in the document at that moment. What gates this is the three render-blocking stylesheets, ` +
         `not the island: the island is still on the wire for another second and a half and none of the ` +
-        `above waits for it.`,
+        `above waits for it. Three loads read ${(gallerySpreads[name] ?? []).join(", ")} ms and this is the ` +
+        `middle one.`,
     ).toBeLessThanOrEqual(GALLERY_BUDGET);
   });
 });

@@ -69,8 +69,7 @@
 // ---------------------------------------------------------------------------
 //
 // By deleting a use rather than by adding a dead export, which is the direction
-// the failure actually arrives from. Three, one per shape, each a source edit
-// reverted — this check reads source, not the bundle, so nothing here needs a
+// the failure actually arrives from. Five, each a source edit reverted — this check reads source, not the bundle, so nothing here needs a
 // minified anchor.
 //
 // Dropping the `createSignwriter` import from src/backlot/engine/hub.ts:
@@ -98,8 +97,29 @@
 //   Hotspot.setRect.: expected [ 'Hotspot.setRect' ] to deeply equal []
 //   (1 failed | 7 passed)
 //
-// Two of those three took a second attempt, and both failures were the check's
-// own instrument rather than the injection. The first version of the member walk
+// And the two the review found, both of which the name-matching version passed:
+//
+// Cutting the one real consumer of `buildRoomShell` in machine-room.ts, leaving
+// only the re-export in rooms/index.ts that nothing imports from:
+//
+//   AssertionError: src/backlot/rooms/shell.ts exports buildRoomShell and
+//   nothing that ships reads it.: expected [ Array(1) ] to deeply equal []
+//   (2 failed | 6 passed — the members only that export reached go with it)
+//
+// Deleting both real calls to `hub.find(…)` in index.ts:
+//
+//   AssertionError: Hub.find is declared in the backlot's own types and nothing
+//   that ships reads it. All of them: HubDoor.standing, HubDoor.outward,
+//   Hub.find.: expected [ …(3) ] to deeply equal []
+//   (1 failed | 7 passed)
+//
+// That second one is the whole argument for the checker. `find` appears 72 times
+// as a property name inside src/backlot/ — fourteen of them `Array.prototype.find`
+// — so the version that matched names stayed green with both of `Hub.find`'s
+// callers gone.
+//
+// Two of the first three took a second attempt, and both failures were the
+// check's own instrument rather than the injection. The first version of the member walk
 // counted *every* identifier, so an interface's own signature and the object
 // literal implementing it both read as uses and the member half was vacuous; and
 // the first probe for it deleted `signs.spill()`, which hub.ts also has a local
@@ -114,45 +134,88 @@ import { describe, expect, it } from "vitest";
 
 /** Found, never listed. */
 const SOURCES = globSync("src/backlot/**/*.ts").sort();
-/** Everything else that ships, because the thing that loads the backlot is a
- *  page rather than a module: `src/pages/backlot/index.astro` imports the
- *  manifest in its frontmatter, and a scan that stopped at src/backlot/ called
- *  `backlotManifest` dead on its first run. Astro frontmatter is TypeScript
- *  between two `---` fences, so it parses with the same compiler. */
-const SITE = [...globSync("src/**/*.ts"), ...globSync("src/**/*.astro")]
-  .filter((path) => !path.startsWith("src/backlot/"))
-  .sort();
-const SPECS = globSync("spec/**/*.ts").sort();
 
 /** The module the backlot page loads. Everything that ships is reachable from
- *  here; anything that is not is dead whatever else imports it. */
+ *  here or from a page that imports into it; anything that is not is dead
+ *  whatever else imports it. */
 const ENTRY = "src/backlot/page/boot.ts";
 
 /** Reasons, not names. Each entry is checked to still be necessary, so the list
  *  cannot quietly keep forgiving something that has since been wired up — and
- *  the count is checked too, so it can only ever shrink. That is what makes it a
- *  queue rather than a policy: an allowlist nobody can add to is a list of
- *  things somebody has to deal with, and an allowlist anybody can add to is the
- *  hand-kept scope this file exists to argue against.
+ *  the count is checked too, so it can only ever shrink.
  *
- *  Every entry here is a finding from this check's first honest run. None of
- *  them is mine to fix — they are the engine's and the room's — so they are
- *  named, dated and queued rather than quietly forgiven. */
+ *  It started at five and went to two: three came out of the list on the
+ *  argument that they were deletions parked as reservations. `Hotspot.setLabel`,
+ *  whose own stated reason was "same shape as Signwriter.floorName" when
+ *  floorName had been *deleted* on that reasoning; `MonitorBuild.screenNormal`,
+ *  which duplicates an expression machine-room.ts computes for itself; and
+ *  `ChairBuild.backTop`, a hard-coded Vector3 nothing verifies — and one that
+ *  was wrong from the day it was written, claiming (0, 0.96, 0.26) where the
+ *  backrest's real top edge computes to (0, 0.9876, 0.1851), 28 mm low and 75 mm
+ *  back, while `buildJacket` uses its own correct literal three functions later.
+ *  It was never the thing its comment said it was.
+ *
+ *  **They are out of this list and not yet out of the engine**, and that
+ *  sentence is the point rather than a caveat. An earlier version of this
+ *  comment said all three were gone; the deletions were lost before they landed
+ *  and the claim outlived them, which is the "compiles and lies" shape one level
+ *  up from the code. So the list does not carry them and the check names them
+ *  every run until they land. A red that says "three agreed deletions have not
+ *  happened yet" is the correct state of the world, and it is the one thing a
+ *  comment cannot be trusted to say on its own.
+ *
+ *  That is the ceiling working: an entry that cannot survive being read out loud
+ *  is a deletion waiting for somebody to say so, and the way it waits is in the
+ *  failure output rather than in the allowlist.
+ *
+ *  And then it went to fourteen, which needs saying rather than hiding. The
+ *  check stopped matching names and started resolving symbols in the same round,
+ *  and a sharper instrument finds more: thirteen public interface members that
+ *  nothing reads, every one of them invisible to the version that shipped an
+ *  hour earlier. A queue that grows because the instrument improved is not the
+ *  same object as a queue that grows because somebody made room, and the
+ *  difference is that this one can be read: every entry below says what the
+ *  member is, why nothing reaches it, and whose file it is in. */
 const ALLOWED: Record<string, string> = {
-  "src/backlot/rooms/manifest.ts#BacklotPiece.studioAnchor":
-    "written into every front-wall and left-wall piece and read by nothing that ships. It is the anchor a " +
-    "gallery entry would link to, so the likely answer is that something should read it rather than that it " +
-    "should go. Owner: the manifest, which is read-only this round.",
-  "src/backlot/engine/types.ts#Hotspot.setLabel":
-    "declared on the public handle and implemented in hotspots.ts, called by nothing. Same shape as " +
-    "Signwriter.floorName. Owner: lane 1.",
-  "src/backlot/rooms/furniture.ts#MonitorBuild.screenNormal":
-    "returned by buildMonitor and read by nothing. Owner: lane 2.",
-  "src/backlot/rooms/furniture.ts#ChairBuild.backTop":
-    "returned by buildChair and read by nothing. Owner: lane 2.",
+  // --- still waiting, not dead ---
   "src/backlot/engine/camera.ts#GodCamera.pixelsPerMetre":
-    "implemented in camera.ts and called by nothing. It is the number a legibility check would want, which " +
-    "makes it the one here most likely to be kept and used. Owner: lane 1.",
+    "implemented in camera.ts and called by nothing. Genuinely waiting rather than dead — it is the number a " +
+    "legibility check wants — though the consumer it was waiting for arrived this round and used a raster " +
+    "instead, so the next round should either use it or delete it. Owner: lane 1.",
+
+  // --- the queue the sharpened instrument found ---
+  //
+  // Thirteen public members of the engine's own interfaces that nothing reads.
+  // They arrived all at once when this check stopped matching names and started
+  // resolving symbols, which is the honest consequence of fixing an instrument:
+  // it finds what the blunt one could not. Every one is a debt with an owner,
+  // none is a dispensation, and the ceiling below is what keeps it that way.
+  "src/backlot/engine/types.ts#Hotspot.id":
+    "on the handle and read by nothing — the button carries its id as a data attribute and that is what " +
+    "everything actually reads. Owner: lane 1.",
+  "src/backlot/engine/types.ts#VideoHandle.pause":
+    "the clip handle's own controls, neither of them read; `element.pause()` elsewhere is HTMLMediaElement's " +
+    "and a different symbol, which is exactly what the old name-matching check could not tell apart. " +
+    "Owner: lane 1.",
+  "src/backlot/engine/types.ts#VideoHandle.playing": "as VideoHandle.pause. Owner: lane 1.",
+  "src/backlot/engine/types.ts#PlayerApi.facing":
+    "figure state published and never read. Owner: lane 1.",
+  "src/backlot/engine/player.ts#Figure.moving": "as PlayerApi.facing. Owner: lane 1.",
+  "src/backlot/engine/types.ts#BacklotEngine.enterRoom":
+    "the engine's public API. boot.ts holds the engine and never calls it — the room is entered through a " +
+    "hotspot, which reaches the local function inside index.ts rather than the published one. Owner: lane 1.",
+  "src/backlot/engine/types.ts#BacklotEngine.returnToHub": "as BacklotEngine.enterRoom. Owner: lane 1.",
+  "src/backlot/engine/types.ts#BacklotEngine.dispose":
+    "published and never called; nothing tears the engine down, because the page never navigates away from " +
+    "it without a full load. Owner: lane 1.",
+  "src/backlot/rooms/shell.ts#RoomShell.frames":
+    "the shell's returned handles, neither read. Owner: lane 2.",
+  "src/backlot/rooms/shell.ts#RoomShell.hotspots": "as RoomShell.frames. Owner: lane 2.",
+  "src/backlot/rooms/graph-texture.ts#GraphScreen.aspect":
+    "returned by createGraphScreen and read by nothing. Owner: lane 2.",
+  "src/backlot/rooms/graph-texture.ts#GraphScreen.redraw": "as GraphScreen.aspect. Owner: lane 2.",
+  "src/backlot/engine/input.ts#Input.update":
+    "never called; `player.update` and `hub.update` are different symbols. Owner: lane 1.",
 };
 
 /** The list may only shrink, and this is the line that makes that true.
@@ -168,79 +231,247 @@ const ALLOWED: Record<string, string> = {
  *  If something new turns up here, the answer is to fix it, hand it to whoever
  *  owns that file, or argue that the check is wrong and change the check. It is
  *  not to make room. */
-const ALLOWED_CEILING = 5;
+const ALLOWED_CEILING = 14;
 
-function read(path: string): string {
-  const text = readFileSync(resolve(path), "utf8");
-  if (!path.endsWith(".astro")) return text;
-  // Frontmatter only. The template below it is not TypeScript and the compiler
-  // would give up on the first tag, which would silently make every page look
-  // like it imports nothing.
-  const match = /^---\r?\n([\s\S]*?)\r?\n---/.exec(text);
-  return match ? match[1]! : "";
+// ---------------------------------------------------------------------------
+// The program, and why this is not a name search
+// ---------------------------------------------------------------------------
+//
+// The first version of this matched names: a set of every `.something` read
+// anywhere, and a set of every bare identifier. Both halves were broken and an
+// independent review broke them in one sitting.
+//
+//   A re-export nobody consumes laundered a whole module. `rooms/index.ts` says
+//   `export { buildRoomShell } from "./shell"` and nothing imports that name
+//   from `../rooms` — but the walker recorded a re-export as taking `*`, so that
+//   one line marked **every runtime export of shell.ts** used, permanently.
+//
+//   Ordinary property names shielded interface members. `propertyReads` was flat
+//   and global, so `.find`, `.id`, `.width` and `.dispose` on arrays, DOM nodes
+//   and three.js objects all landed in it. Of 239 exported members, `id`
+//   appeared 256 times, `width` 98, `find` 72. Deleting both real calls to
+//   `Hub.find` — public, implemented, called by nothing — left the suite green,
+//   because fourteen unrelated `Array.prototype.find` calls supplied the name.
+//
+// The second of those is the `Signwriter.floorName` shape walking back in
+// through the check written to catch it, which is as clear a signal as this
+// repo gets that the instrument was wrong. A name is not an identity. So this
+// asks the **type checker** instead: every read is resolved to the symbol it
+// actually refers to, aliases followed, and an export or a member is used when
+// something reads *that symbol*. `.find` on an array is a different symbol from
+// `Hub.find`, and a re-export is not a read of anything.
+const PROGRAM = (() => {
+  const config = ts.readConfigFile("tsconfig.json", (path) => readFileSync(path, "utf8"));
+  const parsed = ts.parseJsonConfigFileContent(config.config, ts.sys, resolve("."));
+  return ts.createProgram(parsed.fileNames, parsed.options);
+})();
+const CHECKER = PROGRAM.getTypeChecker();
+
+const root = resolve(".").replace(/\\/g, "/");
+const asProjectPath = (fileName: string) => relative(root, fileName).replace(/\\/g, "/");
+
+/** A symbol's identity, stable inside one program: where it is declared. */
+function identify(symbol: ts.Symbol | undefined): string | null {
+  if (!symbol) return null;
+  const resolved =
+    symbol.flags & ts.SymbolFlags.Alias ? (() => {
+      try {
+        return CHECKER.getAliasedSymbol(symbol);
+      } catch {
+        return symbol;
+      }
+    })() : symbol;
+  const declaration = resolved.declarations?.[0];
+  if (!declaration) return null;
+  return `${asProjectPath(declaration.getSourceFile().fileName)}@${declaration.pos}`;
 }
-const parse = (path: string) => ts.createSourceFile(path, read(path), ts.ScriptTarget.ESNext, true);
+
+/** Is this identifier the *name* of a declaration, an import specifier or an
+ *  export specifier rather than a read of something?
+ *
+ *  Import and export specifiers are deliberately not reads. Importing a name and
+ *  never using it is not a use — TypeScript's own unused-import hint covers that
+ *  — and re-exporting one is not a use either, which is the whole of E1: a name
+ *  passed along for nobody should not keep anything alive. */
+function isDeclarationName(node: ts.Identifier): boolean {
+  const parent = node.parent as ts.Node & { name?: ts.Node; propertyName?: ts.Node };
+  if (!parent) return false;
+  if (ts.isImportSpecifier(parent) || ts.isExportSpecifier(parent) || ts.isImportClause(parent)) return true;
+  if (ts.isNamespaceImport(parent) || ts.isNamespaceExport(parent)) return true;
+  if (parent.name !== node) return false;
+  return (
+    ts.isVariableDeclaration(parent) ||
+    ts.isFunctionDeclaration(parent) ||
+    ts.isClassDeclaration(parent) ||
+    ts.isInterfaceDeclaration(parent) ||
+    ts.isTypeAliasDeclaration(parent) ||
+    ts.isEnumDeclaration(parent) ||
+    ts.isEnumMember(parent) ||
+    ts.isParameter(parent) ||
+    ts.isPropertySignature(parent) ||
+    ts.isMethodSignature(parent) ||
+    ts.isPropertyDeclaration(parent) ||
+    ts.isPropertyAssignment(parent) ||
+    ts.isMethodDeclaration(parent) ||
+    ts.isShorthandPropertyAssignment(parent) ||
+    ts.isGetAccessorDeclaration(parent) ||
+    ts.isSetAccessorDeclaration(parent) ||
+    ts.isBindingElement(parent)
+  );
+}
+
+/** What one node reads, as symbol identities.
+ *
+ *  A property access is asked twice, and the second question is the one that
+ *  matters. `getSymbolAtLocation` on `x.p` answers with whatever declared `p` on
+ *  the *value* — which for an object literal implementing an interface is the
+ *  literal's own property, not the interface's. So the type of `x` is asked for
+ *  its property `p` as well, which is what connects `engine.dispose()` to
+ *  `BacklotEngine.dispose` and `entry.handle.setLabel(...)` to `Hotspot.setLabel`.
+ *  Without it this reported thirty-four live members as dead, which is a check
+ *  nobody would use twice.
+ *
+ *  Destructuring is the same question in different syntax. `const { canvas, hud }
+ *  = options` declares two locals and reads two properties, and only the first
+ *  half is an identifier the naive walk would have looked at. */
+function readsAt(node: ts.Node): string[] {
+  const found: string[] = [];
+  const push = (symbol: ts.Symbol | undefined) => {
+    const id = identify(symbol);
+    if (id) found.push(id);
+  };
+
+  if (ts.isPropertyAccessExpression(node) && ts.isIdentifier(node.name)) {
+    push(CHECKER.getSymbolAtLocation(node.name));
+    const owner = CHECKER.getTypeAtLocation(node.expression);
+    push(CHECKER.getPropertyOfType(owner, node.name.text));
+  }
+
+  if (ts.isBindingElement(node) && ts.isObjectBindingPattern(node.parent)) {
+    const property = node.propertyName ?? node.name;
+    if (ts.isIdentifier(property)) {
+      const owner = CHECKER.getTypeAtLocation(node.parent);
+      push(CHECKER.getPropertyOfType(owner, property.text));
+    }
+  }
+
+  if (ts.isShorthandPropertyAssignment(node)) {
+    push(CHECKER.getShorthandAssignmentValueSymbol(node));
+  }
+
+  if (ts.isIdentifier(node) && !isDeclarationName(node)) {
+    push(CHECKER.getSymbolAtLocation(node));
+  }
+  return found;
+}
+
+/** Every symbol read by something that ships, and every symbol read by the
+ *  suite, kept apart so a type can be forgiven for having only the suite and a
+ *  runtime export cannot. */
+const readByShipping = new Set<string>();
+const readBySpec = new Set<string>();
+
+for (const file of PROGRAM.getSourceFiles()) {
+  if (file.isDeclarationFile) continue;
+  const path = asProjectPath(file.fileName);
+  const ships = path.startsWith("src/");
+  const suite = path.startsWith("spec/");
+  if (!ships && !suite) continue;
+  const into = ships ? readByShipping : readBySpec;
+  const walk = (node: ts.Node) => {
+    for (const id of readsAt(node)) into.add(id);
+    ts.forEachChild(node, walk);
+  };
+  ts.forEachChild(file, walk);
+}
+
+/** Which module reads a symbol, so "used only inside its own file" can be told
+ *  from "used nowhere". The first is needlessly public, which TypeScript's own
+ *  unused-local hint already covers; only the second is dead. */
+const readOutsideOwnFile = new Set<string>();
+for (const file of PROGRAM.getSourceFiles()) {
+  if (file.isDeclarationFile) continue;
+  const path = asProjectPath(file.fileName);
+  if (!path.startsWith("src/") && !path.startsWith("spec/")) continue;
+  const walk = (node: ts.Node) => {
+    for (const id of readsAt(node)) {
+      if (!id.startsWith(`${path}@`)) readOutsideOwnFile.add(id);
+    }
+    ts.forEachChild(node, walk);
+  };
+  ts.forEachChild(file, walk);
+}
+
+const read = (path: string) => readFileSync(resolve(path), "utf8");
 
 /** Resolve a relative import to a path in SOURCES, or null for a package. */
 function resolveImport(from: string, specifier: string): string | null {
   if (!specifier.startsWith(".")) return null;
   const base = resolve(dirname(from), specifier).replace(/\\/g, "/");
-  const root = resolve(".").replace(/\\/g, "/");
   const asRelative = relative(root, base).replace(/\\/g, "/");
-  for (const candidate of [
-    asRelative,
-    `${asRelative}.ts`,
-    asRelative.replace(/\.js$/, ".ts"),
-    `${asRelative}/index.ts`,
-  ]) {
+  for (const candidate of [asRelative, `${asRelative}.ts`, asRelative.replace(/\.js$/, ".ts"), `${asRelative}/index.ts`]) {
     if (SOURCES.includes(candidate)) return candidate;
   }
   return null;
 }
 
-interface Module {
-  path: string;
-  /** Exported names, and whether the export is types-only. */
-  exports: { name: string; typeOnly: boolean }[];
-  /** Every interface this module exports, with its member names. */
-  interfaces: { name: string; members: string[] }[];
-  /** What it imports, resolved, with the names taken. */
-  imports: { from: string; names: string[]; typeOnly: boolean }[];
+/** Everything under src/ that the compiler knows about, plus the pages, which
+ *  are where the backlot is actually loaded from: `src/pages/backlot/index.astro`
+ *  imports the manifest in its frontmatter and never goes near the island. */
+const SITE = globSync("src/**/*.astro").sort();
+
+const astroFrontmatter = (path: string) => {
+  const match = /^---\r?\n([\s\S]*?)\r?\n---/.exec(read(path));
+  return match ? match[1]! : "";
+};
+
+/** The one thing the checker cannot see: an Astro page. `.astro` is not in the
+ *  program, so a name a page imports in its frontmatter resolves to no symbol at
+ *  all — and `src/pages/backlot/index.astro` is what actually loads the backlot,
+ *  importing the manifest there and never going near the island. Matched by name
+ *  rather than by symbol, which is the weaker instrument and is scoped to
+ *  exactly the files the strong one cannot reach. */
+const readByPages = new Set<string>();
+for (const path of SITE) {
+  const file = ts.createSourceFile(path, astroFrontmatter(path), ts.ScriptTarget.ESNext, true);
+  for (const node of file.statements) {
+    if (!ts.isImportDeclaration(node) || !ts.isStringLiteral(node.moduleSpecifier)) continue;
+    const target = resolveImport(path, node.moduleSpecifier.text);
+    if (!target) continue;
+    const clause = node.importClause;
+    if (clause?.namedBindings && ts.isNamedImports(clause.namedBindings)) {
+      for (const element of clause.namedBindings.elements) {
+        readByPages.add(`${target}#${(element.propertyName ?? element.name).text}`);
+      }
+    } else if (clause?.namedBindings) {
+      readByPages.add(`${target}#*`);
+    }
+  }
 }
+const readByPage = (path: string, name: string) =>
+  readByPages.has(`${path}#${name}`) || readByPages.has(`${path}#*`);
 
-/** Is this whole import clause types-only?
- *
- *  `ImportClause.isTypeOnly` is deprecated on TypeScript 6 and the replacement
- *  is `phaseModifier`, which is `undefined | TypeKeyword | DeferKeyword`. The
- *  rename is not cosmetic and the difference is the whole reason to use it: a
- *  clause now has a *phase*, and `import defer` is a runtime import that has one
- *  too. Mapping "has a phase modifier" onto "is a type" would quietly call a
- *  deferred runtime import a type and let a genuinely dead runtime export
- *  through the type-only pass below. Only `TypeKeyword` means types.
- *
- *  Written out here rather than inlined twice, because a file whose subject is
- *  things no tool can see should not be adding to the diagnostics that can. */
-const typeOnlyClause = (clause: ts.ImportClause | undefined): boolean =>
-  clause?.phaseModifier === ts.SyntaxKind.TypeKeyword;
+// ---------------------------------------------------------------------------
+// Reachability, which is a question about modules rather than about names
+// ---------------------------------------------------------------------------
 
-function describeModule(path: string): Module {
-  const file = parse(path);
-  const exports: Module["exports"] = [];
-  const interfaces: Module["interfaces"] = [];
-  const imports: Module["imports"] = [];
 
-  const exported = (node: ts.Node) =>
-    ts.canHaveModifiers(node) &&
-    (ts.getModifiers(node) ?? []).some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword);
-
-  // Dynamic imports first, and they are not a detail: `machine-room.ts` reaches
-  // the graph texture with `await import("./graph-texture")`, and a walker that
-  // only followed static declarations reported that module as unreachable —
-  // 5.4 kB of code the page demonstrably loads, called dead by a check whose
-  // whole job is to be believed about that. A false positive here costs more
-  // than a false negative, because the only sane response to one is to stop
-  // trusting the check.
-  const walkDynamic = (node: ts.Node) => {
+/** Which backlot modules each file imports, static and dynamic alike. The
+ *  dynamic half is not a detail: `machine-room.ts` reaches the graph texture
+ *  with `await import("./graph-texture")`, and a walker that followed only
+ *  static declarations called 5.4 kB the page demonstrably loads dead. */
+function importsOf(path: string, text?: string): string[] {
+  const file = ts.createSourceFile(path, text ?? read(path), ts.ScriptTarget.ESNext, true);
+  const found: string[] = [];
+  const walk = (node: ts.Node) => {
+    if (
+      (ts.isImportDeclaration(node) || (ts.isExportDeclaration(node) && node.moduleSpecifier)) &&
+      node.moduleSpecifier &&
+      ts.isStringLiteral(node.moduleSpecifier)
+    ) {
+      const target = resolveImport(path, node.moduleSpecifier.text);
+      if (target) found.push(target);
+    }
     if (
       ts.isCallExpression(node) &&
       node.expression.kind === ts.SyntaxKind.ImportKeyword &&
@@ -248,304 +479,119 @@ function describeModule(path: string): Module {
       ts.isStringLiteral(node.arguments[0])
     ) {
       const target = resolveImport(path, node.arguments[0].text);
-      if (target) imports.push({ from: target, names: ["*"], typeOnly: false });
+      if (target) found.push(target);
     }
-    ts.forEachChild(node, walkDynamic);
+    ts.forEachChild(node, walk);
   };
-  ts.forEachChild(file, walkDynamic);
-
-  for (const node of file.statements) {
-    if (ts.isImportDeclaration(node) && ts.isStringLiteral(node.moduleSpecifier)) {
-      const target = resolveImport(path, node.moduleSpecifier.text);
-      if (!target) continue;
-      const clause = node.importClause;
-      const names: string[] = [];
-      let typeOnly = typeOnlyClause(clause);
-      if (clause?.name) names.push("default");
-      if (clause?.namedBindings) {
-        if (ts.isNamedImports(clause.namedBindings)) {
-          for (const element of clause.namedBindings.elements) {
-            names.push((element.propertyName ?? element.name).text);
-          }
-          // A clause is types-only only if the clause itself says so or every
-          // name in it does; a mixed clause is treated as a runtime use, which
-          // is the safe direction.
-          typeOnly =
-            typeOnlyClause(clause) || clause.namedBindings.elements.every((element) => element.isTypeOnly);
-        } else {
-          names.push("*");
-        }
-      }
-      imports.push({ from: target, names, typeOnly });
-      continue;
-    }
-
-    if (ts.isExportDeclaration(node) && node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier)) {
-      const target = resolveImport(path, node.moduleSpecifier.text);
-      if (target) imports.push({ from: target, names: ["*"], typeOnly: node.isTypeOnly });
-      continue;
-    }
-
-    if (!exported(node)) continue;
-
-    if (ts.isVariableStatement(node)) {
-      for (const declaration of node.declarationList.declarations) {
-        if (ts.isIdentifier(declaration.name)) exports.push({ name: declaration.name.text, typeOnly: false });
-      }
-    } else if (
-      (ts.isFunctionDeclaration(node) || ts.isClassDeclaration(node)) &&
-      node.name
-    ) {
-      exports.push({ name: node.name.text, typeOnly: false });
-    } else if (ts.isInterfaceDeclaration(node)) {
-      exports.push({ name: node.name.text, typeOnly: true });
-      interfaces.push({
-        name: node.name.text,
-        members: node.members
-          .map((member) => (member.name && ts.isIdentifier(member.name) ? member.name.text : ""))
-          .filter(Boolean),
-      });
-    } else if (ts.isTypeAliasDeclaration(node)) {
-      exports.push({ name: node.name.text, typeOnly: true });
-    } else if (ts.isEnumDeclaration(node)) {
-      exports.push({ name: node.name.text, typeOnly: false });
-    }
-  }
-
-  return { path, exports, interfaces, imports };
+  ts.forEachChild(file, walk);
+  return found;
 }
 
-const MODULES = new Map(SOURCES.map((path) => [path, describeModule(path)]));
-
-/** Every module the page can reach, by following imports from the entry. */
 const reachable = (() => {
   const seen = new Set<string>();
-  // The page is a root as much as boot.ts is: `src/pages/backlot/index.astro`
-  // imports the manifest at build time and never goes near the island.
-  const roots = [ENTRY];
-  for (const path of SITE) {
-    const file = parse(path);
-    for (const node of file.statements) {
-      if (!ts.isImportDeclaration(node) || !ts.isStringLiteral(node.moduleSpecifier)) continue;
-      const target = resolveImport(path, node.moduleSpecifier.text);
-      if (target) roots.push(target);
-    }
+  const queue = [ENTRY];
+  for (const file of PROGRAM.getSourceFiles()) {
+    if (file.isDeclarationFile) continue;
+    const path = asProjectPath(file.fileName);
+    if (!path.startsWith("src/") || path.startsWith("src/backlot/")) continue;
+    queue.push(...importsOf(path, file.getFullText()));
   }
-  const queue = [...roots];
+  for (const path of SITE) queue.push(...importsOf(path, astroFrontmatter(path)));
   while (queue.length) {
     const path = queue.pop()!;
-    if (seen.has(path)) continue;
+    if (!SOURCES.includes(path) || seen.has(path)) continue;
     seen.add(path);
-    for (const entry of MODULES.get(path)?.imports ?? []) {
-      if (!seen.has(entry.from)) queue.push(entry.from);
-    }
+    queue.push(...importsOf(path));
   }
   return seen;
 })();
 
-/** Names imported from each module by something that ships, and separately by
- *  the suite — so a type held by spec alone can be forgiven and a runtime export
- *  cannot. */
-const takenByShipping = new Map<string, Set<string>>();
-const takenBySpec = new Map<string, Set<string>>();
+// ---------------------------------------------------------------------------
+// What each module exports, read off the AST
+// ---------------------------------------------------------------------------
 
-const record = (into: Map<string, Set<string>>, from: string, names: string[]) => {
-  const set = into.get(from) ?? new Set<string>();
-  for (const name of names) set.add(name);
-  into.set(from, set);
-};
-
-for (const path of reachable) {
-  for (const entry of MODULES.get(path)?.imports ?? []) record(takenByShipping, entry.from, entry.names);
+interface Exported {
+  name: string;
+  typeOnly: boolean;
+  id: string | null;
 }
-/** Every name a file outside src/backlot/ takes out of it. */
-function takesFrom(path: string, into: Map<string, Set<string>>): void {
-  const file = parse(path);
+
+interface Shape {
+  name: string;
+  members: { name: string; id: string | null }[];
+}
+
+function surfaceOf(path: string): { exports: Exported[]; shapes: Shape[] } {
+  const file = PROGRAM.getSourceFile(resolve(path));
+  const exports: Exported[] = [];
+  const shapes: Shape[] = [];
+  if (!file) return { exports, shapes };
+  const exported = (node: ts.Node) =>
+    ts.canHaveModifiers(node) &&
+    (ts.getModifiers(node) ?? []).some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword);
+
   for (const node of file.statements) {
-    if (!ts.isImportDeclaration(node) || !ts.isStringLiteral(node.moduleSpecifier)) continue;
-    const target = resolveImport(path, node.moduleSpecifier.text);
-    if (!target) continue;
-    const clause = node.importClause;
-    const names: string[] = [];
-    if (clause?.namedBindings && ts.isNamedImports(clause.namedBindings)) {
-      for (const element of clause.namedBindings.elements) names.push((element.propertyName ?? element.name).text);
-    } else if (clause?.namedBindings) {
-      names.push("*");
+    if (!exported(node)) continue;
+    const add = (name: ts.Identifier, typeOnly: boolean) =>
+      exports.push({ name: name.text, typeOnly, id: identify(CHECKER.getSymbolAtLocation(name)) });
+    if (ts.isVariableStatement(node)) {
+      for (const declaration of node.declarationList.declarations) {
+        if (ts.isIdentifier(declaration.name)) add(declaration.name, false);
+      }
+    } else if ((ts.isFunctionDeclaration(node) || ts.isClassDeclaration(node)) && node.name) {
+      add(node.name, false);
+    } else if (ts.isInterfaceDeclaration(node)) {
+      add(node.name, true);
+      shapes.push({
+        name: node.name.text,
+        members: node.members
+          .filter((member) => member.name && ts.isIdentifier(member.name))
+          .map((member) => ({
+            name: (member.name as ts.Identifier).text,
+            id: identify(CHECKER.getSymbolAtLocation(member.name as ts.Identifier)),
+          })),
+      });
+    } else if (ts.isTypeAliasDeclaration(node)) {
+      add(node.name, true);
+    } else if (ts.isEnumDeclaration(node)) {
+      add(node.name, false);
     }
-    record(into, target, names);
   }
+  return { exports, shapes };
 }
 
-for (const path of SITE) takesFrom(path, takenByShipping);
-for (const path of SPECS) takesFrom(path, takenBySpec);
-
-const taken = (into: Map<string, Set<string>>, path: string, name: string) => {
-  const set = into.get(path);
-  return Boolean(set && (set.has(name) || set.has("*")));
-};
-
-/** Every property **read** anywhere that ships: `thing.name`, and a destructured
- *  `const { name } = thing`. Deliberately not property *assignments* — the
- *  object literal that implements an interface writes every member of it, so
- *  counting writes would make every member look used and the check would be
- *  about nothing. That is the distinction the compiler does not draw either. */
-const propertyReads = (() => {
-  const names = new Set<string>();
-  for (const path of reachable) {
-    const file = parse(path);
-    const walk = (node: ts.Node) => {
-      if (ts.isPropertyAccessExpression(node) && ts.isIdentifier(node.name)) names.add(node.name.text);
-      if (ts.isElementAccessExpression(node) && ts.isStringLiteral(node.argumentExpression)) {
-        names.add(node.argumentExpression.text);
-      }
-      if (ts.isBindingElement(node)) {
-        const source = node.propertyName ?? node.name;
-        if (ts.isIdentifier(source)) names.add(source.text);
-      }
-      ts.forEachChild(node, walk);
-    };
-    walk(file);
-  }
-  return names;
-})();
-
-/** Every name used **as a type** anywhere that ships, including inside the
- *  module that declares it. A type in an exported signature is used without
- *  anybody importing it by name: `createHub(): Hub` is the whole of what makes
- *  `Hub` public, and a rule that asked only about imports called twenty of these
- *  dead on its first run. */
-const typeReferences = (() => {
-  const names = new Set<string>();
-  for (const path of [...reachable, ...SITE]) {
-    const file = parse(path);
-    const walk = (node: ts.Node) => {
-      if (ts.isTypeReferenceNode(node) && ts.isIdentifier(node.typeName)) names.add(node.typeName.text);
-      if (ts.isTypeReferenceNode(node) && ts.isQualifiedName(node.typeName)) names.add(node.typeName.right.text);
-      if (ts.isExpressionWithTypeArguments(node) && ts.isIdentifier(node.expression)) {
-        names.add(node.expression.text);
-      }
-      if (ts.isIndexedAccessTypeNode(node) && ts.isTypeReferenceNode(node.objectType)) {
-        if (ts.isIdentifier(node.objectType.typeName)) names.add(node.objectType.typeName.text);
-      }
-      ts.forEachChild(node, walk);
-    };
-    walk(file);
-  }
-  return names;
-})();
-
-/** Every identifier a module reads inside itself, not counting the declaration
- *  that introduces it. A name used in its own module is not dead code — it is at
- *  most needlessly public, which is a different and much smaller complaint, and
- *  one TypeScript's own unused-local hint already covers. All seven of the
- *  runtime exports this check named on its first run were this: `TOWER`,
- *  `MAX_YAW`, `createPalette` and the rest, every one of them used a few lines
- *  below the `export` keyword. Reporting those as dead would have been a check
- *  that cried about style, and the two things it exists for would have been lost
- *  in the noise. */
-const localReads = (() => {
-  const perFile = new Map<string, Set<string>>();
-  for (const path of SOURCES) {
-    const names = new Set<string>();
-    const file = parse(path);
-    const walk = (node: ts.Node) => {
-      // The name in a declaration is not a read of it.
-      const declaring =
-        (ts.isVariableDeclaration(node) ||
-          ts.isFunctionDeclaration(node) ||
-          ts.isClassDeclaration(node) ||
-          ts.isInterfaceDeclaration(node) ||
-          ts.isTypeAliasDeclaration(node) ||
-          ts.isEnumDeclaration(node)) &&
-        node.name;
-      ts.forEachChild(node, (child) => {
-        if (declaring && child === declaring) return;
-        walk(child);
-      });
-      if (ts.isIdentifier(node)) names.add(node.text);
-    };
-    ts.forEachChild(file, walk);
-    perFile.set(path, names);
-  }
-  return perFile;
-})();
-
-const usedLocally = (path: string, name: string) => Boolean(localReads.get(path)?.has(name));
-
-/** Every identifier **read** anywhere that ships, whatever shape it is read in —
- *  and pointedly not the names that only *declare* something.
- *
- *  The first version of this collected every identifier, which made the member
- *  check vacuous: an interface's own `spill(): Texture` signature and the object
- *  literal that implements it are both identifiers called `spill`, so deleting
- *  the one real call to it left the check green. Caught by the red not arriving,
- *  which is the only thing that catches this. A name in a declaration, a
- *  property signature, a property assignment or a method's own name is skipped;
- *  what is left is a use. */
-const identifierReads = (() => {
-  const names = new Set<string>();
-  const declares = (node: ts.Identifier): boolean => {
-    const parent = node.parent as ts.Node & { name?: ts.Node };
-    if (!parent || parent.name !== node) return false;
-    return (
-      ts.isPropertySignature(parent) ||
-      ts.isMethodSignature(parent) ||
-      ts.isPropertyAssignment(parent) ||
-      ts.isMethodDeclaration(parent) ||
-      ts.isPropertyDeclaration(parent) ||
-      ts.isShorthandPropertyAssignment(parent) ||
-      ts.isVariableDeclaration(parent) ||
-      ts.isFunctionDeclaration(parent) ||
-      ts.isClassDeclaration(parent) ||
-      ts.isInterfaceDeclaration(parent) ||
-      ts.isTypeAliasDeclaration(parent) ||
-      ts.isEnumDeclaration(parent) ||
-      ts.isEnumMember(parent) ||
-      ts.isParameter(parent) ||
-      ts.isGetAccessorDeclaration(parent) ||
-      ts.isSetAccessorDeclaration(parent)
-    );
-  };
-  for (const path of [...reachable, ...SITE]) {
-    const file = parse(path);
-    const walk = (node: ts.Node) => {
-      if (ts.isIdentifier(node) && !declares(node)) names.add(node.text);
-      ts.forEachChild(node, walk);
-    };
-    ts.forEachChild(file, walk);
-  }
-  return names;
-})();
+const SURFACE = new Map(SOURCES.map((path) => [path, surfaceOf(path)]));
 
 const key = (path: string, name: string) => `${path}#${name}`;
 
 describe("the backlot exports nothing for nobody", () => {
-  it("found the engine and an entry into it", () => {
-    // The floor. A glob that matched nothing would make every assertion below
-    // true of an empty set, which is the failure this whole file is about.
+  it("found the engine, an entry into it, and a program to resolve it with", () => {
+    // The floor. A glob that matched nothing, or a program that failed to load,
+    // would make every assertion below true of an empty set — which is the
+    // failure this whole file is about.
     expect(SOURCES.length, "no backlot source matched, so this check is about nothing").toBeGreaterThan(10);
     expect(SOURCES, `${ENTRY} is the entry everything is reached from`).toContain(ENTRY);
     expect(reachable.size, "nothing is reachable from the entry, so the walk did not run").toBeGreaterThan(5);
+    expect(readByShipping.size, "no symbol reads were resolved, so the checker did not run").toBeGreaterThan(200);
   });
 
   it("reaches every module it ships", () => {
     const stranded = SOURCES.filter((path) => !reachable.has(path));
     expect(
       stranded,
-      `${stranded.length} module(s) under src/backlot/ cannot be reached from the page: ${stranded.join(", ")}. A module the page ` +
-        `cannot load is dead whatever imports it, and its own name is the more useful thing to read before ` +
-        `any export inside it.`,
+      `${stranded.length} module(s) under src/backlot/ cannot be reached from the page: ${stranded.join(", ")}. ` +
+        `A module the page cannot load is dead whatever imports it, and its own name is the more useful thing ` +
+        `to read before any export inside it.`,
     ).toEqual([]);
   });
 
   it("has a use for every runtime export", () => {
     const dead: string[] = [];
     for (const path of reachable) {
-      const module = MODULES.get(path)!;
-      for (const entry of module.exports) {
-        if (entry.typeOnly) continue;
-        if (taken(takenByShipping, path, entry.name)) continue;
-        if (usedLocally(path, entry.name)) continue;
+      for (const entry of SURFACE.get(path)!.exports) {
+        if (entry.typeOnly || !entry.id) continue;
+        if (readByShipping.has(entry.id)) continue;
+        if (readByPage(path, entry.name)) continue;
         if (ALLOWED[key(path, entry.name)]) continue;
         dead.push(key(path, entry.name));
       }
@@ -554,32 +600,29 @@ describe("the backlot exports nothing for nobody", () => {
       dead,
       dead.length === 0
         ? ""
-        : `${dead[0]!.split("#")[0]} exports ${dead[0]!.split("#")[1]} and nothing that ships imports it. ` +
+        : `${dead[0]!.split("#")[0]} exports ${dead[0]!.split("#")[1]} and nothing that ships reads it. ` +
           `Either something should, or it should not be exported — a public name nobody reaches is a promise ` +
           `to a caller that does not exist. All of them: ${dead.join(", ")}.`,
     ).toEqual([]);
   });
 
   it("has a use for every exported type, counting the suite as a consumer", () => {
-    // A type costs no bytes and spec importing one is spec holding the engine to
-    // its own contract, which is the arrangement this repo wants. Runtime
-    // exports get no such pass, which is the test above.
+    // A type costs no bytes and the suite importing one is the suite holding the
+    // engine to its own contract, which is the arrangement this repo wants.
+    // Runtime exports get no such pass, which is the test above.
     const dead: string[] = [];
     for (const path of reachable) {
-      const module = MODULES.get(path)!;
-      for (const entry of module.exports) {
-        if (!entry.typeOnly) continue;
-        if (taken(takenByShipping, path, entry.name)) continue;
-        if (taken(takenBySpec, path, entry.name)) continue;
-        if (typeReferences.has(entry.name)) continue;
-        if (usedLocally(path, entry.name)) continue;
+      for (const entry of SURFACE.get(path)!.exports) {
+        if (!entry.typeOnly || !entry.id) continue;
+        if (readByShipping.has(entry.id) || readBySpec.has(entry.id)) continue;
+        if (readByPage(path, entry.name)) continue;
         if (ALLOWED[key(path, entry.name)]) continue;
         dead.push(key(path, entry.name));
       }
     }
     expect(
       dead,
-      `${dead.length} exported type(s) are imported by nothing, not even the suite: ${dead.join(", ")}`,
+      `${dead.length} exported type(s) are read by nothing, not even the suite: ${dead.join(", ")}`,
     ).toEqual([]);
   });
 
@@ -587,24 +630,21 @@ describe("the backlot exports nothing for nobody", () => {
     // The case no compiler setting reaches. `Signwriter.floorName` was a public
     // method, fully implemented, called by nothing — and TypeScript has no
     // notion of an unused interface member at any strictness.
+    //
+    // By symbol, not by name. A flat set of every `.something` read in the
+    // project had `find` in it 72 times and `id` 256, so `Hub.find` — public,
+    // implemented, called by nothing — was shielded by fourteen unrelated
+    // `Array.prototype.find` calls and the check stayed green with both of its
+    // real callers deleted.
     const dead: string[] = [];
     for (const path of reachable) {
-      for (const shape of MODULES.get(path)!.interfaces) {
+      for (const shape of SURFACE.get(path)!.shapes) {
         for (const member of shape.members) {
-          if (propertyReads.has(member)) continue;
-          // Also counted: the name read as a plain identifier anywhere that
-          // ships. `BacklotEngine.returnToHub` is never reached as
-          // `engine.returnToHub()` — it is a local function in index.ts that is
-          // also put on the public shape — and calling that dead would be
-          // accusing live code. The looser rule misses a member whose name
-          // collides with an unrelated local, and that is the right direction
-          // for the error to run: this is the only check that will ever say
-          // anything here, so it should say nothing rather than something
-          // wrong.
-          if (identifierReads.has(member)) continue;
-          if (ALLOWED[key(path, `${shape.name}.${member}`)]) continue;
-          if (ALLOWED[key(path, member)]) continue;
-          dead.push(`${shape.name}.${member}`);
+          if (!member.id) continue;
+          if (readByShipping.has(member.id) || readBySpec.has(member.id)) continue;
+          if (ALLOWED[key(path, `${shape.name}.${member.name}`)]) continue;
+          if (ALLOWED[key(path, member.name)]) continue;
+          dead.push(`${shape.name}.${member.name}`);
         }
       }
     }
@@ -629,9 +669,8 @@ describe("the backlot exports nothing for nobody", () => {
   });
 
   it("keeps no allowance it no longer needs", () => {
-    // The allowlist is a list of reasons, and a reason that has stopped being
-    // true is a hand-kept scope one level down. Every entry has to still be
-    // forgiving something, or it comes out.
+    // A reason that has stopped being true is a hand-kept scope one level down.
+    // Every entry has to still be forgiving something, or it comes out.
     const stale: string[] = [];
     for (const entry of Object.keys(ALLOWED)) {
       const [path, name] = entry.split("#") as [string, string];
@@ -639,16 +678,19 @@ describe("the backlot exports nothing for nobody", () => {
         stale.push(`${entry} (that file is gone)`);
         continue;
       }
-      if (name.includes(".")) {
-        const member = name.split(".")[1]!;
-        if (propertyReads.has(member) || identifierReads.has(member)) {
-          stale.push(`${entry} (something reads it now)`);
-        }
+      const surface = SURFACE.get(path)!;
+      const member = name.includes(".")
+        ? surface.shapes.find((shape) => shape.name === name.split(".")[0])?.members.find(
+            (one) => one.name === name.split(".")[1],
+          )
+        : undefined;
+      const exported = surface.exports.find((one) => one.name === name);
+      const id = member?.id ?? exported?.id ?? null;
+      if (!id) {
+        stale.push(`${entry} (nothing by that name is exported any more)`);
         continue;
       }
-      if (taken(takenByShipping, path, name) || taken(takenBySpec, path, name)) {
-        stale.push(`${entry} (something imports it now)`);
-      }
+      if (readByShipping.has(id) || readBySpec.has(id)) stale.push(`${entry} (something reads it now)`);
     }
     expect(
       stale,
@@ -657,16 +699,20 @@ describe("the backlot exports nothing for nobody", () => {
   });
 
   it("says what it measured", () => {
-    const exported = [...reachable].reduce((count, path) => count + MODULES.get(path)!.exports.length, 0);
+    const exported = [...reachable].reduce((count, path) => count + SURFACE.get(path)!.exports.length, 0);
     const members = [...reachable].reduce(
-      (count, path) => count + MODULES.get(path)!.interfaces.reduce((sum, shape) => sum + shape.members.length, 0),
+      (count, path) => count + SURFACE.get(path)!.shapes.reduce((sum, shape) => sum + shape.members.length, 0),
       0,
     );
     // A run that walked nothing would pass every assertion above in silence.
     expect(exported, "no exports were found to check").toBeGreaterThan(20);
     expect(members, "no interface members were found to check").toBeGreaterThan(20);
-    expect(propertyReads.size, "no property reads were collected, so the member check is vacuous").toBeGreaterThan(
-      50,
+    // And the symbols actually resolved: a program that loaded but could not
+    // resolve would give every export a null id and skip it.
+    const unresolved = [...reachable].flatMap((path) =>
+      SURFACE.get(path)!.exports.filter((entry) => !entry.id).map((entry) => key(path, entry.name)),
     );
+    expect(unresolved, `${unresolved.length} export(s) could not be resolved to a symbol`).toEqual([]);
+    expect(readOutsideOwnFile.size, "no symbol was read across a file boundary").toBeGreaterThan(20);
   });
 });

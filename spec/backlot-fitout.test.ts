@@ -1535,6 +1535,27 @@ describe("the brightest thing in the machine room is the front wall", () => {
     }
   }
 
+  // Not covered here, and it is a gap rather than an oversight: **the hub is not
+  // re-read after the room**. The engine borrows the figure's exposure on the way
+  // in and releases it on the way out, and that release runs on every exit — so
+  // a release guarded to fire once per page load would leave the hub's figure
+  // dark for the rest of the session, and nothing in this file would see it.
+  //
+  // The obvious instrument does not work and I tried it rather than assuming.
+  // `player.setExposure` touches the figure alone, so the hub's brightest
+  // painted cell is a door's light pool and does not move at all: 80.3 before
+  // and 80.3 after, the same cell, with the release dropped as well as with it
+  // intact. Looking for the figure near the middle of the canvas instead reads
+  // 51.5 at (940,480) before and 14.4 at (940,280) after — but that drift is
+  // there on a **clean** build, because coming back out of a room puts the
+  // figure at the door it came through rather than where it started. A
+  // positional anchor is measuring the walk, not the exposure.
+  //
+  // What would work is the segmentation CLAUDE.md §7 now records: move the
+  // figure and diff the frames, which needs arrow keys in the harness and a
+  // walk between the two readings. That is a piece of work rather than a tweak,
+  // and a check I cannot watch go red is worth less than this comment.
+  //
   // And the two entries agree with each other, which is the assertion the
   // review's injection was aimed at and the one no per-entry threshold can make.
   // A room whose exposure is applied once per page load reads correctly the

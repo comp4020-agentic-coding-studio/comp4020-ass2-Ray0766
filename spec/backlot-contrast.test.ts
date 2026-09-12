@@ -100,6 +100,10 @@ interface Probe {
   why: string;
   /** Each child of the control, as it was when the reading was taken. */
   parts: string[];
+  /** The engine collapsed this control to its dot. */
+  dense: boolean;
+  /** And the browser has the reader on it, which reveals a dense label. */
+  focused: boolean;
   /** The label, if the layout is painting one at this width. */
   label: { text: string; alpha: number; ink: Resolved } | null;
   /** The dot, and a point at the middle of it. */
@@ -259,6 +263,21 @@ const PROBE = String.raw`
     return {
       id: button.dataset.backlotHotspot,
       name: named,
+      // The two things the page says on purpose about a label, rather than a
+      // threshold on its width. data-backlot-dense is the engine saying "this
+      // control is a dot and its name lives in the accessible name"; matching
+      // :focus-visible is the browser saying "and this is the one the reader is
+      // on". A dense label is 1x1 and a focused dense label is revealed at full
+      // size by design, so the pair is what tells a collapsed label from a
+      // painted one -- CLAUDE.md 7's rule about keying on what is set at the
+      // moment in question rather than on the consequence.
+      //
+      // No backticks in this comment: it sits inside a String.raw probe and a
+      // backtick closes it. That has now happened five times in this repo, and
+      // spec/suite-integrity.test.ts has named every one of them before the
+      // runner could report a silent zero.
+      dense: button.dataset.backlotDense === "true",
+      focused: button.matches(":focus-visible"),
       fill: resolveColour(style.backgroundColor),
       point,
       why,
@@ -595,9 +614,38 @@ describe.each(PLACES)("$name", ({ name: place, expect: expected }) => {
           // turning up here would mean the phone composition had stopped
           // applying. That is asserted as the state it is.
           if (!labelled) {
+            // At 390 every control is dense and its label collapses to a 1x1
+            // box with the whole sentence still inside it. Every control except
+            // the one the reader is on: entering the room hands focus to a
+            // control inside it, `:focus-visible` reveals a dense label by
+            // design, and that label is genuinely 141x27 px of type over the
+            // canvas. Measured, after the assertion below failed on it: eight
+            // controls dense, seven labels 1x1, `leave-machine-room` at 141x27
+            // and `document.activeElement`. Blur it and all eight read 1x1.
+            //
+            // So the revealed one is not excused, it is checked — a label a
+            // reader can see over a 3D scene is exactly what the ink check is
+            // for, and the phone invariant is that *nothing else* paints one.
+            if (reading.focused && reading.label !== null) {
+              const revealed = over(
+                opaque(reading.label.ink, `${id}'s label colour`),
+                reading.label.alpha,
+                fill,
+              );
+              const revealedRatio = contrastRatio(revealed, fill);
+              expect(
+                revealedRatio,
+                `${id} has the reader on it at ${viewport}, which reveals its label over the canvas: it ` +
+                  `paints ${formatHex(revealed)} on ${formatHex(fill)} — ${revealedRatio.toFixed(2)}:1, and ` +
+                  `AA body text needs ${AA_BODY_TEXT}:1.`,
+              ).toBeGreaterThanOrEqual(AA_BODY_TEXT);
+              expect(reading.dense, `${id} is revealed at ${viewport} but is not marked dense`).toBe(true);
+              return;
+            }
             expect(
               reading.label,
-              `${id} paints a label over the canvas at ${viewport}, so it needs the ink check`,
+              `${id} paints a label over the canvas at ${viewport} without the reader being on it, so it ` +
+                `needs the ink check. Every control at this size is a dot; only the focused one reveals.`,
             ).toBeNull();
             expect(reading.name, `${id} has no name to stand in for the label it does not paint`).not.toBe("");
             return;
@@ -761,10 +809,28 @@ describe("the sweep measured something", () => {
     }
   });
 
-  it("found no painted label on any control at the phone viewport", () => {
+  it("paints no label at the phone viewport except on the control with the reader on it", () => {
+    // Re-derived rather than re-numbered. This used to assert that *every*
+    // control at 390 had a collapsed label, and the number it compared against
+    // was the count of readings — which was true until the engine's focus
+    // hand-over started revealing one on the way into a room. Patching 28 to 26
+    // would have been fitting the check to the page; the honest statement is
+    // which control is allowed to paint one and why.
     const phone = readings.filter((r) => r.viewport === VIEWPORTS[1].name);
     expect(phone.length).toBeGreaterThan(0);
-    expect(phone.filter((r) => r.label === null).length).toBe(phone.length);
+    const painted = phone.filter((r) => r.label !== null);
+    expect(
+      painted.filter((r) => !r.focused).map((r) => `${r.place}/${r.id}`),
+      "a control painted a label at 390 without the reader being on it",
+    ).toEqual([]);
+    // And the reveal really happens, so the branch above is not a comment: the
+    // hand-over puts the reader on a control in the room and that control shows
+    // its name.
+    expect(
+      painted.length,
+      "no control revealed a label at 390 at all, so the focus hand-over did not run and the branch that " +
+        "checks the revealed ink was never exercised",
+    ).toBeGreaterThan(0);
   });
 
   it("found some controls collapsed at the desktop viewport, so that branch ran", () => {

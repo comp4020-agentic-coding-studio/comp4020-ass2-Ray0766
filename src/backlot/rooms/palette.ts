@@ -106,7 +106,7 @@ const TARGET_ALBEDO = 0.13;
  */
 export class Painter {
   readonly #colours: ColourReader;
-  readonly #tinted: { target: Tinted; role: Role; stopped: boolean }[] = [];
+  readonly #tinted: { target: Tinted; role: Role; stopped: boolean; level: number }[] = [];
   #gain = 1;
   readonly #materials: Material[] = [];
   readonly #repaint: (() => void)[] = [];
@@ -143,28 +143,52 @@ export class Painter {
 
   /** Keeps `target.color` on `role` across theme flips. Returns the target.
    *  `stopped` surfaces take the room's exposure; a light and a self-lit
-   *  picture do not, because neither of them is a surface the key falls on. */
-  tint<T extends Tinted>(target: T, role: Role, stopped = false): T {
+   *  picture do not, because neither of them is a surface the key falls on.
+   *
+   *  `level` is the other half of that, and it exists because a self-lit thing
+   *  has nothing else holding it down: a surface's brightness is the exposure's
+   *  to decide, but a light bar takes the token's own value and would sit at
+   *  whatever the palette happens to make of it. A composition that has to keep
+   *  one thing under another needs a number it can say out loud, and this is
+   *  that number — hue and the token stay where they are, only the level moves,
+   *  and a theme flip re-applies it. */
+  tint<T extends Tinted>(target: T, role: Role, stopped = false, level = 1): T {
     target.color.setHex(this.hex(role));
-    if (stopped) target.color.multiplyScalar(this.#gain);
-    this.#tinted.push({ target, role, stopped });
+    const scale = (stopped ? this.#gain : 1) * level;
+    if (scale !== 1) target.color.multiplyScalar(scale);
+    this.#tinted.push({ target, role, stopped, level });
     return target;
   }
 
   /** Lit. Lambert, because the engine's own scene is Lambert and a second
    *  lighting model would put a second shader set in a chunk measured against
-   *  200 kB (src/backlot/engine/scene.ts says the same thing). */
-  lit(role: Role, options: ConstructorParameters<typeof MeshLambertMaterial>[0] = {}): MeshLambertMaterial {
+   *  200 kB (src/backlot/engine/scene.ts says the same thing).
+   *
+   *  `level` is a second stop on top of the room's own, for the one case the
+   *  room-wide one cannot answer: `machine-room.ts` exposes for `--at-tertiary`
+   *  and puts it at 0.68 linear, so *any* large face painted with that token is
+   *  the room's highlight by construction — and the composition has already
+   *  decided the highlight is the pictures on the walls. */
+  lit(
+    role: Role,
+    options: ConstructorParameters<typeof MeshLambertMaterial>[0] = {},
+    level = 1,
+  ): MeshLambertMaterial {
     const material = new MeshLambertMaterial(options);
     this.#materials.push(material);
-    return this.tint(material, role, true);
+    return this.tint(material, role, true, level);
   }
 
-  /** Unlit. For anything that is its own light source: a screen, a picture. */
-  flat(role: Role, options: ConstructorParameters<typeof MeshBasicMaterial>[0] = {}): MeshBasicMaterial {
+  /** Unlit. For anything that is its own light source: a screen, a picture, the
+   *  bar down the front of the tower. `level` holds it under something else. */
+  flat(
+    role: Role,
+    options: ConstructorParameters<typeof MeshBasicMaterial>[0] = {},
+    level = 1,
+  ): MeshBasicMaterial {
     const material = new MeshBasicMaterial(options);
     this.#materials.push(material);
-    return this.tint(material, role);
+    return this.tint(material, role, false, level);
   }
 
   lamp<T extends PointLight>(light: T, role: Role): T {
@@ -178,9 +202,10 @@ export class Painter {
 
   repaint(): void {
     this.#gain = this.#stop();
-    for (const { target, role, stopped } of this.#tinted) {
+    for (const { target, role, stopped, level } of this.#tinted) {
       target.color.setHex(this.hex(role));
-      if (stopped) target.color.multiplyScalar(this.#gain);
+      const scale = (stopped ? this.#gain : 1) * level;
+      if (scale !== 1) target.color.multiplyScalar(scale);
     }
     for (const handler of this.#repaint) handler();
   }

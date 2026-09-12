@@ -64,6 +64,11 @@ const GLOW = { poster: 1.2, live: 3.5, seconds: 0.3 };
  * for the highlight; the shadows are allowed to be shadows, and in this room
  * they are the page's own near-black, which is what the floor is meant to be.
  */
+/** What fraction of the room's own level the light inside the tower runs at.
+ *  Measured on the composite, not guessed: the receipt carries the cell means
+ *  it was tuned against. */
+const TOWER_GLOW = 0.34;
+
 const HIGHLIGHT = "--at-tertiary";
 /** Where that token should land, in linear light, with the stage's own three
  *  lights already on it. Under 1.0 by enough that a specular-free Lambert never
@@ -248,11 +253,15 @@ export async function buildMachineRoom(context: RoomContext): Promise<void> {
     overheads.push(lamp);
   }
 
-  // A quarter of the room's level, and no more: this light is 0.15 m from every
-  // surface it falls on, so the inverse square does the rest. At the room's own
-  // exposure the case was one flat gold rectangle with the card, the radiator
-  // and the fans all past 1.0 inside it.
-  tower.interior.intensity *= exposure * 0.14;
+  // This light is 0.15 m from every surface it falls on, so the inverse square
+  // does most of the work and the room's own level would put the card, the
+  // radiator and the fans all past 1.0 — which is what the case looked like
+  // before: one flat gold rectangle with no shape in it. It is now a third
+  // rather than a seventh, because the case turned three quarters on and the
+  // glass went from square to the camera to 43 px of rake: the same light has a
+  // twelfth of the panel to come through, and at the old level the glass read
+  // as a black side.
+  tower.interior.intensity *= exposure * TOWER_GLOW;
 
   // A theme flip changes every albedo in the room at once, so the exposure has
   // to move with it or one of the two themes is always wrong.

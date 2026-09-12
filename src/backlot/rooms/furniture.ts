@@ -141,16 +141,65 @@ export function buildMonitor(kit: Kit, panelHeight: number): MonitorBuild {
 // ---------------------------------------------------------------- the tower
 
 /**
- * A current mid-tower: 230 wide, 480 tall, 470 deep, glass on the side that
- * faces the room. The numbers are the class of machine, not a machine.
+ * What fraction of `caseGlow`'s own value the bar down the front is lit at.
+ *
+ * It is the one thing in the fit-out that could out-shine the pictures, because
+ * it is self-lit geometry taking a token straight rather than a surface waiting
+ * on the room's exposure. The brightest cell of the front wall is the first
+ * rung's still at 139 (40 × 40 mean, 0–255, composite, 1920×1080 dark), so the
+ * bar is held under that by construction and the receipt carries the reading
+ * rather than the intention.
+ */
+const BAR_LEVEL = 0.55;
+
+/**
+ * And what fraction of `caseShell`'s the steel is.
+ *
+ * `caseShell` is `--at-tertiary`, which is the token `machine-room.ts` sets the
+ * room's exposure against — it aims that token at 0.68 linear so the brightest
+ * lit surface has headroom. The case is the only *large* face in the fit-out
+ * painted with it, so at level 1 the top panel is the room's highlight by
+ * arithmetic rather than by choice: measured at 147 against the front wall's
+ * brightest cell at 139. A machine that out-shines the pictures is the room
+ * pointing at the wrong thing, and a case is a dark object anyway.
+ */
+const SHELL_LEVEL = 0.5;
+
+/**
+ * The two levels under that: the mesh in the top and front panels, and the
+ * painted steel inside the case.
+ *
+ * Both were `--at-black` to begin with, and `--at-black` is albedo zero — it
+ * takes no light at all, so a vent came out as a hole punched in the top panel
+ * and the shroud came out as the black the glass was showing instead of the
+ * card. A dark grey that still shades reads as mesh; a dark grey under the card
+ * is what the card's light lands on, which is the whole of what "light through
+ * the side panel" means across the 40-odd px of glass this camera sees.
+ */
+const MESH_LEVEL = 0.12;
+const INSIDE_LEVEL = 0.2;
+
+/**
+ * A current mid-tower: 230 wide, 480 tall, 470 deep, glass on one side. The
+ * numbers are the class of machine, not a machine.
  *
  * It used to live under the desk, which is where a tower goes and where this
  * camera cannot see it: at 52° above the floor the desk top covers everything
- * under it, and the tower was not dim or small in the resting shot, it was
- * absent. So it stands beside the desk with its glass turned to the camera,
- * which is also how a machine like this is actually photographed — 0.47 m of
- * side on, 54 px at the room's own scale, with the card and the radiator and
- * the light inside it all in shot.
+ * under it. So it stands beside the desk — that part was right.
+ *
+ * What was wrong was which way it faced. Turned a quarter, the glass side was
+ * square to the camera, and a 0.47 × 0.48 panel seen square is a square: the
+ * thing read as a lit picture frame lying on the floor, not as a machine. This
+ * camera also foreshortens every vertical by sin 52° and lays every depth back
+ * by cos 52°, so a face's *depth* climbs the screen — which means the only
+ * orientation that reads upright is the one a machine is actually photographed
+ * in. Three quarters on: the 230 mm front panel square-ish to the camera, the
+ * glass raked toward it, and the top panel — the largest face this camera sees
+ * — carrying the vent that says what the box is.
+ *
+ * Measured off the render at 1920×1080, not off the trigonometry — the pixels
+ * in a box beside it that differ from the floor, by column and by row: 83 px
+ * across and 119 px tall, against 93 × 95 before. Square, then upright.
  */
 export const TOWER = {
   width: 0.23,
@@ -158,10 +207,18 @@ export const TOWER = {
   depth: 0.47,
   /** Relative to the desk group. */
   centre: new Vector3(1.4, 0, 0.5),
-  /** Turned a quarter so the glass faces the camera rather than the wall. */
-  turn: -Math.PI / 2,
+  /**
+   * Three quarters on. Positive turn puts the front panel's normal at
+   * (sin, 0, cos) — toward the camera and a little to the right — and the glass
+   * at −x then faces the camera and the desk, which is the side the cable run
+   * comes from and the one side the chair is not standing in front of.
+   */
+  turn: 0.55,
   /** A PCI slot's pitch, so a three-slot card is three of them. */
   slotPitch: 0.02032,
+  /** How proud of the front panel the light bar stands — clear of the 6 mm
+   *  intake mesh in front of it, so the two never z-fight. */
+  barRelief: 0.01,
 };
 
 export interface TowerBuild {
@@ -176,10 +233,15 @@ export function buildTower(kit: Kit): TowerBuild {
   group.rotation.y = TOWER.turn;
 
   const half = { x: TOWER.width / 2, y: TOWER.height / 2, z: TOWER.depth / 2 };
-  const shellMaterial = kit.painter.lit("caseShell");
+  // Two-sided, and that is the whole difference between a box and a case. The
+  // faces used to point inward so the camera saw straight past them into the
+  // guts, which is why the tower had no exterior and no edges to read a shape
+  // off. Outward faces alone would seal the guts in; two-sided gives the case a
+  // lit outside and leaves the far wall's inner face there to be seen through
+  // the glass.
+  const shellMaterial = kit.painter.lit("caseShell", { side: DoubleSide }, SHELL_LEVEL);
 
-  // Five opaque faces and one panel of glass. A closed box with a glass side is
-  // the only way the inside reads as an inside rather than as a decal.
+  // Five steel faces and one panel of glass.
   const sideGeometry = kit.track(new PlaneGeometry(TOWER.depth, TOWER.height));
   const endGeometry = kit.track(new PlaneGeometry(TOWER.width, TOWER.height));
   const capGeometry = kit.track(new PlaneGeometry(TOWER.width, TOWER.depth));
@@ -188,9 +250,9 @@ export function buildTower(kit: Kit): TowerBuild {
   // ones, because lookAt straight up or straight down has no up vector left to
   // work with and lands the plane edge-on.
   const uprights: { geometry: PlaneGeometry; position: Vector3; faces: Vector3 }[] = [
-    { geometry: sideGeometry, position: new Vector3(-half.x, half.y, 0), faces: new Vector3(1, 0, 0) },
-    { geometry: endGeometry, position: new Vector3(0, half.y, -half.z), faces: new Vector3(0, 0, 1) },
-    { geometry: endGeometry, position: new Vector3(0, half.y, half.z), faces: new Vector3(0, 0, -1) },
+    { geometry: sideGeometry, position: new Vector3(half.x, half.y, 0), faces: new Vector3(1, 0, 0) },
+    { geometry: endGeometry, position: new Vector3(0, half.y, half.z), faces: new Vector3(0, 0, 1) },
+    { geometry: endGeometry, position: new Vector3(0, half.y, -half.z), faces: new Vector3(0, 0, -1) },
   ];
   for (const face of uprights) {
     const mesh = new Mesh(face.geometry, shellMaterial);
@@ -199,86 +261,136 @@ export function buildTower(kit: Kit): TowerBuild {
     group.add(mesh);
   }
   for (const cap of [
-    { y: 0.002, turn: -Math.PI / 2 },
-    { y: TOWER.height, turn: Math.PI / 2 },
+    { y: 0.002, turn: Math.PI / 2 },
+    { y: TOWER.height, turn: -Math.PI / 2 },
   ]) {
     const mesh = new Mesh(capGeometry, shellMaterial);
     mesh.rotation.x = cap.turn;
     group.add(at(mesh, 0, cap.y, 0));
   }
 
+  // The vent in the top panel, where the radiator under it exhausts. The top is
+  // 0.23 × 0.47 and this camera lays it back rather than hiding it, so at
+  // 1920×1080 it is the biggest single face of the case on screen — 73 × 55 px.
+  // A dark mesh across the middle of it is the cheapest thing that makes a box
+  // read as a machine from above, and above is where this camera is. It is also
+  // what keeps the top panel off the top of the room's luminance table: it
+  // covers 58% of the face that points straight at both overheads.
+  //
+  // Proud of the panel by 2 mm rather than sunk into it, which is the one part
+  // of this that is not what a case does. A shell face is a plane and a plane
+  // has no thickness to recess into: the first version sank the mesh 6 mm and
+  // the panel simply hid it, so the tower shipped with no vent and I only found
+  // out by looking. 2 mm is 0.2 px from this camera.
+  const meshMaterial = kit.painter.lit("caseShell", {}, MESH_LEVEL);
+  const vent = new Mesh(kit.track(new BoxGeometry(TOWER.width - 0.044, 0.004, TOWER.depth - 0.13)), meshMaterial);
+  group.add(at(vent, 0, TOWER.height + 0.002, -0.03));
+
+  // The front panel's intake mesh, inside a 15 mm frame of steel, and proud for
+  // the same reason as the vent.
+  const intakePanel = new Mesh(
+    kit.track(new BoxGeometry(TOWER.width - 0.03, TOWER.height - 0.06, 0.006)),
+    meshMaterial,
+  );
+  group.add(at(intakePanel, 0, half.y, half.z + 0.002));
+
+  // The strip of light down the front, standing clear of the intake so it
+  // catches nothing and is simply on. 22 mm is a real light bar's width, and it
+  // measures 4 px of its own colour by 45 px on the render — a line you can
+  // see. Anything narrower is the mistake the 8 mm cables were last round.
+  const bar = new Mesh(kit.track(new BoxGeometry(0.022, 0.36, 0.008)), kit.painter.flat("caseGlow", {}, BAR_LEVEL));
+  group.add(at(bar, -half.x + 0.032, 0.23, half.z + TOWER.barRelief));
+
+
   // The glass, last, so what is behind it is already in the scene. It writes no
   // depth: a transparent panel that does would hide the card behind it at every
   // angle where the sort happens to put the panel first.
+  //
+  // Smoked, not clear. `bezel` is `--at-black`, which takes no light, so at 30%
+  // it is a flat 30% darkening of everything behind it and nothing else — which
+  // is what a tempered side panel does and, across that much raked glass, the
+  // only cue available that there is a pane there at all. Clear gold at 16%
+  // made the case read as a crate with its side off.
   const glass = new Mesh(
     sideGeometry,
-    kit.painter.lit("casePanel", { transparent: true, opacity: 0.16, depthWrite: false, side: DoubleSide }),
+    kit.painter.lit("bezel", { transparent: true, opacity: 0.3, depthWrite: false, side: DoubleSide }),
   );
-  glass.position.set(half.x, half.y, 0);
-  glass.lookAt(glass.position.clone().add(new Vector3(1, 0, 0)));
+  glass.position.set(-half.x, half.y, 0);
+  glass.lookAt(glass.position.clone().add(new Vector3(-1, 0, 0)));
   glass.renderOrder = 2;
   group.add(glass);
 
-  // The motherboard tray, on the far side from the glass.
-  const board = new Mesh(kit.track(new PlaneGeometry(0.3, 0.24)), kit.painter.lit("board"));
-  board.position.set(-half.x + 0.012, 0.3, -0.02);
-  board.lookAt(board.position.clone().add(new Vector3(1, 0, 0)));
+  // The motherboard tray, on the far side from the glass. Not `board`: that
+  // role is `--at-divider`, which is 239,239,239 under the dark theme, and a
+  // near-white tray is the brightest thing the glass was showing — the case
+  // read as an open crate with something pale in it rather than as a case with
+  // a dark interior and one lit card.
+  const board = new Mesh(kit.track(new PlaneGeometry(0.3, 0.24)), meshMaterial);
+  board.position.set(half.x - 0.012, 0.3, -0.02);
+  board.lookAt(board.position.clone().add(new Vector3(-1, 0, 0)));
   group.add(board);
 
   // The card: three slots thick, 336 long, 140 across. It hangs off the board
-  // and takes up the middle of the case, which is what a machine like this
-  // looks like from the side.
+  // and reaches most of the way to the glass, which is what a machine like this
+  // looks like through one.
   const cardThickness = TOWER.slotPitch * 3;
   const card = slab(kit, [0.14, cardThickness, 0.336], "casePanel");
-  group.add(at(card, -0.02, 0.245, -0.03));
+  group.add(at(card, 0.03, 0.245, -0.03));
   const backplate = slab(kit, [0.142, 0.004, 0.34], "caseInterior");
-  group.add(at(backplate, -0.02, 0.245 - cardThickness / 2 - 0.002, -0.03));
+  group.add(at(backplate, 0.03, 0.245 - cardThickness / 2 - 0.002, -0.03));
   // Three fans on the underside of the card, which is the side you see through
   // glass with the card mounted the usual way up.
   const cardFanGeometry = kit.track(new CylinderGeometry(0.044, 0.044, 0.012, 14));
   const fanMaterial = kit.painter.lit("fan");
   for (const z of [-0.13, -0.01, 0.11]) {
-    group.add(at(new Mesh(cardFanGeometry, fanMaterial), -0.02, 0.245 - cardThickness / 2 - 0.008, z));
+    group.add(at(new Mesh(cardFanGeometry, fanMaterial), 0.03, 0.245 - cardThickness / 2 - 0.008, z));
   }
 
-  // A 240 mm AIO at the top, its two fans under the radiator, and the pump on
-  // the socket with the two tubes that make it an AIO rather than a cooler.
+  // A 240 mm AIO under the vent, its two fans below the radiator, and the pump
+  // on the socket with the two tubes that make it an AIO rather than a cooler.
   const radiator = slab(kit, [0.118, 0.027, 0.25], "casePanel");
-  group.add(at(radiator, -0.03, TOWER.height - 0.045, -0.04));
+  group.add(at(radiator, 0.03, TOWER.height - 0.045, -0.04));
   const aioFanGeometry = kit.track(new CylinderGeometry(0.058, 0.058, 0.025, 16));
   for (const z of [-0.1, 0.02]) {
-    group.add(at(new Mesh(aioFanGeometry, fanMaterial), -0.03, TOWER.height - 0.072, z));
+    group.add(at(new Mesh(aioFanGeometry, fanMaterial), 0.03, TOWER.height - 0.072, z));
   }
   const pump = new Mesh(kit.track(new CylinderGeometry(0.038, 0.038, 0.03, 16)), kit.painter.lit("casePanel"));
   pump.rotation.z = Math.PI / 2;
-  group.add(at(pump, -half.x + 0.05, 0.33, -0.06));
+  group.add(at(pump, half.x - 0.05, 0.33, -0.06));
   for (const offset of [-0.03, 0.03]) {
     const curve = new CatmullRomCurve3([
-      new Vector3(-half.x + 0.062, 0.33 + offset, -0.06),
-      new Vector3(-half.x + 0.09, 0.39, -0.09 + offset),
-      new Vector3(-0.03 + offset, TOWER.height - 0.085, -0.15),
+      new Vector3(half.x - 0.062, 0.33 + offset, -0.06),
+      new Vector3(half.x - 0.09, 0.39, -0.09 + offset),
+      new Vector3(0.03 + offset, TOWER.height - 0.085, -0.15),
     ]);
     const tube = new Mesh(kit.track(new TubeGeometry(curve, 14, 0.011, 8, false)), kit.painter.lit("cable"));
     group.add(tube);
   }
 
-  // The shroud over the supply, which is what closes the bottom of the case.
-  const shroud = slab(kit, [TOWER.width - 0.02, 0.09, TOWER.depth - 0.03], "caseInterior");
+  // The shroud over the supply, which is what closes the bottom of the case —
+  // and, from this camera, most of what the glass actually shows. A ray through
+  // the glass drops 0.563 m crossing the case's 0.23 m of width, so it is under
+  // the card that the eye ends up, not on it.
+  const shroud = new Mesh(
+    kit.track(new BoxGeometry(TOWER.width - 0.02, 0.09, TOWER.depth - 0.03)),
+    kit.painter.lit("caseShell", {}, INSIDE_LEVEL),
+  );
   group.add(at(shroud, 0, 0.048, 0));
 
-  // Front intake.
+  // Front intake, behind the panel: seen through the glass at a rake, not
+  // through the steel.
   const intakeGeometry = kit.track(new CylinderGeometry(0.06, 0.06, 0.024, 16));
   for (const y of [0.19, 0.31]) {
     const fan = new Mesh(intakeGeometry, fanMaterial);
     fan.rotation.x = Math.PI / 2;
-    group.add(at(fan, 0, y, -half.z + 0.028));
+    group.add(at(fan, 0, y, half.z - 0.038));
   }
 
   // Lit from inside, steady. Nothing in this room breathes.
   const interior = kit.painter.lamp(new PointLight(undefined, 1.4, 0.8, 1.6), "caseGlow");
   // Behind the card rather than in the middle of the case, so what the glass
   // shows is the card and the radiator lit from behind rather than a lamp.
-  interior.position.set(-0.05, 0.36, -0.12);
+  interior.position.set(0.05, 0.36, -0.12);
   group.add(interior);
 
   return { group, interior };

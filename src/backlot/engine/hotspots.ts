@@ -34,9 +34,47 @@ export interface HotspotHooks {
 const EDGE_INSET = 12;
 /** Clear space kept between two parked buttons before one is pushed down. */
 const GAP = 4;
-/** Roughly what a hotspot measures once its label has come down to the dot.
- *  Only used to keep two dots off each other, so it does not have to be exact. */
+/** A first guess at what a hotspot measures once its label has come down to the
+ *  dot, used only until the real one has been read.
+ *
+ *  It used to be the number, with a comment saying it did not have to be exact
+ *  because it only kept two dots off each other. That stopped being true when
+ *  the keep-out started using it: at 390 the phone rule gives a control a 44 px
+ *  minimum target and it renders 50 x 50, so clearing a 30 x 30 box left 10 px
+ *  of control hanging over the thing it was supposed to clear on every side —
+ *  the monitor's panel measured 35.3% covered by its own button while the five
+ *  beside it reached 0.0%. The real box is measured now; this is the seed. */
 const DOT_BOX = 30;
+
+/**
+ * How much better a new placement has to be before a parked button moves to it.
+ *
+ * Without this the keep-out picks the nearest clear spot every frame, and where
+ * two spots are near enough in cost the idle camera's sub-pixel drift decides
+ * between them — so a control alternates between two placements several times a
+ * second. Measured in the machine room: `play-front-t1` flipping 216 px on y,
+ * `play-front-t3` 205 px on x, `read-graph` 91 px, at 250 ms sampling. Under
+ * `prefers-reduced-motion: reduce` the same forty samples are pixel-identical,
+ * which is what identifies the drift as the cause rather than anything in the
+ * layout. A control that teleports 216 px as a reader goes to press it cannot be
+ * pressed.
+ *
+ * 24 px, which has to clear a frame of drift and does by three orders of
+ * magnitude — the drift measured 15 px over ten seconds, monotonic, about 0.025
+ * px a frame — while still letting a genuinely better placement win when the
+ * camera reframes or the reader walks.
+ */
+const HYSTERESIS = 24;
+
+/** Up is preferred over left, right and down by this much, as a discount on the
+ *  distance. Above a thing is where a label goes: below a panel on a desk it
+ *  lands where a keyboard would be and reads as an object on the desk rather
+ *  than a control, and the room's own monitor is the case that showed it. */
+const ABOVE_BIAS = 0.6;
+
+/** The viewport below which every control is a dot, decided rather than clipped.
+ *  Matches the breakpoint in backlot-hud.css. */
+const PHONE_WIDTH = 640;
 
 interface Parked {
   spec: HotspotSpec;
@@ -59,6 +97,17 @@ interface Parked {
   /** Cached box, so parking does not force a layout read every frame. */
   width: number;
   height: number;
+  /** Where this button sat last frame, as an offset from its own anchor, so the
+   *  choice can be held across frames instead of re-decided from scratch. An
+   *  offset rather than a point: the anchor moves with the camera and the
+   *  placement should move with it. */
+  hold: { dx: number; dy: number } | null;
+  /** And its box once it is down to the dot, which is a different number from
+   *  the labelled one and is not 30. Cached separately, because the crowding
+   *  decision has to keep reading the *labelled* width — deciding from a
+   *  quantity the decision can change is what makes it flip-flop. */
+  dotWidth: number;
+  dotHeight: number;
 }
 
 /** A rectangle in canvas pixels. */
@@ -156,7 +205,7 @@ export function createHotspots(hud: HTMLElement, camera: OrthographicCamera, hoo
   /** Everything a parked button has to stay off this frame: the thing the camera
    *  is framed on, every surface a hotspot has said it marks, and anything else
    *  the scene has asked to be kept clear. */
-  const keepOut: Rect[] = [];
+  const keepOut: (Rect & { owner: Parked | null })[] = [];
   /** Objects in that last category — kept clear, never published. */
   const clearances: Object3D[] = [];
   const projected = new Vector3();
@@ -254,13 +303,12 @@ export function createHotspots(hud: HTMLElement, camera: OrthographicCamera, hoo
       y: Number.NaN,
       width: 0,
       height: 0,
+      hold: null,
+      dotWidth: 0,
+      dotHeight: 0,
       handle: {
         id: spec.id,
         button,
-        setLabel(next) {
-          label.textContent = next;
-          entry.width = 0;
-        },
         setEnabled(enabled) {
           entry.enabled = enabled;
           apply(entry);
@@ -334,7 +382,7 @@ export function createHotspots(hud: HTMLElement, camera: OrthographicCamera, hoo
       // two marking viewports, not visible at all. A picture nobody can see is
       // not a smaller picture.
       keepOut.length = 0;
-      if (readable) keepOut.push(readable);
+      if (readable) keepOut.push({ ...readable, owner: null });
       for (const entry of parked) {
         if (!entry.surface || entry.button.hidden) {
           if (entry.surface) entry.handle.setRect(null);
@@ -342,25 +390,80 @@ export function createHotspots(hud: HTMLElement, camera: OrthographicCamera, hoo
         }
         const rect = projectBox(entry.surface, width, height);
         entry.handle.setRect(rect);
-        if (rect) keepOut.push({ left: rect.x, top: rect.y, right: rect.x + rect.width, bottom: rect.y + rect.height });
+        if (rect) {
+          keepOut.push({ left: rect.x, top: rect.y, right: rect.x + rect.width, bottom: rect.y + rect.height, owner: entry });
+        }
       }
       for (const object of clearances) {
         if (!object.visible) continue;
         const rect = projectBox(object, width, height);
-        if (rect) keepOut.push({ left: rect.x, top: rect.y, right: rect.x + rect.width, bottom: rect.y + rect.height });
+        if (rect) {
+          keepOut.push({ left: rect.x, top: rect.y, right: rect.x + rect.width, bottom: rect.y + rect.height, owner: null });
+        }
       }
 
+      const overlapArea = (
+        at: { x: number; y: number },
+        boxWidth: number,
+        boxHeight: number,
+        against: Rect[],
+      ) => {
+        let area = 0;
+        for (const rect of against) {
+          const across = Math.min(at.x + boxWidth / 2, rect.right) - Math.max(at.x - boxWidth / 2, rect.left);
+          const down = Math.min(at.y + boxHeight / 2, rect.bottom) - Math.max(at.y - boxHeight / 2, rect.top);
+          if (across > 0 && down > 0) area += across * down;
+        }
+        return area;
+      };
+
       /** Somewhere this button can sit without covering a thing worth seeing.
-       *  Tries each of the four ways out of each rectangle it lands on and takes
-       *  the shortest that is clear of **all** of them and still leaves the whole
-       *  control on the canvas. All of them, not the one it started on: moving a
-       *  button off its own window and onto its neighbour's is not a fix. */
-      const clearOf = (x: number, y: number, boxWidth: number, boxHeight: number) => {
-        if (keepOut.length === 0) return { x, y };
+       *
+       *  Four things beyond "the nearest way out", each of them a bug that was
+       *  measured before it was a rule:
+       *
+       *  - **it keeps out of all of them, not the one it started on.** Moving a
+       *    button off its own window and onto its neighbour's is not a fix.
+       *  - **up wins ties and near-ties.** Above a thing is where a label goes;
+       *    below the monitor it lands where a keyboard would be.
+       *  - **the placement is held across frames.** Nearest-every-frame let the
+       *    idle camera's sub-pixel drift flip a tie, and controls alternated
+       *    between two positions several times a second.
+       *  - **when nothing is clear, the least-covered spot wins** rather than
+       *    the anchor. A 50 px control cannot fit beside a 40 x 17 panel at 390,
+       *    and "give up and sit dead centre on it" is the worst of the options
+       *    rather than the safe one.
+       */
+      const clearOf = (entry: Parked, x: number, y: number, boxWidth: number, boxHeight: number, dense: boolean) => {
+        // A dot stays on the thing it marks, and that is the whole of what a dot
+        // is for. It comes down to a dot precisely because it is small enough to
+        // sit on its own picture without being in the way — 20 x 20 on a
+        // 165 x 181 still is 1.3% of it — and a dot beside the thing rather than
+        // on it marks nothing. Measured by the rooms owner after the keep-out
+        // first went in: t3's dot ended 9 px from its own picture and 11 px from
+        // its neighbour's, and t5's floated on blank wall because there is no
+        // seam to the right of the last frame.
+        //
+        // The exemption holds only while the dot is genuinely small enough to
+        // sit inside its target, and that condition is not decoration: at 390 the
+        // phone rule makes every control a 50 x 50 disc and a door's window is
+        // 21 x 23, so without it the picture went back 100% behind its own
+        // control, which is the failure this keep-out exists for. Half the target
+        // in both directions.
+        //
+        // A label never gets the exemption: 280 px of label on a 165 px picture
+        // is a control in the way, which is why it came down to a dot at all.
+        const fitsInside = (rect: Rect) =>
+          boxWidth <= (rect.right - rect.left) * 0.5 && boxHeight <= (rect.bottom - rect.top) * 0.5;
+        const avoid = dense ? keepOut.filter((rect) => rect.owner !== entry || !fitsInside(rect)) : keepOut;
+        if (avoid.length === 0) {
+          entry.hold = null;
+          return { x, y };
+        }
         const halfW = boxWidth / 2 + GAP;
         const halfH = boxHeight / 2 + GAP;
         const hits = (at: { x: number; y: number }) =>
-          keepOut.some(
+          avoid.some(
             (rect) =>
               at.x + halfW > rect.left && at.x - halfW < rect.right && at.y + halfH > rect.top && at.y - halfH < rect.bottom,
           );
@@ -369,21 +472,45 @@ export function createHotspots(hud: HTMLElement, camera: OrthographicCamera, hoo
           at.x + boxWidth / 2 <= width &&
           at.y - boxHeight / 2 >= 0 &&
           at.y + boxHeight / 2 <= height;
-        if (!hits({ x, y })) return { x, y };
-        const ways: { x: number; y: number }[] = [];
-        for (const rect of keepOut) {
-          ways.push(
-            { x: rect.left - halfW, y },
-            { x: rect.right + halfW, y },
-            { x, y: rect.top - halfH },
-            { x, y: rect.bottom + halfH },
+
+        if (!hits({ x, y })) {
+          entry.hold = null;
+          return { x, y };
+        }
+
+        const candidates: { x: number; y: number; cost: number; up: boolean }[] = [];
+        for (const rect of avoid) {
+          candidates.push(
+            { x: rect.left - halfW, y, cost: 0, up: false },
+            { x: rect.right + halfW, y, cost: 0, up: false },
+            { x, y: rect.top - halfH, cost: 0, up: true },
+            { x, y: rect.bottom + halfH, cost: 0, up: false },
           );
         }
-        const clear = ways.filter((way) => onCanvas(way) && !hits(way));
-        if (clear.length === 0) return { x, y };
-        return clear.reduce((best, way) =>
-          Math.hypot(way.x - x, way.y - y) < Math.hypot(best.x - x, best.y - y) ? way : best,
-        );
+        for (const way of candidates) {
+          way.cost = Math.hypot(way.x - x, way.y - y) * (way.up ? ABOVE_BIAS : 1);
+        }
+
+        const clear = candidates.filter((way) => onCanvas(way) && !hits(way));
+        if (clear.length === 0) {
+          // Nothing fits. Take the least covered rather than the anchor, and
+          // hold it, so a control that cannot get clear at least stops moving.
+          const all = [...candidates.filter(onCanvas), { x, y, cost: 0, up: false }];
+          const best = all.reduce((least, way) =>
+            overlapArea(way, boxWidth, boxHeight, avoid) < overlapArea(least, boxWidth, boxHeight, avoid) ? way : least,
+          );
+          entry.hold = { dx: best.x - x, dy: best.y - y };
+          return { x: best.x, y: best.y };
+        }
+
+        const best = clear.reduce((least, way) => (way.cost < least.cost ? way : least));
+        const held = entry.hold ? { x: x + entry.hold.dx, y: y + entry.hold.dy } : null;
+        if (held && onCanvas(held) && !hits(held)) {
+          const heldCost = Math.hypot(held.x - x, held.y - y) * (held.y < y ? ABOVE_BIAS : 1);
+          if (heldCost <= best.cost + HYSTERESIS) return held;
+        }
+        entry.hold = { dx: best.x - x, dy: best.y - y };
+        return { x: best.x, y: best.y };
       };
 
       // Project everything first: where a label can go depends on where its
@@ -422,7 +549,20 @@ export function createHotspots(hud: HTMLElement, camera: OrthographicCamera, hoo
       // dense measures narrow, which would un-dense it, which would widen it
       // again. Deciding from a quantity the decision cannot change is what
       // makes this hold still.
+      // Below the phone breakpoint every control is a dot, and the engine says
+      // so rather than letting the stylesheet clip a label that still claims to
+      // be shown. Those are not the same thing: a designed dot keeps its
+      // accessible name, admits what it is in the DOM, and gets the reveal on
+      // hover and focus that `[data-backlot-dense]` carries; a label clipped to
+      // one pixel looks identical on screen and has none of that. Measured at
+      // 390: all eight controls render 50 x 50 with labels 79 to 280 px wide
+      // painted at 1 px, and only two of them carried the marker.
+      const phone = width <= PHONE_WIDTH;
       for (const one of live) {
+        if (phone) {
+          one.entry.button.dataset.backlotDense = "true";
+          continue;
+        }
         const crowded = live.some(
           (other) =>
             other !== one &&
@@ -436,11 +576,18 @@ export function createHotspots(hud: HTMLElement, camera: OrthographicCamera, hoo
       for (const one of live) {
         const { entry } = one;
         const dense = entry.button.dataset.backlotDense === "true";
-        const boxWidth = dense ? DOT_BOX : entry.width;
-        const boxHeight = dense ? DOT_BOX : entry.height;
+        if (dense && entry.dotWidth === 0) {
+          // Read once, now that the attribute is on and the element is actually
+          // a dot. Seeded from DOT_BOX for the frame in which it is first set.
+          const box = entry.button.getBoundingClientRect();
+          entry.dotWidth = box.width || DOT_BOX;
+          entry.dotHeight = box.height || DOT_BOX;
+        }
+        const boxWidth = dense ? entry.dotWidth || DOT_BOX : entry.width;
+        const boxHeight = dense ? entry.dotHeight || DOT_BOX : entry.height;
         // Out of the way of whatever is being read, first: everything below
         // works from where the button can actually sit.
-        const room = clearOf(one.x, one.y, boxWidth, boxHeight);
+        const room = clearOf(entry, one.x, one.y, boxWidth, boxHeight, dense);
         let x = room.x;
         let y = room.y;
         // Whatever is left after the labels have come down — two dots on top of
@@ -456,7 +603,7 @@ export function createHotspots(hud: HTMLElement, camera: OrthographicCamera, hoo
           y = clash.y + (clash.height + boxHeight) / 2 + GAP;
           // Being nudged down must not nudge it back over the thing it was
           // just moved off.
-          const again = clearOf(x, y, boxWidth, boxHeight);
+          const again = clearOf(entry, x, y, boxWidth, boxHeight, dense);
           x = again.x;
           y = again.y;
         }
@@ -506,6 +653,7 @@ export function createHotspots(hud: HTMLElement, camera: OrthographicCamera, hoo
         // off first and the next park decides it again from scratch.
         delete entry.button.dataset.backlotDense;
         entry.width = 0;
+        entry.dotWidth = 0;
       }
     },
 

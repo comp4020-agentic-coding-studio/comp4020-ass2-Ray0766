@@ -65,12 +65,6 @@ export interface ColourReader {
 // ------------------------------------------------------------------ hotspots
 
 /**
- * A thing in the world that is also a real `<button>` in the HUD, in
- * registration order — which is Tab order. There is no second, keyboard-only
- * path through the backlot: the buttons are the backlot, and the canvas is how
- * they look.
- */
-/**
  * How close the camera has to come for something to be readable.
  *
  * The god view is fixed, and at 1920×1080 it resolves about 85 px per metre —
@@ -89,6 +83,12 @@ export interface FocusRequest {
   normal?: Vector3;
 }
 
+/**
+ * A thing in the world that is also a real `<button>` in the HUD, in
+ * registration order — which is Tab order. There is no second, keyboard-only
+ * path through the backlot: the buttons are the backlot, and the canvas is how
+ * they look.
+ */
 export interface HotspotSpec {
   /** Stable; matches the manifest id it came from, so the gallery and the 3D agree. */
   id: string;
@@ -129,7 +129,6 @@ export interface HotspotSpec {
 export interface Hotspot {
   readonly id: string;
   readonly button: HTMLButtonElement;
-  setLabel(label: string): void;
   setEnabled(enabled: boolean): void;
   /**
    * Publish where the thing this hotspot marks actually is on screen, as

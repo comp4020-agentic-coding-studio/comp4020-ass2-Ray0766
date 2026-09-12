@@ -96,7 +96,6 @@ export interface MonitorBuild {
   /** World-space centre of the panel, which is where the shell hangs the desk
    *  piece and where the practical in front of it goes. */
   screenCentre: Vector3;
-  screenNormal: Vector3;
 }
 
 /**
@@ -134,7 +133,6 @@ export function buildMonitor(kit: Kit, panelHeight: number): MonitorBuild {
   return {
     group,
     screenCentre: DESK.centre.clone().add(MONITOR.centre),
-    screenNormal: new Vector3(0, Math.sin(-MONITOR.tilt), Math.cos(MONITOR.tilt)).normalize(),
   };
 }
 
@@ -498,9 +496,6 @@ export interface ChairBuild {
   /** Just the procedural chair. A model that arrives hides this and nothing
    *  else, so the jacket stays where it is and a failed load is a no-op. */
   stand: Group;
-  /** The top edge of the backrest, in the chair's own space — what the jacket
-   *  is draped over. */
-  backTop: Vector3;
 }
 
 export function buildChair(kit: Kit): ChairBuild {
@@ -537,7 +532,7 @@ export function buildChair(kit: Kit): ChairBuild {
     stand.add(at(castor, Math.sin(angle) * 0.29, 0.026, Math.cos(angle) * 0.29));
   }
 
-  return { group, stand, backTop: new Vector3(0, 0.96, 0.26) };
+  return { group, stand };
 }
 
 // ---------------------------------------------------------------- the jacket

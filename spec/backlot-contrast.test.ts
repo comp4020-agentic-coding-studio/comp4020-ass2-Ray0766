@@ -100,6 +100,8 @@ interface Probe {
   why: string;
   /** Each child of the control, as it was when the reading was taken. */
   parts: string[];
+  /** Any ::before or ::after painting content on the control or inside it. */
+  pseudo: string[];
   /** The engine collapsed this control to its dot. */
   dense: boolean;
   /** And the browser has the reader on it, which reveals a dense label. */
@@ -278,6 +280,27 @@ const PROBE = String.raw`
       // runner could report a silent zero.
       dense: button.dataset.backlotDense === "true",
       focused: button.matches(":focus-visible"),
+      // A pseudo-element is not an element, and everything above walks
+      // elements. querySelectorAll("*") cannot see a ::after: it has no node,
+      // no textContent and nothing to measure, so a rule that paints
+      // content: attr(data-backlot-hotspot) beside every control at 390 puts
+      // eight labels over the 3D scene and every reading here comes back empty
+      // -- both halves of the label check go quiet together and the file reports
+      // 76 passed. The size-threshold path was well defended; the
+      // element-existence assumption was not defended at all.
+      //
+      // getComputedStyle takes the pseudo-element as a second argument, which is
+      // the whole fix. Both of them, on the button and on every child, because
+      // any of those boxes can carry one.
+      pseudo: [button, ...children].flatMap((node) =>
+        ["::before", "::after"].flatMap((which) => {
+          const style = getComputedStyle(node, which);
+          const content = style.content;
+          if (!content || content === "none" || content === "normal") return [];
+          if (style.display === "none" || style.visibility === "hidden" || Number(style.opacity) === 0) return [];
+          return [String(node.className || node.tagName) + which + " " + content];
+        }),
+      ),
       fill: resolveColour(style.backgroundColor),
       point,
       why,
@@ -589,6 +612,32 @@ describe.each(PLACES)("$name", ({ name: place, expect: expected }) => {
             `${id}'s composited fill should match its declared background`,
           ).toBe(formatHex(opaque(reading.fill!, `${id}'s background`)));
           expect(reading.opacity, `${id} is not fully opaque, so its label sits over the scene too`).toBe(1);
+
+          // At every size, not only the phone. A pseudo-element carries type
+          // that nothing above can see or measure, so the ink check cannot be
+          // run on it — the only honest position is that a hotspot does not have
+          // one. Seen red by adding
+          // `.backlot-hotspot::after { content: attr(data-backlot-hotspot) }`
+          // under a 640px media query, which paints a pill of type beside all
+          // eight controls in the machine room.
+          // Before the pseudo-element read that injection gave **76 passed, 0
+          // failed** — the screenshot is the room with eight labels over the
+          // scene and the check written to forbid exactly that saying nothing.
+          // After: 28 failed | 48 passed.
+          //
+          // And one negative result worth as much as the fix, because it says
+          // which half is load-bearing: stripping `clip-path` from the dense
+          // label does **not** spill the 1 px box. `overflow: hidden` survives
+          // on the label's own base rule and the visually-hidden recipe is
+          // written out twice, so the defence holds on the half nobody was
+          // looking at. The size threshold was well defended; the assumption
+          // that a painted thing has an element was not defended at all.
+          expect(
+            reading.pseudo,
+            `${id} paints a pseudo-element over the canvas: ${reading.pseudo.join(", ")}. It is type with no ` +
+              `element behind it, so nothing here can measure its ink — a hotspot's name belongs in its label ` +
+              `or in its accessible name, where both can be read.`,
+          ).toEqual([]);
 
           // The dot is the control at 390px and part of it at 1920.
           expect(

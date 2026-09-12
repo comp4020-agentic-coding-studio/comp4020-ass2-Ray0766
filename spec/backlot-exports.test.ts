@@ -1,7 +1,10 @@
 // Nothing in src/backlot/ is exported for nobody.
 //
 // This exists because one round produced three dead things and only one of them
-// was visible to any tool:
+// was visible to any tool. All three are described below **as they were found**,
+// which is the only tense this file is allowed to use about anything outside it
+// — the three have long since been dealt with one way or another, and nothing
+// here tracks that or should be read as claiming it:
 //
 //   `reachFor` in a spec file        a local, orphaned when the published rects
 //                                    replaced the radius it computed. TypeScript
@@ -144,52 +147,35 @@ const ENTRY = "src/backlot/page/boot.ts";
  *  cannot quietly keep forgiving something that has since been wired up — and
  *  the count is checked too, so it can only ever shrink.
  *
- *  It started at five and went to two: three came out of the list on the
- *  argument that they were deletions parked as reservations. `Hotspot.setLabel`,
- *  whose own stated reason was "same shape as Signwriter.floorName" when
- *  floorName had been *deleted* on that reasoning; `MonitorBuild.screenNormal`,
- *  which duplicates an expression machine-room.ts computes for itself; and
- *  `ChairBuild.backTop`, a hard-coded Vector3 nothing verifies — and one that
- *  was wrong from the day it was written, claiming (0, 0.96, 0.26) where the
- *  backrest's real top edge computes to (0, 0.9876, 0.1851), 28 mm low and 75 mm
- *  back, while `buildJacket` uses its own correct literal three functions later.
- *  It was never the thing its comment said it was.
+ *  **What this comment is allowed to say**, because it has twice said something
+ *  else and been wrong both times. It may say what the list contains and why
+ *  each entry is on it — that is checkable against the data three lines below,
+ *  and the staleness test checks it on every run. It may carry numbers the file
+ *  itself holds, like the ceiling's history.
  *
- *  **They are out of this list and not yet out of the engine**, and that
- *  sentence is the point rather than a caveat. An earlier version of this
- *  comment said all three were gone; the deletions were lost before they landed
- *  and the claim outlived them, which is the "compiles and lies" shape one level
- *  up from the code. So the list does not carry them and the check names them
- *  every run until they land. A red that says "three agreed deletions have not
- *  happened yet" is the correct state of the world, and it is the one thing a
- *  comment cannot be trusted to say on its own.
+ *  It may **not** narrate what has happened elsewhere in the repo. "So-and-so
+ *  has since been deleted", "lane 1 took it", "they are out of this list and not
+ *  yet out of the engine" — nothing here can verify any of those, and all three
+ *  were written. Twice the sentence claimed a deletion that had not happened,
+ *  and both times it was written in the same breath as deciding the deletion
+ *  should happen: the deciding is what got remembered and the doing did not.
+ *  Lane 2 caught the first, the staleness guard caught the second. A file whose
+ *  data and whose prose disagree is the "compiles and lies" shape one level up
+ *  from the code, and the prose is always the half that is wrong.
  *
- *  That is the ceiling working: an entry that cannot survive being read out loud
- *  is a deletion waiting for somebody to say so, and the way it waits is in the
- *  failure output rather than in the allowlist.
- *
- *  And then it went to fourteen, which needs saying rather than hiding. The
- *  check stopped matching names and started resolving symbols in the same round,
- *  and a sharper instrument finds more: thirteen public interface members that
- *  nothing reads, every one of them invisible to the version that shipped an
- *  hour earlier. A queue that grows because the instrument improved is not the
- *  same object as a queue that grows because somebody made room, and the
- *  difference is that this one can be read: every entry below says what the
- *  member is, why nothing reaches it, and whose file it is in. */
+ *  So an entry says what the member is, why nothing reaches it, and whose file
+ *  it is in. When it stops being needed the staleness test says so and it comes
+ *  out. Nothing here tells a story about that happening. */
 const ALLOWED: Record<string, string> = {
-  // --- still waiting, not dead ---
-  "src/backlot/engine/camera.ts#GodCamera.pixelsPerMetre":
-    "implemented in camera.ts and called by nothing. Genuinely waiting rather than dead — it is the number a " +
-    "legibility check wants — though the consumer it was waiting for arrived this round and used a raster " +
-    "instead, so the next round should either use it or delete it. Owner: lane 1.",
 
-  // --- the queue the sharpened instrument found ---
-  //
-  // Thirteen public members of the engine's own interfaces that nothing reads.
-  // They arrived all at once when this check stopped matching names and started
+  // Public members of the engine's own interfaces that nothing reads. They
+  // arrived together when this check stopped matching names and started
   // resolving symbols, which is the honest consequence of fixing an instrument:
   // it finds what the blunt one could not. Every one is a debt with an owner,
   // none is a dispensation, and the ceiling below is what keeps it that way.
+  //
+  // No count in this sentence on purpose. The count is ALLOWED_CEILING, which is
+  // one number in one place that a test compares against the list itself.
   "src/backlot/engine/types.ts#Hotspot.id":
     "on the handle and read by nothing — the button carries its id as a data attribute and that is what " +
     "everything actually reads. Owner: lane 1.",
@@ -201,13 +187,6 @@ const ALLOWED: Record<string, string> = {
   "src/backlot/engine/types.ts#PlayerApi.facing":
     "figure state published and never read. Owner: lane 1.",
   "src/backlot/engine/player.ts#Figure.moving": "as PlayerApi.facing. Owner: lane 1.",
-  "src/backlot/engine/types.ts#BacklotEngine.enterRoom":
-    "the engine's public API. boot.ts holds the engine and never calls it — the room is entered through a " +
-    "hotspot, which reaches the local function inside index.ts rather than the published one. Owner: lane 1.",
-  "src/backlot/engine/types.ts#BacklotEngine.returnToHub": "as BacklotEngine.enterRoom. Owner: lane 1.",
-  "src/backlot/engine/types.ts#BacklotEngine.dispose":
-    "published and never called; nothing tears the engine down, because the page never navigates away from " +
-    "it without a full load. Owner: lane 1.",
   "src/backlot/rooms/shell.ts#RoomShell.frames":
     "the shell's returned handles, neither read. Owner: lane 2.",
   "src/backlot/rooms/shell.ts#RoomShell.hotspots": "as RoomShell.frames. Owner: lane 2.",
@@ -218,7 +197,27 @@ const ALLOWED: Record<string, string> = {
     "never called; `player.update` and `hub.update` are different symbols. Owner: lane 1.",
 };
 
-/** The list may only shrink, and this is the line that makes that true.
+/** The list may only shrink, and this is the line that makes that true — with
+ *  one exception, named here because the file has already taken it, and a rule a
+ *  file quietly breaks is worse than a rule it does not have.
+ *
+ *  **The ceiling may be raised only in the same change that sharpens the
+ *  instrument, and never to make room for something the current instrument
+ *  found.** It went from 5 to 14 in one change, and that change was this check
+ *  giving up name matching for symbol resolution, and the members it then found
+ *  were every one of them invisible to the version running an hour earlier. That is a re-baseline, not a dispensation — the debts did not
+ *  appear, the eyesight did. A raise for any other reason is somebody making
+ *  room, which is the thing the ceiling exists to stop.
+ *
+ *  Every raise keeps the number it came from, here, so the history reads without
+ *  going to the log: **5 -> 2 -> 14 -> 13 -> 12 -> 10**. That is a number this
+ *  file carries and a test compares against the list, which is why it belongs in
+ *  a comment; what took each entry off does not, and is not written down here.
+ *
+ *  Every fall in that sequence was the mechanism rather than anybody's memory:
+ *  an entry whose reason had come to describe a deletion, or one the staleness
+ *  test named because something had started reading it. Neither needed a person
+ *  to notice, which is the whole design.
  *
  *  Read this before raising it, because the first person here under time
  *  pressure will want to. An allowlist anybody can extend is the hand-kept scope
@@ -231,7 +230,7 @@ const ALLOWED: Record<string, string> = {
  *  If something new turns up here, the answer is to fix it, hand it to whoever
  *  owns that file, or argue that the check is wrong and change the check. It is
  *  not to make room. */
-const ALLOWED_CEILING = 14;
+const ALLOWED_CEILING = 10;
 
 // ---------------------------------------------------------------------------
 // The program, and why this is not a name search

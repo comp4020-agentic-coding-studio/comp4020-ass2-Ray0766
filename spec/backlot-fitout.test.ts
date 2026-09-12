@@ -149,6 +149,13 @@ const PANE_KEEP = 0.7;
  *  the review's injection the same cell moved 110.2 -> 145.3, which is 35. */
 const ROOM_DRIFT = 8;
 
+/** How far the figure's own cell may move between the hub before the room and
+ *  the hub after coming back. Clean it moves 3.6 (97.0 to 100.6) — the figure
+ *  has walked back to the middle but not to the same pixel. With the release
+ *  dropped it moves 21.1 the other way (97.0 to 75.9). Eight sits between them
+ *  with room on both sides. */
+const HUB_DRIFT = 8;
+
 /** How much of a door's published rect has to carry the plate's own ground for
  *  that door to count as showing the same plate. The box is axis-aligned around
  *  a sheared parallelogram, so the share still swings with the door's angle even
@@ -408,6 +415,12 @@ interface Case {
   entries: RoomEntry[];
   /** Whether the keyboard actually got back out of the room between the two. */
   leftTheRoom: boolean;
+  /** The figure's own cell in the hub, before the room and after coming back,
+   *  with where the search found it each time. */
+  hubBefore: number | null;
+  hubAfter: number | null;
+  hubBeforeAt: string;
+  hubAfterAt: string;
 }
 
 /** Walk out from the control's left edge, one whole pixel at a time, and say
@@ -474,6 +487,10 @@ async function sweep(): Promise<Case[]> {
         const entries: RoomEntry[] = [];
         let leftTheRoom = true;
         let flipped: Case["flipped"] = null;
+        let hubBefore: number | null = null;
+        let hubAfter: number | null = null;
+        let hubBeforeAt = "";
+        let hubAfterAt = "";
         let themeRestored = false;
         let pageGround = "";
         let ink = "";
@@ -522,6 +539,49 @@ async function sweep(): Promise<Case[]> {
               });
             }
           }
+
+          /** The figure in the hub, found by searching rather than by naming a
+           *  point. Two Escapes put it back near the middle of the ring, so the
+           *  brightest 16 px cell inside the middle band is it — and the cell's
+           *  own coordinates come back with the number, because two readings
+           *  that land in the same place are two readings of the same thing and
+           *  two that do not are not comparable. */
+          const findFigure = async (): Promise<{ best: number; at: string }> => {
+            await tab.evaluate(HIDE_HUD);
+            await tab.evaluate(
+              "return new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)));",
+            );
+            const seen = await tab.evaluate<Rects | null>(RECTS);
+            if (!seen) return { best: -1, at: "" };
+            const raster = await tab.raster({
+              x: seen.canvas.left,
+              y: seen.canvas.top,
+              width: seen.canvas.width,
+              height: seen.canvas.height,
+            });
+            const CELL = 16;
+            const STEP = 8;
+            let best = -1;
+            let at = "";
+            const top = Math.round(raster.height * 0.35);
+            const bottom = Math.round(raster.height * 0.65);
+            const left = Math.round(raster.width * 0.42);
+            const right = Math.round(raster.width * 0.58);
+            for (let y = top; y + CELL <= bottom; y += STEP) {
+              for (let x = left; x + CELL <= right; x += STEP) {
+                const mean = raster.meanLuma(x, y, CELL, CELL);
+                if (mean > best) {
+                  best = mean;
+                  at = `(${x},${y})`;
+                }
+              }
+            }
+            await tab.evaluate(SHOW_HUD);
+            await tab.evaluate(
+              "return new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)));",
+            );
+            return { best, at };
+          };
 
           // ---- the door windows, with the HUD out of the picture -----------
           // A second load rather than a blur: the ring pass above focused six
@@ -607,6 +667,12 @@ async function sweep(): Promise<Case[]> {
               }
               panes.push(reading);
             }
+          }
+
+          {
+            const figure = await findFigure();
+            hubBefore = figure.best;
+            hubBeforeAt = figure.at;
           }
 
           const doorway = doors.find((candidate) => candidate.kind === "room")!;
@@ -930,6 +996,25 @@ async function sweep(): Promise<Case[]> {
                 return best;
               });
             }
+            if (visit === 2) {
+              // Out, and read the figure again. **Two Escapes, unconditionally**,
+              // and then time to walk. The obvious loop — press until the hub's
+              // doors are back, then stop — leaves after one press, because the
+              // doors return before the figure does: the search then found
+              // (806,323) against (950,467) on the way in, which is the figure
+              // mid-walk rather than a darker figure. The two presses do
+              // different things (spec/backlot-hotspots proves at most two leave
+              // the room and says what each did), and `hub.centre` is where the
+              // second one sends it.
+              await tab.press("Escape");
+              await pause(3000);
+              await tab.press("Escape");
+              await pause(3000);
+              const figure = await findFigure();
+              hubAfter = figure.best;
+              hubAfterAt = figure.at;
+            }
+
             entries.push({
               visit,
               cells,
@@ -957,6 +1042,10 @@ async function sweep(): Promise<Case[]> {
           themeRestored,
           entries,
           leftTheRoom,
+          hubBefore,
+          hubAfter,
+          hubBeforeAt,
+          hubAfterAt,
         });
       }
     }
@@ -1535,27 +1624,61 @@ describe("the brightest thing in the machine room is the front wall", () => {
     }
   }
 
-  // Not covered here, and it is a gap rather than an oversight: **the hub is not
-  // re-read after the room**. The engine borrows the figure's exposure on the way
-  // in and releases it on the way out, and that release runs on every exit — so
-  // a release guarded to fire once per page load would leave the hub's figure
-  // dark for the rest of the session, and nothing in this file would see it.
+  // The hub is the same hub after the room as before it.
   //
-  // The obvious instrument does not work and I tried it rather than assuming.
-  // `player.setExposure` touches the figure alone, so the hub's brightest
-  // painted cell is a door's light pool and does not move at all: 80.3 before
-  // and 80.3 after, the same cell, with the release dropped as well as with it
-  // intact. Looking for the figure near the middle of the canvas instead reads
-  // 51.5 at (940,480) before and 14.4 at (940,280) after — but that drift is
-  // there on a **clean** build, because coming back out of a room puts the
-  // figure at the door it came through rather than where it started. A
-  // positional anchor is measuring the walk, not the exposure.
+  // The engine borrows the figure's exposure on the way in and releases it on
+  // the way out, and the release runs on every exit — so a release guarded to
+  // fire once per page load leaves the figure dark for the rest of the session.
+  // Nothing here saw it: the whole suite passed 1514 of 1514 with
+  // `setExposure(1)` deleted.
   //
-  // What would work is the segmentation CLAUDE.md §7 now records: move the
-  // figure and diff the frames, which needs arrow keys in the harness and a
-  // walk between the two readings. That is a piece of work rather than a tweak,
-  // and a check I cannot watch go red is worth less than this comment.
+  // **Two wrong instruments, and then the right one, which is a search rather
+  // than an anchor.** The brightest painted cell of the hub does not move at all
+  // — 80.3 before and 80.3 after, the same cell, release or no release — because
+  // `player.setExposure` touches the figure alone and the brightest painted
+  // thing is a door's light pool. A 40 px cell fixed near the middle of the
+  // canvas reads 51.5 at (940,480) and then 14.4 at (940,280), and that drift is
+  // there on a clean build: it is the figure walking, not the exposure.
   //
+  // The answer is to stop naming a point and look for the figure in the band it
+  // returns to. `hub.centre` puts it back in the middle after two Escapes, so:
+  // the brightest **16 px** cell, stepped by 8, inside x 0.42-0.58 and y
+  // 0.35-0.65 of the canvas. Both readings land at the same place, (950,467),
+  // which is what tells you the search found the same object twice rather than
+  // two different bright things:
+  //
+  //     clean                97.0 -> 100.6
+  //     release dropped      97.0 ->  75.9      24.7 points apart
+  //
+  // The earlier version of this comment said the thing could not be measured.
+  // It could; I had not found how. Those are different claims and only the
+  // second was true, and a comment that makes the first one would have stopped
+  // whoever read it next.
+  for (const viewport of VIEWPORTS) {
+    it(`gives the hub back as it found it, at ${viewport.name}`, () => {
+      const one = at(viewport.name, "dark");
+      expect(one.hubBefore, `the figure was not found in the hub before the room at ${viewport.name}`).not.toBeNull();
+      expect(one.hubAfter, `the figure was not found in the hub after the room at ${viewport.name}`).not.toBeNull();
+      // The same object twice, not two bright things. If the search lands
+      // somewhere else on the second reading it has found something else and
+      // the numbers are not comparable.
+      expect(
+        one.hubAfterAt,
+        `the figure was found at ${one.hubBeforeAt} before the room and ${one.hubAfterAt} after, so the two ` +
+          `readings are not of the same thing`,
+      ).toBe(one.hubBeforeAt);
+      const drift = Math.abs(one.hubAfter! - one.hubBefore!);
+      expect(
+        drift,
+        `the hub's figure reads ${one.hubBefore!.toFixed(1)} before the machine room and ` +
+          `${one.hubAfter!.toFixed(1)} after coming back out, ${drift.toFixed(1)} apart, both found at ` +
+          `${one.hubBeforeAt}. The room borrows the figure's exposure on the way in and gives it back on the ` +
+          `way out; a release that runs once per page load leaves the figure dark for the rest of the ` +
+          `session and nothing on the page says so.`,
+      ).toBeLessThan(HUB_DRIFT);
+    });
+  }
+
   // And the two entries agree with each other, which is the assertion the
   // review's injection was aimed at and the one no per-entry threshold can make.
   // A room whose exposure is applied once per page load reads correctly the

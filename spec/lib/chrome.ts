@@ -533,6 +533,28 @@ export class Tab {
     });
   }
 
+  /** A real click, dispatched by the browser at a point in **viewport** CSS
+   *  pixels: a move, a press and a release, with the pointer left where it
+   *  landed.
+   *
+   *  It matters for the same reason `press` does. A link inside an Astro
+   *  `<ClientRouter>` is navigated by the router's own listener on a real click
+   *  event — and a driver that reaches for `location.assign` when it cannot find
+   *  the link performs a **hard** navigation instead, which is a different
+   *  journey with the same address bar. One did: fourteen reported round trips
+   *  through a soft navigation were fourteen full page loads, because the page
+   *  it was leaving from had no link back and the fallback said nothing. A
+   *  driver with a fallback answers a question you did not ask.
+   *
+   *  So there is no fallback here. If a caller cannot find the link, it has to
+   *  fail rather than navigate some other way. */
+  async click(x: number, y: number): Promise<void> {
+    const at = { x, y, button: "left" as const, buttons: 1, clickCount: 1 };
+    await this.#connection.send("Input.dispatchMouseEvent", { type: "mouseMoved", ...at, buttons: 0 });
+    await this.#connection.send("Input.dispatchMouseEvent", { type: "mousePressed", ...at });
+    await this.#connection.send("Input.dispatchMouseEvent", { type: "mouseReleased", ...at });
+  }
+
   async evaluate<T>(source: string): Promise<T> {
     const result = (await this.#connection.send("Runtime.evaluate", {
       expression: `(() => { ${source} })()`,

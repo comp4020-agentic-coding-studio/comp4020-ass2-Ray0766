@@ -261,7 +261,17 @@ export interface BacklotOptions {
 export interface BacklotEngine {
   /** Resolves when the first frame has been presented — what the budget is measured against. */
   ready: Promise<void>;
-  enterRoom(roomId: string): Promise<void>;
-  returnToHub(): void;
+  /**
+   * Tear the engine down: the render loop, the listeners, the hotspot buttons,
+   * and the WebGL context itself.
+   *
+   * The page calls this on `astro:before-swap` and boots again on
+   * `astro:page-load`, which is one mechanism rather than two listeners that
+   * happen to balance. It is on this interface because the page owns the
+   * engine's lifetime; `enterRoom` and `returnToHub` used to be here too and
+   * are not, because a room is entered through a hotspot, which reaches the
+   * local function rather than the published one. A published method nothing
+   * outside can call is an API surface with nothing behind it.
+   */
   dispose(): void;
 }

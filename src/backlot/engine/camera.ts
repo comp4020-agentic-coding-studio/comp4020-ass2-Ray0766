@@ -94,9 +94,6 @@ export interface GodCamera {
   /** The centre of the current framing, so the caller can notice a walk away. */
   readonly framedTarget: Vector3 | null;
   readonly framedRadius: number;
-  /** CSS pixels per world metre for a canvas of this height. The number the
-   *  "can you read it" question is actually about. */
-  pixelsPerMetre(canvasHeight: number): number;
   /** The thing being framed, as a rectangle in canvas pixels, or null when the
    *  camera is on its resting view. The HUD keeps its buttons out of it: this
    *  is the one moment in the backlot where a reader is being asked to read
@@ -407,10 +404,6 @@ export function createGodCamera(): GodCamera {
     },
     get framedRadius() {
       return framing?.radius ?? 0;
-    },
-
-    pixelsPerMetre(canvasHeight) {
-      return halfHeight > 0 ? canvasHeight / (2 * halfHeight) : 0;
     },
 
     framedRect(width, height) {

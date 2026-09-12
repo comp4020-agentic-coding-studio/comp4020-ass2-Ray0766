@@ -638,8 +638,6 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
 
   return {
     ready,
-    enterRoom,
-    returnToHub,
     dispose() {
       disposed = true;
       window.cancelAnimationFrame(frame);

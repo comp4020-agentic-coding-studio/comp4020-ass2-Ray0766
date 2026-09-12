@@ -63,6 +63,14 @@ const DOT_BOX = 30;
  * magnitude — the drift measured 15 px over ten seconds, monotonic, about 0.025
  * px a frame — while still letting a genuinely better placement win when the
  * camera reframes or the reader walks.
+ *
+ * How to tell the two apart if this ever needs re-measuring, and it does not
+ * need a threshold: **the count of distinct positions.** Twelve to eighteen
+ * places in forty samples is a smooth walk; two places is a flip, whatever the
+ * magnitudes. Comparing a jump against the run's own drift also works but needs
+ * a floor — `jump <= max(2, drift)` — because a control that moves one pixel and
+ * comes back exceeds a zero drift by definition, which is what a still camera
+ * produces.
  */
 const HYSTERESIS = 24;
 

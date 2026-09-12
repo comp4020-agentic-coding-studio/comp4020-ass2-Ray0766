@@ -164,6 +164,16 @@ export function createStage(canvas: HTMLCanvasElement, colours: ColourSource): S
     dispose() {
       palette.dispose();
       renderer.dispose();
+      // And give the context back, which `dispose()` on its own does not do: it
+      // frees three's own GPU resources and leaves the WebGL context attached to
+      // the canvas, alive, for whenever the browser decides to collect the
+      // element. On a page the ClientRouter swaps in and out that is not good
+      // enough — measured across two round trips, each re-entry took a new
+      // context and every previous one was still live, so a reader walking
+      // between the ring and the Studio accumulates them until the browser hits
+      // its own cap and starts evicting. `forceContextLoss` makes the release
+      // happen at the moment the engine is given back rather than whenever.
+      renderer.forceContextLoss();
     },
   };
 }

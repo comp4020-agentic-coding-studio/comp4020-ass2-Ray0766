@@ -30,14 +30,73 @@
 // nothing asks for it on a first frame.
 import { createBacklot } from "../engine";
 import { roomBuilders } from "../rooms";
-import type { BacklotPayload } from "../engine/types";
+import type { BacklotEngine, BacklotPayload } from "../engine/types";
 
-const stage = document.querySelector<HTMLElement>("[data-backlot-stage]");
-const canvas = document.querySelector<HTMLCanvasElement>("[data-backlot-canvas]");
-const hud = document.querySelector<HTMLElement>("[data-backlot-hud]");
-const payloadTag = document.querySelector<HTMLScriptElement>("[data-backlot-payload]");
-const gallery = document.querySelector<HTMLElement>("[data-studio-fallback]");
-const takeover = document.querySelector<HTMLButtonElement>("[data-backlot-takeover]");
+// ---------------------------------------------------------------- lifetime
+//
+// **The engine's lifetime is owned here, by `live`, and by nothing else.** It is
+// worth saying plainly because it is not obvious from any one line: this module
+// is evaluated once per document, and `/backlot/` ships `<ClientRouter />`
+// (StudioLayout.astro), so a nav link replaces the body without tearing the
+// document down. Two things follow, and they are a pair rather than two
+// listeners that happen to balance:
+//
+//   `astro:before-swap`  the body this engine was drawing into is about to go.
+//                        `stop()` disposes it and clears `live`. Without this
+//                        the engine keeps its WebGL context and renders a full
+//                        scene into a canvas that has left the document —
+//                        measured at **5,880 draw calls a second**, the same
+//                        rate as when it was on screen.
+//   `astro:page-load`    a body has arrived, which on a soft navigation is the
+//                        only signal there is. `start()` boots against it.
+//                        Without this the module is never evaluated a second
+//                        time and `/backlot/` comes back as the static gallery
+//                        for the rest of the session — measured: stage in the
+//                        document, `data-backlot-ready` never set, canvas 0x0,
+//                        one WebGL context across two round trips because no
+//                        second engine was ever made.
+//
+// That failure was on the route we designed. The status bar carries "Walk the
+// backlot" on /studio/ and "Open the Studio" on /backlot/, so the two-stage path
+// a reader is invited to take is exactly the one that used to kill the 3D, and
+// nothing looked broken because the gallery *is* the designed fallback.
+//
+// `start()` is idempotent and `stop()` is the only thing that clears `live`, so
+// a hard load cannot boot twice — the module's own call and the first
+// `astro:page-load` race, and the second one to arrive returns early — and a
+// swap cannot leave two engines.
+
+/** The elements this boot is working against.
+ *
+ *  Re-read on every boot rather than captured once at module evaluation. They
+ *  used to be six module-level `const`s, which is correct exactly until a swap
+ *  replaces the body: after that every one of them points at an element that is
+ *  no longer in the document, and a second boot would drive the previous page's
+ *  canvas. This was the blocker under the re-entry, not the listener. */
+let stage: HTMLElement | null = null;
+let canvas: HTMLCanvasElement | null = null;
+let hud: HTMLElement | null = null;
+let payloadTag: HTMLScriptElement | null = null;
+let gallery: HTMLElement | null = null;
+let takeover: HTMLButtonElement | null = null;
+
+/** The engine that owns the page right now, or nothing. */
+let live: BacklotEngine | null = null;
+/** And a boot in flight, so the module's own call and the first
+ *  `astro:page-load` cannot both make one. */
+let starting = false;
+/** The observer that keeps the mode in step with the list, held so it can be
+ *  disconnected with the engine rather than left watching a detached element. */
+let watching: MutationObserver | null = null;
+
+function findParts(): void {
+  stage = document.querySelector<HTMLElement>("[data-backlot-stage]");
+  canvas = document.querySelector<HTMLCanvasElement>("[data-backlot-canvas]");
+  hud = document.querySelector<HTMLElement>("[data-backlot-hud]");
+  payloadTag = document.querySelector<HTMLScriptElement>("[data-backlot-payload]");
+  gallery = document.querySelector<HTMLElement>("[data-studio-fallback]");
+  takeover = document.querySelector<HTMLButtonElement>("[data-backlot-takeover]");
+}
 
 type Mode = "gallery" | "backlot";
 
@@ -96,6 +155,7 @@ function enterBacklot(): void {
 }
 
 async function boot(): Promise<void> {
+  findParts();
   if (!stage || !canvas || !hud || !gallery || !takeover || !payloadTag?.textContent) {
     releaseBox();
     return;
@@ -122,6 +182,11 @@ async function boot(): Promise<void> {
   canvas.setAttribute("aria-hidden", "true");
 
   const engine = await createBacklot({ canvas, hud, payload, rooms: roomBuilders });
+  // Handed to `live` before `ready` is awaited, so a reader who navigates away
+  // during the two seconds the first frame takes on a slow connection still gets
+  // the teardown rather than leaving an engine nobody holds.
+  live = engine;
+
   await engine.ready;
 
   // From here the box has two sides to it, so the status bar's switch means
@@ -134,10 +199,20 @@ async function boot(): Promise<void> {
   // turns that into the other side of the box. Watching the attribute rather
   // than the button means the two cannot get out of step, whichever of them
   // moved first — the same reason the status bar's own module watches it.
-  new MutationObserver(() => {
-    const mode: Mode = gallery.hidden ? "backlot" : "gallery";
-    if (stage.dataset.backlotMode !== mode) setMode(mode);
-  }).observe(gallery, { attributes: true, attributeFilter: ["hidden"] });
+  //
+  // The two elements are captured as locals rather than read off the
+  // module-level `let`s: those now point at whatever body is current, and this
+  // observer belongs to the body it was made for. It is disconnected by `stop()`
+  // with the engine, which is the other half of the lifetime being owned in one
+  // place — an observer left watching a detached element is the same shape of
+  // leak as a render loop left running on a detached canvas, just quieter.
+  const list = gallery;
+  const box = stage;
+  watching = new MutationObserver(() => {
+    const mode: Mode = list.hidden ? "backlot" : "gallery";
+    if (box.dataset.backlotMode !== mode) setMode(mode);
+  });
+  watching.observe(list, { attributes: true, attributeFilter: ["hidden"] });
 
   // The guard. The flag is set on the root element by the page's head script the
   // first time focus lands in the gallery, a pointer goes down in it, or it is
@@ -164,7 +239,44 @@ async function boot(): Promise<void> {
 // island booted. The check for that is the positive one, on the
 // `data-backlot-ready` attribute the engine sets on purpose once it has a frame.
 // This line is what makes the cause findable after that check has gone red.
-boot().catch((error) => {
-  console.error("backlot: the island did not start, so the page stays on the gallery", error);
-  releaseBox();
-});
+/** Boot against whatever body is in the document now, unless one is already
+ *  running or on its way. */
+async function start(): Promise<void> {
+  if (live || starting) return;
+  starting = true;
+  try {
+    await boot();
+  } finally {
+    starting = false;
+  }
+}
+
+/** And give it back. The only thing that clears `live`. */
+function stop(): void {
+  const engine = live;
+  live = null;
+  watching?.disconnect();
+  watching = null;
+  engine?.dispose();
+}
+
+document.addEventListener("astro:before-swap", stop);
+document.addEventListener("astro:page-load", () => void run());
+
+/** One way in, with the one place the failure is reported.
+ *
+ *  `await` rather than a `.catch()` chain, which is not a style preference: the
+ *  chain raised ts(80006) "this may be converted to an async function", and a
+ *  hint nothing in this repo will ever fail on is exactly the kind of thing that
+ *  survives forever. Cleared at the source rather than left for a diagnostic
+ *  level nobody reads. */
+async function run(): Promise<void> {
+  try {
+    await start();
+  } catch (error) {
+    console.error("backlot: the island did not start, so the page stays on the gallery", error);
+    releaseBox();
+  }
+}
+
+void run();

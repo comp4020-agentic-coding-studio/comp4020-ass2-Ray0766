@@ -679,9 +679,14 @@ describe.each(PLACES)("$name", ({ name: place, expect: expected }) => {
 // another file that a check should not depend on.
 //
 // Seen red by making the engine throw where lane 2's signature mismatch made it
-// throw — `createBacklot(...)` replaced with a thrower in the built bundle, so
+// throw — the engine's entry replaced with a thrower in the built bundle, so
 // boot() catches, the page falls back to the static gallery and looks perfectly
-// healthy — and reverting:
+// healthy — and reverting://
+// Anchored on a **shape**, not a name. `createBacklot` occurs 0 times in the
+// built bundle — it minifies to two letters — so an instruction naming it
+// produces a green run that reads exactly like a check gone blind. The shape
+// `await(await X({canvas:…,hud:…,payload:…,rooms:…})).ready` matches once in the
+// chunk the backlot page loads, and that is what to replace with a thrower.
 //
 //   AssertionError: the backlot never mounted at desktop 1920×1080 in the dark
 //   theme, so nothing above is about a 3D scene. The static gallery would still

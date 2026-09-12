@@ -253,6 +253,22 @@ const HOVERED = (selector: string) => String.raw`
       return resolved;
     })(),
     ink: resolveColour(style.color),
+    inkDeclared: style.color,
+    border: style.borderTopColor,
+    // The same fresh-element trick as the wash, for the token both controls are
+    // supposed to take on hover. --at-brand-ink is gold in the dark theme and
+    // the brand's copper in the light one, and it is the theme's sanctioned ink
+    // rather than --at-accent used as type.
+    declaredInk: (() => {
+      const probe = document.createElement("span");
+      probe.style.color = "var(--at-brand-ink)";
+      probe.style.position = "absolute";
+      probe.style.insetBlockStart = "-9999px";
+      bar.append(probe);
+      const resolved = getComputedStyle(probe).color;
+      probe.remove();
+      return resolved;
+    })(),
     point: point,
     box: [Math.round(box.left), Math.round(box.top), Math.round(box.width), Math.round(box.height)].join(","),
   };
@@ -264,6 +280,9 @@ interface Control {
   declaredComposite: Resolved;
   washAlpha: string;
   declaredWash: string;
+  declaredInk: string;
+  inkDeclared: string;
+  border: string;
   ink: Resolved;
   point: { x: number; y: number } | null;
   box: string;
@@ -654,6 +673,31 @@ describe("the status bar's link and its button take the same hover", () => {
         list.declaredWash,
         `--at-accent-soft resolves to ${list.declaredWash}, which paints nothing`,
       ).not.toMatch(/(^|,\s*)0\s*\)$/);
+
+      // The ink and the border, on **both** controls, against the theme's own
+      // token. This block used to read the background and nothing else: the
+      // review gave the link `border-color: transparent; color: var(
+      // --at-text-muted)` and got 38 passed, 0 failed, with the button on gold
+      // ink and a gold border and the link on no border and a translucent grey.
+      // `away.ink` was captured on every run and never asserted, which is its own
+      // small version of the same failure — a reading taken and not used.
+      for (const [what, control] of [
+        ["list button", list],
+        ["link", away],
+      ] as const) {
+        expect(
+          control.inkDeclared,
+          `the status bar's ${what} hovers in ${control.inkDeclared} where --at-brand-ink resolves to ` +
+            `${control.declaredInk}. Both controls take the theme's ink on hover; one of them taking ` +
+            `something else is the pair coming apart in the half this block was not reading.`,
+        ).toBe(control.declaredInk);
+        expect(
+          control.border,
+          `the status bar's ${what} hovers with a ${control.border} border where --at-brand-ink resolves to ` +
+            `${control.declaredInk}. The border arriving on hover is the whole of the treatment — quiet text ` +
+            `with a box that appears — and a control that does not grow one has stopped being in the pair.`,
+        ).toBe(control.declaredInk);
+      }
 
       expect(list.point, `no point inside the list button is its own fill (box ${list.box})`).not.toBeNull();
       expect(away.point, `no point inside the link is its own fill (box ${away.box})`).not.toBeNull();

@@ -110,9 +110,7 @@ const THEMES: readonly ColourScheme[] = ["dark", "light"];
  *  room. Scaled, the same reading comes out clean: 0 pixels over the wall's own
  *  peak, and the brightest cell that is not a screen at 149.0 against 189.3 for
  *  one that is. */
-const scale = (width: number) => width / 1920;
-const cellFor = (width: number) => Math.max(8, Math.round(40 * scale(width)));
-const reachFor = (width: number) => 130 * scale(width);
+const cellFor = (width: number) => Math.max(8, Math.round((40 * width) / 1920));
 
 /** How many pixels outside the front wall may be brighter than the brightest
  *  pixel on it before something painted is out-shining the screens. Measured at
@@ -143,6 +141,13 @@ const overFloorFor = (width: number) => Math.max(3, Math.round(OVER_WALL_PIXELS 
  *  is the rim and the leaf, and at 0.70 the plate's own ground stops appearing
  *  inside a photograph's window at all. */
 const PANE_KEEP = 0.7;
+
+/** How far the brightest painted cell may move between the first entry into the
+ *  machine room and the second. The room is the same room both times, so the
+ *  honest answer is "not at all"; the allowance is for the camera arriving from
+ *  a different place and the sampler landing on a different half-pixel. Under
+ *  the review's injection the same cell moved 110.2 -> 145.3, which is 35. */
+const ROOM_DRIFT = 8;
 
 /** How much of a door's published rect has to carry the plate's own ground for
  *  that door to count as showing the same plate. The box is axis-aligned around
@@ -357,6 +362,29 @@ interface Rects {
   rects: { id: string; rect: string | null }[];
 }
 
+/** One entry into the machine room, measured end to end. */
+interface RoomEntry {
+  /** 1 for the first entry, 2 for the one after an Escape back to the hub. */
+  visit: number;
+  cells: { x: number; y: number; mean: number; owner: string; painted: boolean }[];
+  /** The brightest cell inside each screen's own published rect: one number per
+   *  screen, so "the five screens" is a set rather than a rank. */
+  screens: { id: string; mean: number; x: number; y: number }[];
+  /** The brightest pixel on a screen, the brightest the room paints, and the
+   *  count of painted pixels that beat the first. A cell mean cannot see a small
+   *  emissive object; this is what can. */
+  peak: { onWall: number; offWall: number; over: number; brightest: { x: number; y: number; luma: number } } | null;
+  /** Whether every front-wall screen published a rect on this entry. */
+  surfaced: boolean;
+  roomRectsMoved: boolean;
+  /** Any published box not wholly inside the canvas. Empty is the only
+   *  acceptable reading. */
+  boxesEscaped: string[];
+  /** The ids the room's HUD was showing when the rects were read. */
+  showing: string[];
+  frontControls: string[];
+}
+
 interface Case {
   viewport: string;
   theme: ColourScheme;
@@ -369,29 +397,17 @@ interface Case {
   /** True when the projection moved between reading the rects and sampling
    *  them, which makes every box in this case a box of somewhere else. */
   rectsMoved: boolean;
-  /** The same, for the machine room's own pass. */
-  roomRectsMoved: boolean;
-  /** Any published box that is not wholly inside the canvas it is supposed to be
-   *  in. Empty is the only acceptable reading. */
-  boxesEscaped: string[];
-  /** The ids the room's HUD was actually showing when the rects were read. */
-  showing: string[];
-  /** The machine room, ranked by cell, in the contract's own units. Each cell
-   *  says which piece it belongs to, from that piece's published rect, or that
-   *  it belongs to none of them and is therefore something the room paints. */
-  cells: { x: number; y: number; mean: number; owner: string; painted: boolean }[];
-  /** Whether every front-wall screen published a rect. Without them there is no
-   *  honest way to say where a screen is, and the assertions say so rather than
-   *  falling back to a circle. */
-  surfaced: boolean;
-  /** The brightest single pixel inside the front wall's reach, and the count of
-   *  pixels outside it that beat that. A cell mean cannot see a small emissive
-   *  object; this is what can. */
-  peak: { onWall: number; offWall: number; over: number; brightest: { x: number; y: number; luma: number } } | null;
-  /** The brightest cell inside each front-wall control's own reach: one number
-   *  per screen, so "the five screens" is a set rather than a rank. */
-  screens: { id: string; mean: number; x: number; y: number }[];
-  frontControls: string[];
+  /** The plate re-read after the theme was flipped on a painted page, with the
+   *  theme it was flipped to. A texture baked once would not move. */
+  flipped: { theme: string; id: string; modal: string; pixels: number } | null;
+  /** Whether the flip put the page back in the theme this case is about. */
+  themeRestored: boolean;
+  /** One reading per entry into the machine room. Two of them, because a check
+   *  that only looks on the first entry is blind to anything the engine applies
+   *  once per page load. */
+  entries: RoomEntry[];
+  /** Whether the keyboard actually got back out of the room between the two. */
+  leftTheRoom: boolean;
 }
 
 /** Walk out from the control's left edge, one whole pixel at a time, and say
@@ -455,17 +471,14 @@ async function sweep(): Promise<Case[]> {
 
         const readings: DoorReading[] = [];
         const panes: PaneReading[] = [];
-        let cells: Case["cells"] = [];
-        let frontControls: string[] = [];
+        const entries: RoomEntry[] = [];
+        let leftTheRoom = true;
+        let flipped: Case["flipped"] = null;
+        let themeRestored = false;
         let pageGround = "";
         let ink = "";
         let rectsMoved = false;
-        let peak: Case["peak"] = null;
-        let screens: Case["screens"] = [];
-        let surfaced = false;
-        let roomRectsMoved = false;
-        let boxesEscaped: string[] = [];
-        let showing: string[] = [];
+
 
         if (ready === "ready") {
           // ---- the hub -----------------------------------------------------
@@ -596,211 +609,337 @@ async function sweep(): Promise<Case[]> {
             }
           }
 
-          // ---- the machine room --------------------------------------------
-          // The HUD comes back first: it is entered with the keyboard, and a
-          // control inside a `visibility: hidden` subtree cannot take focus.
-          //
-          // And then a frame, which is not padding. `focus()` does not force a
-          // style recalculation, so a call in the same task as the style's
-          // removal is tested against the visibility the element still has:
-          // measured, as `document.activeElement` coming back BODY with the
-          // style gone and the button on screen, and the room never entered —
-          // the cell profile below was of the hub, ranked against no front-wall
-          // controls at all, and every distance came out Infinity.
-          await tab.evaluate(SHOW_HUD);
-          await tab.evaluate(
-            "return new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)));",
-          );
-          // Entered with the keyboard, so the engine's focus hand-over runs the
-          // way it does for a reader; a synthetic click skips the browser's own
-          // activation behaviour and leaves focus on the body.
           const doorway = doors.find((candidate) => candidate.kind === "room")!;
-          await tab.evaluate(
-            `document.querySelector('[data-backlot-hotspot="${doorway.id}"]')?.focus(); return null;`,
-          );
-          await tab.press("Enter");
-          await pause(3000);
-
-          const inside = await tab.evaluate<Hud | null>(HUD);
-          const roomRects = await tab.evaluate<Rects | null>(RECTS);
-          showing = (roomRects?.rects ?? []).map((entry) => entry.id);
-          // Same reason as the pane pass, and it matters more here: the room's
-          // eight controls are parked over the five screens and the monitor,
-          // and a pill's label is `--at-text` — the brightest thing the palette
-          // has. A cell profile taken with the HUD showing would have put the
-          // brightest cells on the front wall *because the controls are there*,
-          // which is the ranking this file asserts. The style is added after the
-          // boxes are read, so the geometry is the live one.
-          await tab.evaluate(HIDE_HUD);
-          await tab.evaluate(
-            "return new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)));",
-          );
-          if (inside) {
-            const fronts = inside.buttons.filter((button) => button.id.startsWith("play-front-"));
-            frontControls = fronts.map((button) => button.id);
-            const raster = await tab.raster({
-              x: inside.canvas.left,
-              y: inside.canvas.top,
-              width: inside.canvas.width,
-              height: inside.canvas.height,
-            });
-            const CELL = cellFor(viewport.width);
-
-            // Where the pieces are, from the engine's own projection. Each
-            // interactive now carries a `surface` and the engine publishes its
-            // projected box, so "this pixel is a screen's" stops being a circle
-            // around a control and becomes the rectangle the thing actually
-            // occupies. The circle was the last tuned number in this block and
-            // it was the reason the room could not be checked at 390 at all: the
-            // radius that brackets a 9:16 screen at 1920 is 130 px, which scales
-            // to 26 px, and the three brightest cells outside it sat at 27, 29
-            // and 35.
-            // `setRect` publishes **canvas** pixels and the raster is of the
-            // canvas, so the two share an origin and nothing is subtracted. Lane
-            // 2 subtracted the canvas origin anyway, moved every box 117 px up,
-            // and the monitor's box landed on blank back wall reporting a clean
-            // 100% of one colour — which reads exactly like a frame whose
-            // texture has not arrived. So a box that is not wholly inside the
-            // raster is recorded as an escape rather than clamped into one that
-            // parses.
-            const escaped: string[] = [];
-            const boxOf = (entry: { id: string; rect: string | null }): Box | null => {
-              if (!entry.rect) return null;
-              const [x, y, width, height] = entry.rect.split(",").map(Number) as [number, number, number, number];
-              const box = { left: x, top: y, right: x + width, bottom: y + height };
-              if (box.left < 0 || box.top < 0 || box.right > raster.width || box.bottom > raster.height) {
-                escaped.push(`${entry.id} ${entry.rect} outside a ${raster.width}x${raster.height} canvas`);
-              }
-              return box;
-            };
-            const rectsById = new Map<string, Box>();
-            for (const entry of roomRects?.rects ?? []) {
-              const box = boxOf(entry);
-              if (box) rectsById.set(entry.id, box);
-            }
-            // Front wall: the five screens, which are what everything else is
-            // measured against. Recorded: every piece the room hangs, front wall
-            // and side walls alike. A pixel inside one of those is a photograph
-            // and its brightness is the content's own — the exception the
-            // contract already grants for the side walls, now drawn by the
-            // engine rather than allowed for by a tolerance.
-            const screenBoxes = fronts
-              .map((front) => rectsById.get(front.id))
-              .filter((box): box is Box => Boolean(box));
-            const recordedBoxes = [...rectsById.values()];
-            const inside_ = (boxes: Box[], px: number, py: number, grow = 0) =>
-              boxes.some(
-                (box) =>
-                  px >= box.left - grow && px < box.right + grow && py >= box.top - grow && py < box.bottom + grow,
-              );
-            surfaced = screenBoxes.length === fronts.length && fronts.length > 0;
-            boxesEscaped = escaped;
-            const onScreen = (px: number, py: number) => inside_(screenBoxes, px, py);
-            // Two pixels of slack on the way out. The published box is the
-            // piece's own frame mesh projected, and the pixel where it meets
-            // what is behind it is a blend of the two — an antialiased edge read
-            // as paint is a reading of the picture's boundary, not of anything
-            // the room chose.
-            const painted = (px: number, py: number) => !inside_(recordedBoxes, px, py, 2);
-            // A cell is only paint if it does not touch a picture at all. A
-            // centre test is too sharp at this granularity: a 40 px cell whose
-            // centre sits 7 px outside a screen's box is half inside it, and the
-            // first run of this reported the wall beside t1 at 143.6 as the
-            // brightest painted thing in the room when what it had sampled was
-            // most of t1.
-            const cellTouches = (px: number, py: number, size: number) =>
-              recordedBoxes.some(
-                (box) => px < box.right && px + size > box.left && py < box.bottom && py + size > box.top,
-              );
-
-            // The per-pixel pass, which is the one that can see a small bright
-            // thing. Its threshold is the front wall's own peak in this same
-            // frame, so nothing here is a number typed into a spec file.
-            let onWall = -1;
-            let offWall = -1;
-            let brightest = { x: 0, y: 0, luma: -1 };
-            for (let row = 0; row < raster.height; row++) {
-              for (let column = 0; column < raster.width; column++) {
-                const value = raster.lumaAt(column, row);
-                if (onScreen(column, row)) {
-                  if (value > onWall) onWall = value;
-                } else if (painted(column, row) && value > offWall) {
-                  offWall = value;
-                  brightest = { x: column, y: row, luma: value };
-                }
-              }
-            }
-            let over = 0;
-            for (let row = 0; row < raster.height; row++) {
-              for (let column = 0; column < raster.width; column++) {
-                if (!painted(column, row)) continue;
-                if (raster.lumaAt(column, row) > onWall) over++;
-              }
-            }
-            peak = { onWall, offWall, over, brightest };
-
-            // Same discipline as the hub's pane pass: the rects were read in the
-            // page and the pixels a moment later from Node, so they are re-read
-            // and the case is failed on the difference rather than reported as
-            // if it were of somewhere. Reduced motion is what makes this hold —
-            // lane 1 measured the figure's own cell swinging 27 points under the
-            // idle camera's drift, which is more than the margin this block is
-            // about.
-            const afterRoom = await tab.evaluate<Rects | null>(RECTS);
-            roomRectsMoved =
-              !afterRoom || JSON.stringify(afterRoom.rects) !== JSON.stringify(roomRects?.rects ?? null);
-
-            // A sliding window, not a fixed grid, and the same window on both
-            // sides of the comparison. A grid aligned to the canvas is aligned
-            // to nothing in the scene: a screen's rect starts at x=1083 and the
-            // first cell that fits wholly inside it starts at 1120, so the grid
-            // threw away the brightest part of t4 and reported it at 80.2 where
-            // a window on its own rect reads 145.3. Measuring the screens one
-            // way and the paint another is a thumb on the scale, so both are
-            // measured this way.
-            const STEP = Math.max(2, Math.round(CELL / 2));
-            const found: Case["cells"] = [];
-            for (let row = 0; row + CELL <= raster.height; row += STEP) {
-              for (let column = 0; column + CELL <= raster.width; column += STEP) {
-                // The contract's own arithmetic: a mean of the **encoded** luma,
-                // 0-255. `meanLuminance` linearises, which is a different
-                // ranking — measured on this very scene, the figure sits at rank
-                // 2 of 1104 under the contract's metric and rank 6 under the
-                // linear one, and this block only ever looked at five.
-                const mean = raster.meanLuma(column, row, CELL, CELL);
-                // A cell belongs to a piece if it sits wholly inside it, and
-                // counts as paint only if it touches none. Anything straddling
-                // an edge is neither, and is left out of both comparisons.
-                let owner = "(edge)";
-                for (const [id, box] of rectsById) {
-                  if (
-                    column >= box.left &&
-                    column + CELL <= box.right &&
-                    row >= box.top &&
-                    row + CELL <= box.bottom
-                  ) {
-                    owner = id;
-                    break;
+          // ---- the plates, after a live theme flip -------------------------
+          //
+          // The same question N1 asked of the room, asked of the hub: what here
+          // would survive the thing it guards being applied once rather than
+          // every time? Every plate reading above is taken on a page **loaded**
+          // in its theme, so a plate texture that was baked once and never
+          // redrawn would read correctly on both of those runs and be wrong for
+          // any reader who touched the toggle. signage.ts says as much in its
+          // own opening comment — "a canvas baked once would still be painted in
+          // last theme's numbers after the footer toggle" — and nothing checked
+          // it.
+          //
+          // So the theme is flipped on a painted page, through the status bar's
+          // own control rather than by writing the attribute, and the plate is
+          // read again. What it must do is *change*: the value it changes to is
+          // the other theme's, which the other half of this sweep measures.
+          {
+            await tab.evaluate(SHOW_HUD);
+            await tab.evaluate(
+              "return new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)));",
+            );
+            const toggled = await tab.evaluate<string | null>(
+              `const button = document.querySelector(".studio-status__theme");
+               if (!button) return null;
+               button.click();
+               return document.documentElement.dataset.theme ?? null;`,
+            );
+            await pause(1200);
+            await tab.evaluate(HIDE_HUD);
+            await tab.evaluate(
+              "return new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)));",
+            );
+            const after = await tab.evaluate<Rects | null>(RECTS);
+            if (after && toggled) {
+              const raster = await tab.raster({
+                x: after.canvas.left,
+                y: after.canvas.top,
+                width: after.canvas.width,
+                height: after.canvas.height,
+              });
+              const plate = doors.find((door) => door.window.kind === "nameplate")!;
+              const entry = after.rects.find((item) => item.id === plate.id);
+              if (entry?.rect) {
+                const [x, y, width, height] = entry.rect.split(",").map(Number) as [number, number, number, number];
+                const insetX = Math.round((width * (1 - PANE_KEEP)) / 2);
+                const insetY = Math.round((height * (1 - PANE_KEEP)) / 2);
+                const counts = new Map<string, number>();
+                let total = 0;
+                for (let row = Math.max(0, y + insetY); row < Math.min(y + height - insetY, raster.height); row++) {
+                  for (let column = Math.max(0, x + insetX); column < Math.min(x + width - insetX, raster.width); column++) {
+                    const hex = formatHex(raster.at(column, row));
+                    counts.set(hex, (counts.get(hex) ?? 0) + 1);
+                    total++;
                   }
                 }
-                const isPainted = !cellTouches(column, row, CELL);
-                if (isPainted) owner = "(painted)";
-                found.push({ x: column, y: row, mean, owner, painted: isPainted });
+                const ranked = [...counts.entries()].sort((one, two) => two[1] - one[1]);
+                flipped = { theme: toggled, id: plate.id, modal: ranked[0]?.[0] ?? "", pixels: total };
               }
             }
-            found.sort((one, two) => two.mean - one.mean);
-            cells = found;
+            // And back, before anything else is measured. The machine room's
+            // readings below are theme-scoped and the first version of this left
+            // the page in the other theme for them: the brightest painted cell
+            // came back as the light theme's page ground at 253.2 with the case
+            // still labelled dark. A probe that changes the page has to put it
+            // back, and say whether it did.
+            await tab.evaluate(SHOW_HUD);
+            await tab.evaluate(
+              "return new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)));",
+            );
+            const restored = await tab.evaluate<string | null>(
+              `const button = document.querySelector(".studio-status__theme");
+               if (!button) return null;
+               button.click();
+               return document.documentElement.dataset.theme ?? null;`,
+            );
+            await pause(800);
+            themeRestored = restored === theme;
+          }
 
-            // One number per screen rather than the top of a list. The engine
-            // parks each `play-front-tN` over its own screen, so the brightest
-            // cell inside that control's reach is that screen's own.
-            screens = fronts.map((front) => {
-              let best = { id: front.id, mean: -1, x: 0, y: 0 };
-              for (const cell of found) {
-                if (cell.owner !== front.id) continue;
-                if (cell.mean > best.mean) best = { id: front.id, mean: cell.mean, x: cell.x, y: cell.y };
+          // ---- the machine room, twice ------------------------------------
+          //
+          // Twice, and that is the newest shape this round found. Everything
+          // below used to run on the **first** entry only. An independent review
+          // guarded the room's own exposure so it applied once per page load
+          // rather than on every entry, and the whole suite stayed green — 39
+          // files, 1490 tests — while driving it by hand gave a first entry at
+          // 110.2, an Escape back to the hub, and a second entry at 145.3 with a
+          // peak of 190.1. That is the number this file was raised on, walking
+          // back in behind a check that only ever looked once.
+          //
+          // The engine was fine; the instrument looked once. So the room is
+          // entered, measured, left by the keyboard the way a reader leaves it,
+          // and entered and measured again — and every assertion below runs on
+          // both readings rather than on the first.
+          for (let visit = 1; visit <= 2; visit += 1) {
+            if (visit > 1) {
+              // Out the way a reader goes out. `backlot-hotspots` proves at most
+              // two presses of Escape leave the room; this asks for the state
+              // rather than trusting the count.
+              await tab.evaluate(SHOW_HUD);
+              await tab.evaluate(
+                "return new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)));",
+              );
+              for (let press = 0; press < 3; press += 1) {
+                const back = await tab.evaluate<boolean>(
+                  `return Boolean(document.querySelector('[data-backlot-hotspot="${doorway.id}"]:not([hidden])'));`,
+                );
+                if (back) break;
+                await tab.press("Escape");
+                await pause(1200);
               }
-              return best;
+              leftTheRoom = await tab.evaluate<boolean>(
+                `return Boolean(document.querySelector('[data-backlot-hotspot="${doorway.id}"]:not([hidden])'));`,
+              );
+              if (!leftTheRoom) break;
+            }
+            let cells: RoomEntry["cells"] = [];
+            let screens: RoomEntry["screens"] = [];
+            let peak: RoomEntry["peak"] = null;
+            let surfaced = false;
+            let roomRectsMoved = false;
+            let boxesEscaped: string[] = [];
+            let showing: string[] = [];
+            let frontControls: string[] = [];
+
+            await tab.evaluate(SHOW_HUD);
+            await tab.evaluate(
+              "return new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)));",
+            );
+            // Entered with the keyboard, so the engine's focus hand-over runs the
+            // way it does for a reader; a synthetic click skips the browser's own
+            // activation behaviour and leaves focus on the body.
+            await tab.evaluate(
+              `document.querySelector('[data-backlot-hotspot="${doorway.id}"]')?.focus(); return null;`,
+            );
+            await tab.press("Enter");
+            await pause(3000);
+
+            const inside = await tab.evaluate<Hud | null>(HUD);
+            const roomRects = await tab.evaluate<Rects | null>(RECTS);
+            showing = (roomRects?.rects ?? []).map((entry) => entry.id);
+            // Same reason as the pane pass, and it matters more here: the room's
+            // eight controls are parked over the five screens and the monitor,
+            // and a pill's label is `--at-text` — the brightest thing the palette
+            // has. A cell profile taken with the HUD showing would have put the
+            // brightest cells on the front wall *because the controls are there*,
+            // which is the ranking this file asserts. The style is added after the
+            // boxes are read, so the geometry is the live one.
+            await tab.evaluate(HIDE_HUD);
+            await tab.evaluate(
+              "return new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)));",
+            );
+            if (inside) {
+              const fronts = inside.buttons.filter((button) => button.id.startsWith("play-front-"));
+              frontControls = fronts.map((button) => button.id);
+              const raster = await tab.raster({
+                x: inside.canvas.left,
+                y: inside.canvas.top,
+                width: inside.canvas.width,
+                height: inside.canvas.height,
+              });
+              const CELL = cellFor(viewport.width);
+
+              // Where the pieces are, from the engine's own projection. Each
+              // interactive now carries a `surface` and the engine publishes its
+              // projected box, so "this pixel is a screen's" stops being a circle
+              // around a control and becomes the rectangle the thing actually
+              // occupies. The circle was the last tuned number in this block and
+              // it was the reason the room could not be checked at 390 at all: the
+              // radius that brackets a 9:16 screen at 1920 is 130 px, which scales
+              // to 26 px, and the three brightest cells outside it sat at 27, 29
+              // and 35.
+              // `setRect` publishes **canvas** pixels and the raster is of the
+              // canvas, so the two share an origin and nothing is subtracted. Lane
+              // 2 subtracted the canvas origin anyway, moved every box 117 px up,
+              // and the monitor's box landed on blank back wall reporting a clean
+              // 100% of one colour — which reads exactly like a frame whose
+              // texture has not arrived. So a box that is not wholly inside the
+              // raster is recorded as an escape rather than clamped into one that
+              // parses.
+              const escaped: string[] = [];
+              const boxOf = (entry: { id: string; rect: string | null }): Box | null => {
+                if (!entry.rect) return null;
+                const [x, y, width, height] = entry.rect.split(",").map(Number) as [number, number, number, number];
+                const box = { left: x, top: y, right: x + width, bottom: y + height };
+                if (box.left < 0 || box.top < 0 || box.right > raster.width || box.bottom > raster.height) {
+                  escaped.push(`${entry.id} ${entry.rect} outside a ${raster.width}x${raster.height} canvas`);
+                }
+                return box;
+              };
+              const rectsById = new Map<string, Box>();
+              for (const entry of roomRects?.rects ?? []) {
+                const box = boxOf(entry);
+                if (box) rectsById.set(entry.id, box);
+              }
+              // Front wall: the five screens, which are what everything else is
+              // measured against. Recorded: every piece the room hangs, front wall
+              // and side walls alike. A pixel inside one of those is a photograph
+              // and its brightness is the content's own — the exception the
+              // contract already grants for the side walls, now drawn by the
+              // engine rather than allowed for by a tolerance.
+              const screenBoxes = fronts
+                .map((front) => rectsById.get(front.id))
+                .filter((box): box is Box => Boolean(box));
+              const recordedBoxes = [...rectsById.values()];
+              const inside_ = (boxes: Box[], px: number, py: number, grow = 0) =>
+                boxes.some(
+                  (box) =>
+                    px >= box.left - grow && px < box.right + grow && py >= box.top - grow && py < box.bottom + grow,
+                );
+              surfaced = screenBoxes.length === fronts.length && fronts.length > 0;
+              boxesEscaped = escaped;
+              const onScreen = (px: number, py: number) => inside_(screenBoxes, px, py);
+              // Two pixels of slack on the way out. The published box is the
+              // piece's own frame mesh projected, and the pixel where it meets
+              // what is behind it is a blend of the two — an antialiased edge read
+              // as paint is a reading of the picture's boundary, not of anything
+              // the room chose.
+              const painted = (px: number, py: number) => !inside_(recordedBoxes, px, py, 2);
+              // A cell is only paint if it does not touch a picture at all. A
+              // centre test is too sharp at this granularity: a 40 px cell whose
+              // centre sits 7 px outside a screen's box is half inside it, and the
+              // first run of this reported the wall beside t1 at 143.6 as the
+              // brightest painted thing in the room when what it had sampled was
+              // most of t1.
+              const cellTouches = (px: number, py: number, size: number) =>
+                recordedBoxes.some(
+                  (box) => px < box.right && px + size > box.left && py < box.bottom && py + size > box.top,
+                );
+
+              // The per-pixel pass, which is the one that can see a small bright
+              // thing. Its threshold is the front wall's own peak in this same
+              // frame, so nothing here is a number typed into a spec file.
+              let onWall = -1;
+              let offWall = -1;
+              let brightest = { x: 0, y: 0, luma: -1 };
+              for (let row = 0; row < raster.height; row++) {
+                for (let column = 0; column < raster.width; column++) {
+                  const value = raster.lumaAt(column, row);
+                  if (onScreen(column, row)) {
+                    if (value > onWall) onWall = value;
+                  } else if (painted(column, row) && value > offWall) {
+                    offWall = value;
+                    brightest = { x: column, y: row, luma: value };
+                  }
+                }
+              }
+              let over = 0;
+              for (let row = 0; row < raster.height; row++) {
+                for (let column = 0; column < raster.width; column++) {
+                  if (!painted(column, row)) continue;
+                  if (raster.lumaAt(column, row) > onWall) over++;
+                }
+              }
+              peak = { onWall, offWall, over, brightest };
+
+              // Same discipline as the hub's pane pass: the rects were read in the
+              // page and the pixels a moment later from Node, so they are re-read
+              // and the case is failed on the difference rather than reported as
+              // if it were of somewhere. Reduced motion is what makes this hold —
+              // lane 1 measured the figure's own cell swinging 27 points under the
+              // idle camera's drift, which is more than the margin this block is
+              // about.
+              const afterRoom = await tab.evaluate<Rects | null>(RECTS);
+              roomRectsMoved =
+                !afterRoom || JSON.stringify(afterRoom.rects) !== JSON.stringify(roomRects?.rects ?? null);
+
+              // A sliding window, not a fixed grid, and the same window on both
+              // sides of the comparison. A grid aligned to the canvas is aligned
+              // to nothing in the scene: a screen's rect starts at x=1083 and the
+              // first cell that fits wholly inside it starts at 1120, so the grid
+              // threw away the brightest part of t4 and reported it at 80.2 where
+              // a window on its own rect reads 145.3. Measuring the screens one
+              // way and the paint another is a thumb on the scale, so both are
+              // measured this way.
+              const STEP = Math.max(2, Math.round(CELL / 2));
+              const found: RoomEntry["cells"] = [];
+              for (let row = 0; row + CELL <= raster.height; row += STEP) {
+                for (let column = 0; column + CELL <= raster.width; column += STEP) {
+                  // The contract's own arithmetic: a mean of the **encoded** luma,
+                  // 0-255. `meanLuminance` linearises, which is a different
+                  // ranking — measured on this very scene, the figure sits at rank
+                  // 2 of 1104 under the contract's metric and rank 6 under the
+                  // linear one, and this block only ever looked at five.
+                  const mean = raster.meanLuma(column, row, CELL, CELL);
+                  // A cell belongs to a piece if it sits wholly inside it, and
+                  // counts as paint only if it touches none. Anything straddling
+                  // an edge is neither, and is left out of both comparisons.
+                  let owner = "(edge)";
+                  for (const [id, box] of rectsById) {
+                    if (
+                      column >= box.left &&
+                      column + CELL <= box.right &&
+                      row >= box.top &&
+                      row + CELL <= box.bottom
+                    ) {
+                      owner = id;
+                      break;
+                    }
+                  }
+                  const isPainted = !cellTouches(column, row, CELL);
+                  if (isPainted) owner = "(painted)";
+                  found.push({ x: column, y: row, mean, owner, painted: isPainted });
+                }
+              }
+              found.sort((one, two) => two.mean - one.mean);
+              cells = found;
+
+              // One number per screen rather than the top of a list. The engine
+              // parks each `play-front-tN` over its own screen, so the brightest
+              // cell inside that control's reach is that screen's own.
+              screens = fronts.map((front) => {
+                let best = { id: front.id, mean: -1, x: 0, y: 0 };
+                for (const cell of found) {
+                  if (cell.owner !== front.id) continue;
+                  if (cell.mean > best.mean) best = { id: front.id, mean: cell.mean, x: cell.x, y: cell.y };
+                }
+                return best;
+              });
+            }
+            entries.push({
+              visit,
+              cells,
+              screens,
+              peak,
+              surfaced,
+              roomRectsMoved,
+              boxesEscaped,
+              showing,
+              frontControls,
             });
           }
         }
@@ -814,14 +953,10 @@ async function sweep(): Promise<Case[]> {
           pageGround,
           ink,
           rectsMoved,
-          cells,
-          peak,
-          screens,
-          surfaced,
-          roomRectsMoved,
-          boxesEscaped,
-          showing,
-          frontControls,
+          flipped,
+          themeRestored,
+          entries,
+          leftTheRoom,
         });
       }
     }
@@ -856,7 +991,11 @@ describe("the backlot booted before anything was measured", () => {
 // 1. A door window is a picture, and the focus ring has to survive it.
 // ---------------------------------------------------------------------------
 //
-// Seen red by taking the outer tone off the ring in the built stylesheet —
+// Seen red by taking the outer tone off the ring. Not in a stylesheet: this
+// rule is inlined into the page's own <style> and minified without spaces, so
+// the string to replace in dist/backlot/index.html is
+// `box-shadow:0 0 0 5px var(--at-bg), 0 0 0 7px var(--at-text)}` with the second
+// tone dropped —
 // `box-shadow: 0 0 0 5px var(--at-bg)` alone, which is the single-tone ring this
 // repo used to have — and reverting:
 //
@@ -966,11 +1105,14 @@ describe.each(VIEWPORTS)("a door's window at $name", ({ name: viewport }) => {
 // bundle (`ctx.globalAlpha = PLATE_WASH` before the brand fill) and reverting.
 // The output is quoted above each assertion.
 //
-// Both of those injections had to be **anchored inside `nameplate()`**, and that
-// is a lesson about injections rather than about plates. Lane 1's sign over the
+// All three injections have to be **anchored inside `nameplate()`**, and that is
+// a lesson about injections rather than about plates. Lane 1's sign over the
 // lintel uses the same recipe — `--at-bg`, then `--at-primary` at PLATE_WASH —
-// and sits 489 bytes earlier in the bundle, so a search for the first match in
-// the file patched the sign and left the plate untouched. Two of the three reds
+// and there are three draw sites using it in the bundle. The board's sits a few
+// hundred bytes *before* `nameplate()` begins, and the gap has moved with every
+// build: 489 bytes one day, 477 the next. So the instruction is "find the index
+// of `nameplate(e,t)` and search forward from there", never "find the first
+// match in the file" — which patched the sign and left the plate untouched. Two of the three reds
 // quietly stopped reproducing. The minified name of the uppercased label moved
 // from `s` to `o` between builds for the same reason, which turned the third
 // injection into a no-op that read as a check gone blind. An injection harness
@@ -1156,6 +1298,57 @@ describe("a door's nameplate", () => {
     });
   });
 
+  // Seen red by baking the plate's texture once — the signwriter's redraw
+  // callback replaced with a no-op in the built bundle, anchored on the shape
+  // rather than on a name — so the plate keeps the theme it was first drawn in:
+  //
+  //   AssertionError: the Assessment plate reads #573b0f before the theme was
+  //   flipped to light and #573b0f after. A plate is a canvas texture and
+  //   signage.ts redraws it on a theme change; one that does not is painted in
+  //   last theme's numbers for every reader who touches the toggle.
+  it("redraws its plate when the theme is flipped on a painted page", () => {
+    for (const viewport of VIEWPORTS) {
+      for (const theme of THEMES) {
+        const one = at(viewport.name, theme);
+        expect(
+          one.flipped,
+          `the theme was never flipped on a painted page at ${viewport.name} in the ${theme} theme, so the ` +
+            `redraw was not tested`,
+        ).not.toBeNull();
+        expect(
+          one.flipped!.theme,
+          `the status bar's toggle did not change the theme at ${viewport.name}`,
+        ).not.toBe(theme);
+        expect(
+          one.themeRestored,
+          `the theme was not put back to ${theme} after the flip at ${viewport.name}, so every reading taken ` +
+            `after it is of the other theme`,
+        ).toBe(true);
+        expect(
+          one.flipped!.pixels,
+          `the plate's window covered no pixels after the flip at ${viewport.name}`,
+        ).toBeGreaterThan(50);
+
+        const before = one.panes.find((pane) => pane.id === one.flipped!.id)!;
+        expect(
+          one.flipped!.modal,
+          `the ${one.flipped!.id} plate reads ${before.modal} before the theme was flipped to ` +
+            `${one.flipped!.theme} and ${one.flipped!.modal} after. A plate is a canvas texture and signage.ts ` +
+            `redraws it on a theme change; one that does not is painted in last theme's numbers for every ` +
+            `reader who touches the toggle.`,
+        ).not.toBe(before.modal);
+        // And it lands on the other theme's plate, not on some third colour.
+        const other = at(viewport.name, theme === "dark" ? "light" : "dark");
+        const otherPlate = other.panes.find((pane) => pane.id === one.flipped!.id)!;
+        expect(
+          one.flipped!.modal,
+          `the plate redrew to ${one.flipped!.modal}, where a page loaded in the ${one.flipped!.theme} theme ` +
+            `reads ${otherPlate.modal}`,
+        ).toBe(otherPlate.modal);
+      }
+    }
+  });
+
   it("reads the same plate at both viewports, in each theme", () => {
     // A plate is unlit and its texture is drawn at a size in metres, so the
     // viewport cannot change its colour. If it does, something is lighting a
@@ -1229,163 +1422,142 @@ describe("a door's nameplate", () => {
 //           it and says so rather than falling back to a circle
 //
 // And one injection that did **not** go red, which is worth more than most that
-// did: the tower's `PointLight` raised to intensity 14 with its 0.8 m distance
+// did: the tower's interior light raised to intensity 14 with its 0.8 m distance
 // left alone moved nothing anywhere. That was a bug the page never had, and the
 // only way to find it out was to watch it stay green.
-describe("the brightest thing in the machine room is the front wall", () => {
-  it("found the room, its five screens and a profile to rank", () => {
-    for (const viewport of VIEWPORTS) {
-      const one = at(viewport.name, "dark");
-      expect(
-        one.frontControls,
-        `the room did not paint a control for every front-wall screen at ${viewport.name}`,
-      ).toEqual(room.interactives.filter((entry) => entry.id.startsWith("play-front-")).map((entry) => entry.id));
-      expect(
-        one.cells.length,
-        `the room's cell profile at ${viewport.name} is empty, so the ranking is about nothing`,
-      ).toBeGreaterThan(100);
-    }
-  });
+//
+// Anchored on `1.4,.8,1.6`, which occurs once in the bundle, rather than on
+// `PointLight`, which occurs 34 times. Every instruction in this file is
+// anchored on a shape for the same reason: a red that cannot be reproduced from
+// its own description is a red nobody after me can confirm, and re-taking it
+// from a stale name produces a green run that reads like a blind check.
+/** Both entries into the room, at one viewport, in the dark theme. */
+const roomEntries = (viewport: string) => at(viewport, "dark").entries;
 
-  // The rect is what makes the two assertions below possible at 390 at all, so
-  // it is asserted before them rather than assumed by them. Without it there is
-  // no honest way to say where a screen is — the version of this file that used
-  // a circle around each control had a 26 px radius at 390 with the three
-  // brightest cells outside it sitting at 27, 29 and 35 px, which is one cell of
-  // error on the screens' own edges.
-  // Seen red by stopping the room handing its pieces' surfaces to the hotspots
-  // (`...(frame ? { surface: frame.face } : {})` removed in the built bundle),
-  // which is the state this file was written against before lane 2 wired it:
-  //
-  //   AssertionError: the machine room published no rectangle for at least one
-  //   front-wall screen at desktop 1920×1080, so "this pixel is a screen's" has
-  //   nothing behind it. The engine publishes it from the piece's own surface
-  //   through Hotspot.setRect.: expected false to be true
-  //   (5 failed | 70 passed)
-  it("has a published rectangle for every screen, at both viewports", () => {
+describe("the brightest thing in the machine room is the front wall", () => {
+  it("was entered twice, and left in between", () => {
+    // The scope of everything below, and the thing the review's injection was
+    // invisible to. A run that only ever entered once would leave every
+    // assertion here true of the first entry and silent about the second.
     for (const viewport of VIEWPORTS) {
       const one = at(viewport.name, "dark");
       expect(
-        one.roomRectsMoved,
-        `the machine room's projection moved between its rects being read and its pixels being sampled at ` +
-          `${viewport.name}, so every region below is a region of somewhere else`,
-      ).toBe(false);
-      expect(
-        one.boxesEscaped,
-        `a published rectangle fell outside the canvas at ${viewport.name}, so whatever was read inside it was ` +
-          `read from somewhere else`,
-      ).toEqual([]);
-      // Showing, not present: every room hotspot is in the DOM while the hub is
-      // on screen, so "the five screens are here" is satisfied by the hub unless
-      // it asks whether they are painted.
-      expect(
-        one.showing.filter((id) => id.startsWith("play-front-")).sort(),
-        `the machine room was not showing its five front-wall controls when the rects were read at ` +
-          `${viewport.name} — it was showing ${one.showing.join(", ")}. A room's hotspots sit in the DOM ` +
-          `hidden while the hub is up, so this is the hub answering.`,
-      ).toEqual(room.interactives.filter((entry) => entry.id.startsWith("play-front-")).map((entry) => entry.id));
-      expect(
-        one.surfaced,
-        `the machine room published no rectangle for at least one front-wall screen at ${viewport.name}, so ` +
-          `"this pixel is a screen's" has nothing behind it. The engine publishes it from the piece's own ` +
-          `surface through Hotspot.setRect.`,
+        one.leftTheRoom,
+        `the keyboard never got back out of the machine room at ${viewport.name}, so the second reading is of ` +
+          `the same visit as the first`,
       ).toBe(true);
       expect(
-        one.screens.filter((screen) => screen.mean > 0).length,
-        `not every screen had a cell of its own to read at ${viewport.name}: ` +
-          `${one.screens.map((screen) => `${screen.id.replace("play-front-", "")} ${screen.mean.toFixed(1)}`).join(", ")}`,
-      ).toBe(5);
+        one.entries.map((entry) => entry.visit),
+        `the machine room was measured ${one.entries.length} time(s) at ${viewport.name}`,
+      ).toEqual([1, 2]);
     }
   });
 
-  // ---- the cell ranking ----------------------------------------------------
-  //
-  // The contract's own instrument: a cell of mean **encoded** luma, 0-255. Not
-  // `meanLuminance`, which linearises and produces a different ranking — the
-  // figure sat at rank 2 of 1104 under the contract's arithmetic and rank 6
-  // under the linear one, for the same cell in the same frame. A comment that
-  // claims to be using a stated number while using a different one is worse than
-  // no comment: it tells the next reader the question is settled.
-  //
-  // Asked as a set rather than a rank, so there is no depth to be one place
-  // short of: one reading per screen — the brightest cell inside that screen's
-  // own published rect — and the ceiling is the **median** of the five.
-  //
-  // The median rather than the dimmest, and that is a correction rather than a
-  // softening. The five screens are five pieces of recorded footage and their
-  // own brightness is not ours to choose. Measured at 1920 dark, t2's clip runs
-  // at 97.7 against 145.3 for t4. Keying on the dimmest would let the darkest
-  // frame anybody ever records set the rule for everything the room paints —
-  // content legislating for materials — and it would have got quietly tighter
-  // every time somebody added a moodier clip.
-  //
-  // What counts as "painted" is now drawn by the engine rather than allowed for
-  // by a tolerance: every piece the room hangs publishes a rect, side walls
-  // included, so a pixel inside one is a photograph and is out of this
-  // comparison by construction. That is the honest exception the contract grants
-  // for the side walls' recorded frames, made structural.
   for (const viewport of VIEWPORTS) {
-    it(`keeps everything painted below the middle of the five, at ${viewport.name}`, () => {
-      const one = at(viewport.name, "dark");
-      const ranked = [...one.screens].sort((first, second) => first.mean - second.mean);
-      const middle = ranked[Math.floor(ranked.length / 2)]!;
-      const paintedCells = one.cells.filter((cell) => cell.painted);
-      expect(
-        paintedCells.length,
-        "every cell belongs to a piece, so there is nothing painted to compare",
-      ).toBeGreaterThan(0);
-      const other = paintedCells[0]!;
-      expect(
-        other.mean,
-        `the brightest ${cellFor(viewport.width)}px cell of the machine room that is not a piece sits at ` +
-          `(${other.x}, ${other.y}) of the canvas at a mean luma of ${other.mean.toFixed(1)} — against ` +
-          `${middle.mean.toFixed(1)} for the middle of the five screens (${middle.id}). The five screens on ` +
-          `the front wall are the brightest thing in this room and nothing painted may out-shine them. All ` +
-          `five: ${one.screens.map((screen) => `${screen.id.replace("play-front-", "")} ${screen.mean.toFixed(1)}`).join(", ")}.`,
-      ).toBeLessThan(middle.mean);
-    });
+    for (const visit of [1, 2]) {
+      const label = visit === 1 ? "first entry" : "second entry, after an Escape back to the hub";
+
+      it(`found the room, its five screens and a profile to rank — ${label}, ${viewport.name}`, () => {
+        const entry = roomEntries(viewport.name)[visit - 1]!;
+        expect(
+          entry.frontControls,
+          `the room did not paint a control for every front-wall screen on the ${label} at ${viewport.name}`,
+        ).toEqual(room.interactives.filter((item) => item.id.startsWith("play-front-")).map((item) => item.id));
+        expect(
+          entry.cells.length,
+          `the room's cell profile on the ${label} at ${viewport.name} is empty`,
+        ).toBeGreaterThan(100);
+      });
+
+      // Seen red by stopping the room handing its pieces' surfaces to the
+      // hotspots — the `{surface:…}` spread removed from the built bundle,
+      // matched on its shape rather than on a minified name:
+      //
+      //   AssertionError: the machine room published no rectangle for at least
+      //   one front-wall screen at desktop 1920×1080, so "this pixel is a
+      //   screen's" has nothing behind it.: expected false to be true
+      it(`has a published rectangle for every screen — ${label}, ${viewport.name}`, () => {
+        const entry = roomEntries(viewport.name)[visit - 1]!;
+        expect(
+          entry.roomRectsMoved,
+          `the projection moved between the rects being read and the pixels being sampled on the ${label} at ` +
+            `${viewport.name}, so every region below is a region of somewhere else`,
+        ).toBe(false);
+        expect(
+          entry.boxesEscaped,
+          `a published rectangle fell outside the canvas on the ${label} at ${viewport.name}`,
+        ).toEqual([]);
+        // Showing, not present: every room hotspot is in the DOM while the hub
+        // is on screen, so "the five screens are here" is satisfied by the hub
+        // unless it asks whether they are painted.
+        expect(
+          entry.showing.filter((id) => id.startsWith("play-front-")).sort(),
+          `the machine room was not showing its five front-wall controls when the rects were read on the ` +
+            `${label} at ${viewport.name} — it was showing ${entry.showing.join(", ")}.`,
+        ).toEqual(room.interactives.filter((item) => item.id.startsWith("play-front-")).map((item) => item.id));
+        expect(
+          entry.surfaced,
+          `the machine room published no rectangle for at least one front-wall screen on the ${label} at ` +
+            `${viewport.name}, so "this pixel is a screen's" has nothing behind it.`,
+        ).toBe(true);
+      });
+
+      it(`keeps everything painted below the middle of the five — ${label}, ${viewport.name}`, () => {
+        const entry = roomEntries(viewport.name)[visit - 1]!;
+        const ranked = [...entry.screens].sort((first, second) => first.mean - second.mean);
+        const middle = ranked[Math.floor(ranked.length / 2)]!;
+        const paintedCells = entry.cells.filter((cell) => cell.painted);
+        expect(paintedCells.length, "every cell belongs to a piece, so there is nothing painted").toBeGreaterThan(0);
+        const other = paintedCells[0]!;
+        expect(
+          other.mean,
+          `on the ${label} at ${viewport.name}, the brightest ${cellFor(viewport.width)}px cell of the machine ` +
+            `room that is not a piece sits at (${other.x}, ${other.y}) of the canvas at a mean luma of ` +
+            `${other.mean.toFixed(1)} — against ${middle.mean.toFixed(1)} for the middle of the five screens ` +
+            `(${middle.id}). The five screens on the front wall are the brightest thing in this room and ` +
+            `nothing painted may out-shine them. All five: ` +
+            `${entry.screens.map((screen) => `${screen.id.replace("play-front-", "")} ${screen.mean.toFixed(1)}`).join(", ")}.`,
+        ).toBeLessThan(middle.mean);
+      });
+
+      it(`has nothing small and painted out-shining the screens — ${label}, ${viewport.name}`, () => {
+        const entry = roomEntries(viewport.name)[visit - 1]!;
+        expect(entry.peak, `no per-pixel reading on the ${label} at ${viewport.name}`).not.toBeNull();
+        expect(entry.peak!.onWall, "no pixel was found on a screen").toBeGreaterThan(0);
+        expect(
+          entry.peak!.over,
+          `on the ${label} at ${viewport.name}, ${entry.peak!.over} pixels that the machine room paints are ` +
+            `brighter than the brightest pixel on a screen (${entry.peak!.onWall.toFixed(1)}), the brightest ` +
+            `of them ${entry.peak!.offWall.toFixed(1)} at (${entry.peak!.brightest.x}, ` +
+            `${entry.peak!.brightest.y}) of the canvas.`,
+        ).toBeLessThan(overFloorFor(viewport.width));
+      });
+    }
   }
 
-  // ---- the per-pixel ceiling -----------------------------------------------
-  //
-  // A cell mean cannot see a small emissive object, and the review proved it by
-  // painting the tower's light bar pure white at full level: 233 pixels changed,
-  // a 5 x 48 px strip, every one at luma 255, and the two 40x40 cells holding it
-  // moved 42.5 -> 50.0 and 36.4 -> 49.1 against a top-five floor of 134.6.
-  // Nothing in the ranking moved and 73 of 73 passed. The instrument was wrong
-  // for the thing, not the threshold.
-  //
-  // So: count the pixels the room **paints** that are brighter than the
-  // brightest pixel on a screen, in the same frame. Self-calibrating, no cell,
-  // and now no reach either.
-  //
-  // The floor is what the honest exception costs, and it is smaller than it
-  // looks. Only the pieces that carry a control publish a rect — the five front
-  // screens and the desk's monitor — so the **side walls' stills are still
-  // counted as paint**, and one of them is a bright shot of a white coat whose
-  // brightest pixel reads 254.5 against the screens' 251.3. Four pixels of it
-  // clear the line at 1920 and none at 390. That is the contract's own
-  // exception: their brightness is the content's and not ours to darken. The
-  // floor sits above them and well below anything emissive.
-  //
-  // Extending it to 390 needed the rects rather than a wider number: with a
-  // circle around each control there was no honest way to say what a screen's
-  // pixel was at that size, and the same injection moved 1920 and did not move
-  // 390 at all. With the rects it moves both — 18 over against a clean 0.
+  // And the two entries agree with each other, which is the assertion the
+  // review's injection was aimed at and the one no per-entry threshold can make.
+  // A room whose exposure is applied once per page load reads correctly the
+  // first time and wrong every time after; comparing the two says so without
+  // needing to know what the right number is.
   for (const viewport of VIEWPORTS) {
-    it(`has nothing small and painted out-shining the screens at ${viewport.name}`, () => {
-      const reading = at(viewport.name, "dark").peak;
-      expect(reading, `no per-pixel reading for the machine room at ${viewport.name}`).not.toBeNull();
+    it(`reads the same room on the way back in, at ${viewport.name}`, () => {
+      const [first, second] = roomEntries(viewport.name);
+      expect(first && second, "both entries are needed to compare them").toBeTruthy();
+      const brightest = (entry: RoomEntry) => entry.cells.filter((cell) => cell.painted)[0]!.mean;
+      const drift = Math.abs(brightest(second!) - brightest(first!));
       expect(
-        reading!.onWall,
-        "no pixel was found on a screen, so there is no threshold to compare against",
-      ).toBeGreaterThan(0);
+        drift,
+        `the brightest painted cell reads ${brightest(first!).toFixed(1)} on the first entry and ` +
+          `${brightest(second!).toFixed(1)} on the second, ${drift.toFixed(1)} apart. The room is the same ` +
+          `room both times; a reading that moves between them is something the engine applies once per page ` +
+          `load rather than on every entry.`,
+      ).toBeLessThan(ROOM_DRIFT);
+      const peaks = roomEntries(viewport.name).map((entry) => entry.peak!.over);
       expect(
-        reading!.over,
-        `${reading!.over} pixels that the machine room paints are brighter than the brightest pixel on a ` +
-          `screen (${reading!.onWall.toFixed(1)}), the brightest of them ${reading!.offWall.toFixed(1)} at ` +
-          `(${reading!.brightest.x}, ${reading!.brightest.y}) of the canvas. The five screens are the ` +
-          `brightest thing in this room and nothing painted may out-shine them.`,
+        Math.abs(peaks[1]! - peaks[0]!),
+        `the count of painted pixels over the screens' peak is ${peaks[0]} on the first entry and ${peaks[1]} ` +
+          `on the second`,
       ).toBeLessThan(overFloorFor(viewport.width));
     });
   }

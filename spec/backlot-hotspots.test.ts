@@ -486,7 +486,12 @@ describe("the machine room is its interactives", () => {
 // ---------------------------------------------------------------------------
 
 // The staged Escape was seen red by rebinding the key in the built chunk so it
-// never matches (`"Escape"` -> `"Escapee"`), and reverted:
+// never matches, and reverted. Anchored on the shape the bundler emits rather
+// than on the source literal: `"Escape"` occurs 0 times in the built chunk,
+// because Rolldown writes the comparison with backticks — match
+// key===<backtick>Escape<backtick> inside the chunk the backlot page loads, and
+// note that the site's search dialog carries the same literal in a chunk of its
+// own, so the file matters as much as the pattern:
 //   AssertionError: Escape took 3 presses to leave the room: 1. still inside —
 //   "Inside the machine room."; 2. still inside — "Inside the machine room.";
 //   3. still inside — "Inside the machine room.": expected 3 to be less than or
@@ -647,8 +652,13 @@ describe("every hotspot shows a focus ring", () => {
 // page from the outside, and the level `boot.ts` logs at is a decision in
 // another file that a check should not be built on.
 //
-// Seen red the same way spec/backlot-contrast.test.ts's is — `createBacklot(...)`
-// replaced with a thrower in the built bundle — and reverting:
+// Seen red the same way spec/backlot-contrast.test.ts's is — the engine's entry
+// replaced with a thrower in the built bundle — and reverting://
+// Anchored on a **shape**, not a name. `createBacklot` occurs 0 times in the
+// built bundle — it minifies to two letters — so an instruction naming it
+// produces a green run that reads exactly like a check gone blind. The shape
+// `await(await X({canvas:…,hud:…,payload:…,rooms:…})).ready` matches once in the
+// chunk the backlot page loads, and that is what to replace with a thrower.
 //
 //   AssertionError: the backlot never mounted, so there was no HUD to drive and
 //   nothing above is about a 3D scene. The static gallery would still be on

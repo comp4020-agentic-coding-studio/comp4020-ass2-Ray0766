@@ -278,9 +278,25 @@ const LINK_TO = (wanted: string) => String.raw`
 interface Link {
   found: boolean;
   why: string;
+  /** Whether the control had stopped being parked before its box was read. */
+  still?: boolean;
   text?: string;
   x?: number;
   y?: number;
+}
+
+/** The door's control, probed until the scene has settled enough for its middle
+ *  to be the control. A single probe is a photograph of a HUD that is parked
+ *  every frame; what this gives up on is worth reporting, which is why the last
+ *  answer comes back rather than a throw from in here. */
+async function findDoor(tab: Tab, id: string, tries = 6): Promise<Link> {
+  let last: Link = { found: false, why: `the ${id} door was never probed` };
+  for (let attempt = 0; attempt < tries; attempt++) {
+    last = await tab.evaluate<Link>(DOOR(id));
+    if (last.found) return last;
+    await pause(700);
+  }
+  return last;
 }
 
 async function walk(): Promise<Journey[]> {
@@ -618,21 +634,77 @@ const LIFE = String.raw`
  *  Same rule as `LINK_TO`: no fallback. A door is a real `<button>` with an
  *  accessible name, and if it is not on the page this returns why and the
  *  caller fails — it does not reach for the href the manifest happens to know. */
+/**
+ * Where to click a door's control, and whether that point is the control.
+ *
+ * **The `elementFromPoint` line is the fix to a real failure.** Without it this
+ * read a box, handed the centre to a click a round trip later, and asserted on
+ * the navigation — so a click that landed on the canvas instead was reported as
+ * "the press did not navigate". Inside the whole suite that happened at the
+ * desktop viewport and took seven assertions down with it, six of them
+ * downstream of a reader who never left; the same build, this file alone, was 28
+ * passed, and driving that exact click by hand reached /sessions/ in under a
+ * second. Raising the timeout from 15 s to 30 s did not fix it, which is what
+ * ruled out "the machine is slow" and left "the click missed".
+ *
+ * The HUD parks every button every frame, so the box is only worth reading once
+ * the scene has stopped moving. `still` is the same two-identical-reads test
+ * `spec/backlot-hotspots.test.ts` uses on a focus push, for the same reason.
+ */
 const DOOR = (id: string) => String.raw`
-  const button = document.querySelector("[data-backlot-hotspot=" + ${JSON.stringify(JSON.stringify(id))} + "]");
-  if (!button) return { found: false, why: "the HUD has no control for the " + ${JSON.stringify(id)} + " door" };
-  if (button.hidden) return { found: false, why: "the " + ${JSON.stringify(id)} + " door's control is hidden" };
-  const box = button.getBoundingClientRect();
-  if (box.width < 4 || box.height < 4) {
-    return { found: false, why: "the door's control measures " + Math.round(box.width) + "x" + Math.round(box.height) };
-  }
-  return {
-    found: true,
-    why: "",
-    text: (button.textContent || "").replace(/\s+/g, " ").trim(),
-    x: Math.round(box.left + box.width / 2),
-    y: Math.round(box.top + box.height / 2),
-  };
+  return (async () => {
+    const selector = "[data-backlot-hotspot=" + ${JSON.stringify(JSON.stringify(id))} + "]";
+    const button = document.querySelector(selector);
+    if (!button) return { found: false, why: "the HUD has no control for the " + ${JSON.stringify(id)} + " door" };
+    if (button.hidden) return { found: false, why: "the " + ${JSON.stringify(id)} + " door's control is hidden" };
+
+    // Parked every frame, so a box read while the scene is still settling is a
+    // box the click will miss. Two identical reads in a row, or give up and say
+    // how far it was still travelling.
+    let previous = null;
+    let still = false;
+    let travelled = 0;
+    for (let attempt = 0; attempt < 80 && !still; attempt++) {
+      await new Promise((done) => requestAnimationFrame(() => done()));
+      const now = button.getBoundingClientRect();
+      if (previous) {
+        travelled += Math.abs(now.left - previous.left) + Math.abs(now.top - previous.top);
+        still = now.left === previous.left && now.top === previous.top && now.width === previous.width;
+      }
+      previous = now;
+    }
+
+    const box = button.getBoundingClientRect();
+    if (box.width < 4 || box.height < 4) {
+      return { found: false, why: "the door's control measures " + Math.round(box.width) + "x" + Math.round(box.height) };
+    }
+    const x = Math.round(box.left + box.width / 2);
+    const y = Math.round(box.top + box.height / 2);
+    // An outline and a box-shadow paint outside the border box and hit-test
+    // nowhere, so this is not a clearance test and is not being used as one
+    // (CLAUDE.md 7). It is the narrower question a click actually asks: is the
+    // thing at this point this control.
+    const at = document.elementFromPoint(x, y);
+    if (!at || (at !== button && !button.contains(at))) {
+      return {
+        found: false,
+        why:
+          "the middle of the " + ${JSON.stringify(id)} + " door's control is not the control: " +
+          (at ? at.tagName + "." + String(at.className) : "nothing") +
+          " is at " + x + "," + y + ". The control is [" + Math.round(box.left) + ".." + Math.round(box.right) +
+          "] x [" + Math.round(box.top) + ".." + Math.round(box.bottom) + "], it " +
+          (still ? "had come to rest" : "was still moving, " + Math.round(travelled) + "px so far") + ".",
+      };
+    }
+    return {
+      found: true,
+      why: "",
+      still,
+      text: (button.textContent || "").replace(/\s+/g, " ").trim(),
+      x,
+      y,
+    };
+  })();
 `;
 
 interface Life {
@@ -744,7 +816,7 @@ async function walkBack(): Promise<BackLap[]> {
         throw new Error(`clicking "${inbound.text}" on /studio/ landed on ${first.path}, not on ${prefix}backlot/`);
       }
 
-      const door = await tab.evaluate<Link>(DOOR(PAGE_DOOR.id));
+      const door = await findDoor(tab, PAGE_DOOR.id);
       if (!door.found) throw new Error(`cannot leave /backlot/ through the ${PAGE_DOOR.label} door: ${door.why}`);
       await tab.click(door.x!, door.y!);
       // **Waited for, not beaten.** A press on a door takes about 2,505 ms to

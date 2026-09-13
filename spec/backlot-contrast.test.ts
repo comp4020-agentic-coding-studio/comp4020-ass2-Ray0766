@@ -57,17 +57,18 @@ import {
   type Resolved,
   type Rgb,
 } from "./lib/chrome.ts";
-import { doorInto, roomNamed } from "./lib/backlot.ts";
+import { doorInto, roomNamed, roomsWithDoors } from "./lib/backlot.ts";
 
 const { base } = resolveDeployment(process.env, gitOrigin);
 const prefix = base.endsWith("/") ? base : `${base}/`;
 
 const doors = backlotManifest.doors;
-// Named, not positional, and the door taken from the room rather than from
-// `kind === "room"` — which stopped meaning the Studio door the moment the
-// Lectures door started opening a corridor (spec/lib/backlot.ts).
-const room = roomNamed("machine-room");
-const roomDoor = doorInto(room);
+// Every room, each paired with the door that opens it. This file used to take
+// `rooms[0]` and `doors.find(kind === "room")` — the machine room by the
+// manifest's own array order, and the Lectures door the moment a corridor
+// existed (spec/lib/backlot.ts). The corridor's thirteen controls are held to
+// every floor in here now, on the same derivation that gave the machine room
+// its ninth: the list came out thirteen on its own.
 
 /** WCAG 2.2 SC 1.4.11. The dot is the whole of the control at 390px, so it is
  *  a part required to identify it, not decoration with an aria-hidden on it. */
@@ -102,11 +103,24 @@ const THEMES: readonly ColourScheme[] = ["dark", "light"];
  *  by hand, made by a round in which the data changed twice: the control first
  *  appeared under a namespaced id the room registered itself, and then moved
  *  into the manifest under a plain one. A list typed here would have been wrong
- *  in two different ways inside an hour. */
-const PLACES = [
-  { name: "the hub", required: () => doors.map((door) => door.id) },
-  { name: "the machine room", required: () => room.interactives.map((entry) => entry.id) },
-] as const;
+ *  in two different ways inside an hour.
+ *
+ *  **And the corridor arrived the same way.** It is a room in the manifest, so
+ *  its thirteen controls are a place in this list by derivation — twelve stages
+ *  and a way out, each held to its fill against its dot, its label's ink and its
+ *  reveal on focus, at both marking viewports in both themes. Nothing here was
+ *  widened by hand to take it. What did have to change is how a room is entered:
+ *  `place.name === "the machine room"` was a hand-kept scope of exactly the kind
+ *  the paragraph above is about, and there is no door from one room to another,
+ *  so each room is entered from a freshly loaded hub. */
+const PLACES: { name: string; roomId: string | null; required: () => string[] }[] = [
+  { name: "the hub", roomId: null, required: () => doors.map((door) => door.id) },
+  ...roomsWithDoors.map(({ room: entry }) => ({
+    name: entry.title,
+    roomId: entry.id,
+    required: () => entry.interactives.map((one) => one.id),
+  })),
+];
 
 interface Probe {
   id: string;
@@ -542,10 +556,17 @@ async function sweep(): Promise<Reading[]> {
         if (!mounted) continue;
 
         for (const place of PLACES) {
-          if (place.name === "the machine room") {
+          if (place.roomId) {
             // Entered with the keyboard, so the engine's focus hand-over runs
-            // the way it does for a reader.
-            const door = roomDoor;
+            // the way it does for a reader. The page is loaded again first, so
+            // each room is entered from a hub in its resting state rather than
+            // from wherever the last room left the camera — which is also the
+            // only way a second room can be reached at all, since there is no
+            // door from one room to another.
+            const door = doorInto(roomNamed(place.roomId));
+            await tab.goto(url);
+            const back = await tab.evaluate<string | null>(`return (async () => { ${MOUNTED} })();`);
+            if (!back) continue;
             await tab.evaluate(
               `document.querySelector('[data-backlot-hotspot="${door.id}"]').focus(); return null;`,
             );
@@ -758,7 +779,13 @@ describe.each(PLACES)("$name", ({ name: place, required }) => {
           // be one, which is the only shape of change to a failing check worth
           // making.
           if (reading.label === null) {
-            const interactive = room.interactives.find((entry) => entry.id === id);
+            // Across every room, not the machine room's list: a corridor's
+            // controls are named by their own manifest exactly the same way,
+            // and looking only in one room turned every corridor control into
+            // "a door with no label" and skipped the name assertion for it.
+            const interactive = roomsWithDoors
+              .flatMap(({ room: entry }) => entry.interactives)
+              .find((entry) => entry.id === id);
             const door = doors.find((entry) => entry.id === id);
             const expected = interactive?.label ?? `Open the ${door?.label} door`;
 
@@ -864,10 +891,13 @@ describe("the island booted before any of this was measured", () => {
 // label, after which all the desktop cases take the phone branch and the suite
 // stays green about a HUD nobody can read.
 describe("the sweep measured something", () => {
-  it("measured every control in both places, at both viewports, in both themes", () => {
-    expect(readings.length).toBe(
-      (doors.length + room.interactives.length) * VIEWPORTS.length * THEMES.length,
-    );
+  it("measured every control in every place, at both viewports, in both themes", () => {
+    const controls = PLACES.reduce((sum, place) => sum + place.required().length, 0);
+    expect(
+      readings.length,
+      `${readings.length} readings came back and there are ${controls} controls across ${PLACES.length} ` +
+        `place(s), at ${VIEWPORTS.length} viewports in ${THEMES.length} themes`,
+    ).toBe(controls * VIEWPORTS.length * THEMES.length);
   });
 
   it("found painted labels at the desktop viewport, and measured their ink", () => {

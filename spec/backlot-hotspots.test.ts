@@ -22,20 +22,29 @@ import { contrastRatio } from "astro-theme-university/contrast";
 
 import { backlotManifest } from "../src/backlot/rooms/manifest";
 import { gitOrigin, resolveDeployment } from "../scripts/pages-base.ts";
-import { formatHex, opaque, RESOLVE_COLOUR, serveBuild, Tab, type Resolved, type Rgb } from "./lib/chrome.ts";
-import { doorInto, roomNamed } from "./lib/backlot.ts";
+import {
+  formatHex,
+  opaque,
+  RESOLVE_COLOUR,
+  serveBuild,
+  Tab,
+  type Key,
+  type Resolved,
+  type Rgb,
+} from "./lib/chrome.ts";
+import { roomsWithDoors } from "./lib/backlot.ts";
 
 const { base } = resolveDeployment(process.env, gitOrigin);
 const prefix = base.endsWith("/") ? base : `${base}/`;
 
 const doors = backlotManifest.doors;
-// Named, not positional. `rooms[0]` was the machine room by the manifest's own
-// array order and nothing else, and the door was found with
-// `kind === "room"`, which returned the Lectures door the moment a corridor
-// existed — so this file drove a room with no builder while every message in it
-// said "the machine room" (spec/lib/backlot.ts).
-const room = roomNamed("machine-room");
-const roomDoor = doorInto(room);
+// Every room, each paired with the door that opens it, in the manifest's order.
+// This file used to take `rooms[0]` and `doors.find(kind === "room")` — the
+// machine room by the manifest's own array order, and the Lectures door the
+// moment a corridor existed, so it drove a room with no builder while every
+// message in it said "the machine room" (spec/lib/backlot.ts). It is now every
+// room the manifest builds, which is what the file was always claiming to be
+// about: a button per interactive, reachable by Tab, with a ring you can see.
 
 /** WCAG 2.2 SC 1.4.11: a focus indicator is a non-text contrast requirement,
  *  3:1 against the colours next to it. The theme's contrast module has no
@@ -180,14 +189,26 @@ interface Sweep {
   hub: Button[];
   hubTabOrder: string[];
   hubRings: Measured[];
-  roomButtons: Button[];
-  roomTabOrder: string[];
-  roomRings: Measured[];
+  /** One entry per room in the manifest, in the manifest's order, each entered
+   *  through its own door. Keyed rather than flat: the machine room and the
+   *  corridor are two rooms and every assertion below is about one of them. */
+  rooms: RoomSweep[];
+  doorNavigation: { from: string; landedOn: string };
+}
+
+/** Everything read inside one room, from the door that opens it. */
+interface RoomSweep {
+  id: string;
+  buttons: Button[];
+  tabOrder: string[];
+  rings: Measured[];
   enteredBy: string;
   focusAfterEnter: string | null;
   afterEscape: { buttons: Button[]; focus: string | null; announced: string };
   escapes: { press: number; inRoom: boolean; announced: string }[];
-  doorNavigation: { from: string; landedOn: string };
+  /** Every sentence the live region said while the figure was walked through
+   *  the room, in the order it said them. Empty for a room with no stages. */
+  announcements: string[];
 }
 
 /** What comes back when there is no 3D to drive. Every field is present and
@@ -198,17 +219,37 @@ const EMPTY: Sweep = {
   hub: [],
   hubTabOrder: [],
   hubRings: [],
-  roomButtons: [],
-  roomTabOrder: [],
-  roomRings: [],
-  enteredBy: "",
-  focusAfterEnter: null,
-  afterEscape: { buttons: [], focus: null, announced: "" },
-  escapes: [],
+  rooms: [],
   doorNavigation: { from: "", landedOn: "" },
 };
 
 const pause = (milliseconds: number) => new Promise<void>((done) => setTimeout(done, milliseconds));
+
+/**
+ * A walk down a corridor, as held keys.
+ *
+ * Forward, then across and back, repeatedly. The strafes are the point: the
+ * doors are in the walls and the middle of a corridor is out of reach of all of
+ * them, so a figure walked straight up it arrives at the end wall and nowhere
+ * else — one arrival, which cannot show that two doors say different things.
+ * Driven, and what it reaches is in the receipt: weeks 3, 5, 8, 10 and 12, five
+ * different sentences, the same five under reduced motion.
+ *
+ * Camera-relative, so "up" is up the corridor whichever way the camera has been
+ * turned, which is what makes a fixed sequence a sensible thing to write down.
+ */
+const CORRIDOR_WALK: [Key, number][] = [
+  ["ArrowUp", 700],
+  ["ArrowLeft", 700],
+  ["ArrowRight", 700],
+  ["ArrowUp", 700],
+  ["ArrowRight", 700],
+  ["ArrowLeft", 700],
+  ["ArrowUp", 700],
+  ["ArrowLeft", 700],
+  ["ArrowRight", 700],
+  ["ArrowUp", 700],
+];
 
 /** Tab from wherever focus is until it reaches `id`, or give up. Returns how
  *  many presses it took and every hotspot it passed on the way, so the caller
@@ -377,59 +418,141 @@ async function sweep(): Promise<Sweep> {
       if (measured) hubRings.push(measured);
     }
 
-    // Into the room with the keyboard: Tab to the Studio door and press Enter.
+    // Into each room with the keyboard: Tab to its own door and press Enter.
     // A synthetic click would skip the browser's own activation behaviour and
     // would leave focus on the body, which is the state the engine's focus
     // hand-over refuses to act on.
-    const studioDoor = roomDoor;
-    await tab.goto(url);
-    await tab.evaluate<string | null>(`return (async () => { ${MOUNTED} })();`);
-    await tabTo(tab, studioDoor.id);
-    await tab.press("Enter");
-    await tab.evaluate(`return new Promise((done) => setTimeout(done, 2500));`);
-
-    const roomButtons = await tab.evaluate<Button[]>(`return (${BUTTONS});`);
-    const focusAfterEnter = await tab.evaluate<string | null>(
-      `return document.activeElement?.dataset?.backlotHotspot ?? null;`,
-    );
-
-    const roomWalk = await tabTo(tab, room.interactives[room.interactives.length - 1]!.id);
-    const roomRings: Measured[] = [];
-    for (const interactive of room.interactives) {
-      const measured = await measureRing(tab, interactive.id);
-      if (measured) roomRings.push(measured);
-    }
-
-    // Escape is staged, and the engine is explicit about why: the framing
-    // first, the room second, because a reader who has come in close on a piece
-    // expects Esc to pull back rather than throw them out. So it is driven until
-    // it has done both, and how many presses that took is asserted below rather
-    // than assumed — one press from a room where nothing is framed, two where
-    // something is.
-    const escapes: { press: number; inRoom: boolean; announced: string }[] = [];
-    for (let press = 1; press <= 3; press++) {
-      await tab.press("Escape");
+    //
+    // Every room the manifest builds, through the door that opens it, and the
+    // page reloaded in between so each room is entered from a hub in its
+    // resting state rather than from wherever the last room's Escape left it.
+    const rooms: RoomSweep[] = [];
+    for (const { room: entry, door } of roomsWithDoors) {
+      await tab.goto(url);
+      await tab.evaluate<string | null>(`return (async () => { ${MOUNTED} })();`);
+      await tabTo(tab, door.id);
+      await tab.press("Enter");
       await tab.evaluate(`return new Promise((done) => setTimeout(done, 2500));`);
-      const state = await tab.evaluate<{ inRoom: boolean; announced: string }>(
+
+      const buttons = await tab.evaluate<Button[]>(`return (${BUTTONS});`);
+      const focusAfterEnter = await tab.evaluate<string | null>(
+        `return document.activeElement?.dataset?.backlotHotspot ?? null;`,
+      );
+
+      const walk = await tabTo(tab, entry.interactives[entry.interactives.length - 1]!.id);
+      const rings: Measured[] = [];
+      for (const interactive of entry.interactives) {
+        const measured = await measureRing(tab, interactive.id);
+        if (measured) rings.push(measured);
+      }
+
+      // Then the figure is walked, and every sentence the live region says on
+      // the way is collected.
+      //
+      // **Walked, not focused, and the difference is the whole check.** The
+      // first version of this read the live region after focusing each control
+      // in turn and found one sentence across all thirteen — which looks like a
+      // corridor that never says where you are and is not. Focus moves the
+      // *camera* (`hotspots.ts`'s `focusin` calls `hooks.frame`); arrival is
+      // fired from `track(player.position)`, which is the **figure**. Tabbing
+      // to a door announces nothing through this region because the browser has
+      // already read the button's own name out — and the region would be
+      // saying it twice. It is the reader walking with the arrow keys who has
+      // no other channel, and that is the reader this is about. A check on the
+      // wrong event answers the question next to the one being asked
+      // (CLAUDE.md §7), and this one did until it was driven.
+      //
+      // `hold`, not `press`: press sends down and up in the same millisecond,
+      // so the figure does not travel and nothing is ever arrived at. The
+      // strafes are what reach the side doors — straight up the middle arrives
+      // only at the end wall, which is one arrival and cannot show that two
+      // doors say different things.
+      const announcements: string[] = [];
+      if ((entry.stages?.length ?? 0) > 0) {
+        await tab.evaluate(`
+          window.__backlotSaid = [];
+          const live = document.querySelector("[data-backlot-hud] [aria-live]");
+          if (live) {
+            const take = () => {
+              const now = (live.textContent ?? "").trim();
+              const said = window.__backlotSaid;
+              if (now && said[said.length - 1] !== now) said.push(now);
+            };
+            take();
+            new MutationObserver(take).observe(live, { childList: true, subtree: true, characterData: true });
+            setInterval(take, 50);
+          }
+          return null;
+        `);
+        // Nothing focused, so the only thing moving is the figure.
+        await tab.evaluate(`document.activeElement?.blur(); return null;`);
+        for (const [key, milliseconds] of CORRIDOR_WALK) {
+          await tab.hold(key, milliseconds);
+          await pause(500);
+        }
+        announcements.push(...(await tab.evaluate<string[]>(`return window.__backlotSaid ?? [];`)));
+        // And the reader is put back on a control before Escape is driven.
+        //
+        // Not tidying: the walk above blurs, and with nothing focused Escape
+        // left `document.activeElement` on <body> and "Escape puts focus back
+        // on the door the reader came through" read null. That is this harness
+        // changing the state the next assertion is about, which is its own
+        // failure mode (CLAUDE.md §7) — the assertion is about a reader who was
+        // using the controls, so the harness hands the controls back. What the
+        // engine should do for a reader who walked in and never focused
+        // anything is a real question and it is not this check's to answer
+        // quietly.
+        await tab.evaluate(
+          `document.querySelector('[data-backlot-hotspot="${
+            entry.interactives[entry.interactives.length - 1]!.id
+          }"]')?.focus(); return null;`,
+        );
+        await pause(1200);
+      }
+
+      // Escape is staged, and the engine is explicit about why: the framing
+      // first, the room second, because a reader who has come in close on a
+      // piece expects Esc to pull back rather than throw them out. So it is
+      // driven until it has done both, and how many presses that took is
+      // asserted below rather than assumed — one press from a room where
+      // nothing is framed, two where something is.
+      const escapes: { press: number; inRoom: boolean; announced: string }[] = [];
+      for (let press = 1; press <= 3; press++) {
+        await tab.press("Escape");
+        await tab.evaluate(`return new Promise((done) => setTimeout(done, 2500));`);
+        const state = await tab.evaluate<{ inRoom: boolean; announced: string }>(
+          `return {
+            inRoom: [...document.querySelectorAll("[data-backlot-hud] button")]
+              .some((button) => !button.hidden && button.dataset.backlotHotspot === ${JSON.stringify(
+                entry.interactives[0]!.id,
+              )}),
+            announced: (document.querySelector("[data-backlot-hud] [aria-live]")?.textContent ?? "").trim(),
+          };`,
+        );
+        escapes.push({ press, ...state });
+        if (!state.inRoom) break;
+      }
+
+      const afterEscape = await tab.evaluate<{ buttons: Button[]; focus: string | null; announced: string }>(
         `return {
-          inRoom: [...document.querySelectorAll("[data-backlot-hud] button")]
-            .some((button) => !button.hidden && button.dataset.backlotHotspot === ${JSON.stringify(
-              room.interactives[0]!.id,
-            )}),
+          buttons: ${BUTTONS},
+          focus: document.activeElement?.dataset?.backlotHotspot ?? null,
           announced: (document.querySelector("[data-backlot-hud] [aria-live]")?.textContent ?? "").trim(),
         };`,
       );
-      escapes.push({ press, ...state });
-      if (!state.inRoom) break;
-    }
 
-    const afterEscape = await tab.evaluate<{ buttons: Button[]; focus: string | null; announced: string }>(
-      `return {
-        buttons: ${BUTTONS},
-        focus: document.activeElement?.dataset?.backlotHotspot ?? null,
-        announced: (document.querySelector("[data-backlot-hud] [aria-live]")?.textContent ?? "").trim(),
-      };`,
-    );
+      rooms.push({
+        id: entry.id,
+        buttons,
+        tabOrder: walk.seen,
+        rings,
+        enteredBy: door.id,
+        focusAfterEnter,
+        afterEscape,
+        escapes,
+        announcements,
+      });
+    }
 
     // And a door that is a door: Enter on one of the five leaves the backlot
     // for the page it is named after.
@@ -449,13 +572,7 @@ async function sweep(): Promise<Sweep> {
       hub,
       hubTabOrder: hubWalk.seen,
       hubRings,
-      roomButtons,
-      roomTabOrder: roomWalk.seen,
-      roomRings,
-      enteredBy: studioDoor.id,
-      focusAfterEnter,
-      afterEscape,
-      escapes,
+      rooms,
       doorNavigation: { from: pageDoor.id, landedOn },
     };
   } finally {
@@ -534,40 +651,138 @@ describe("the hub is the doors", () => {
  *  and a rule written for a case that cannot occur would read as coverage. */
 const named = (ids: (string | null)[]): string[] => ids.filter((id): id is string => typeof id === "string");
 
-describe("the machine room is its interactives", () => {
+/** One reading per room, found by id. Named rather than indexed, so a room the
+ *  sweep never reached fails by name in the `it` that is about it. */
+const inRoom = (id: string): RoomSweep =>
+  driven.rooms.find((entry) => entry.id === id) ?? {
+    id,
+    buttons: [],
+    tabOrder: [],
+    rings: [],
+    enteredBy: "",
+    focusAfterEnter: null,
+    afterEscape: { buttons: [], focus: null, announced: "" },
+    escapes: [],
+    announcements: [],
+  };
+
+describe.each(roomsWithDoors)("$room.title is its interactives", ({ room: entry, door }) => {
+  const controls = entry.interactives.map((interactive) => interactive.id);
+
   it("has one button per interactive in the manifest, and no others in play", () => {
-    const live = named(driven.roomButtons.filter((button) => !button.hidden).map((button) => button.id));
+    const live = named(inRoom(entry.id).buttons.filter((button) => !button.hidden).map((button) => button.id));
     expect(
       live,
-      `the machine room's visible buttons are not its manifest's interactives. It was showing ` +
-        `${live.join(", ")}; the manifest has ` +
-        `${room.interactives.map((interactive) => interactive.id).join(", ")}. An id here that the manifest ` +
+      `${entry.title}'s visible buttons are not its manifest's interactives. It was showing ` +
+        `${live.join(", ")}; the manifest has ${controls.join(", ")}. An id here that the manifest ` +
         `does not have is either a piece that has fallen out of it or a control the engine registered for a ` +
         `room with no exit of its own — see the note above.`,
-    ).toEqual(room.interactives.map((interactive) => interactive.id));
+    ).toEqual(controls);
+  });
+
+  // The corridor's count, stated as the thing it is rather than as a number.
+  // "Twelve stages plus the way out" is a fact about the manifest, and the
+  // equality above is what holds the HUD to it; this is what holds the manifest
+  // to itself, so a stage that loses its button fails here with the stage named
+  // rather than as an off-by-one in a list of ids.
+  it("gives every stage a button of its own, and keeps exactly one way out", () => {
+    const stages = entry.stages ?? [];
+    expect(
+      entry.interactives.filter((one) => one.kind === "open-page" && one.stageId).map((one) => one.stageId),
+      `${entry.title} has ${stages.length} stages and they do not line up with its open-page interactives`,
+    ).toEqual(stages.map((stage) => stage.id));
+    expect(
+      entry.interactives.filter((one) => one.kind === "leave-room").map((one) => one.id),
+      `${entry.title} has no single way out, so a reader who walked in cannot be sure of walking out`,
+    ).toHaveLength(1);
+    // And the two together are the whole of the room's controls where the room
+    // is a corridor: the count nobody writes down.
+    if (stages.length > 0) {
+      expect(
+        entry.interactives.length,
+        `${entry.title} is ${stages.length} stages plus a way out, which is ${stages.length + 1} controls, ` +
+          `and its manifest has ${entry.interactives.length}`,
+      ).toBe(stages.length + 1);
+    }
   });
 
   it("takes the hub's doors out of the tab order while the reader is inside", () => {
     // `hidden` on its own is not enough: `.backlot-hotspot` declares a display
     // and an author display beats the UA stylesheet's `[hidden]`, which would
     // leave six buttons opening doors the reader cannot see, still tabbable.
-    const parked = driven.roomButtons.filter((button) => doors.some((door) => door.id === button.id));
+    const parked = inRoom(entry.id).buttons.filter((button) => doors.some((one) => one.id === button.id));
     expect(parked.length).toBe(doors.length);
     for (const button of parked) {
-      expect(button.hidden, `${button.id} is still in play inside the room`).toBe(true);
+      expect(button.hidden, `${button.id} is still in play inside ${entry.title}`).toBe(true);
       expect(button.display, `${button.id} is hidden and still painted`).toBe("none");
     }
   });
 
   it("labels each one with what it does", () => {
-    for (const interactive of room.interactives) {
-      const button = driven.roomButtons.find((candidate) => candidate.id === interactive.id)!;
-      expect(button.name).toBe(interactive.label);
+    for (const interactive of entry.interactives) {
+      const button = inRoom(entry.id).buttons.find((candidate) => candidate.id === interactive.id);
+      expect(button, `${interactive.id} has no button in ${entry.title}`).toBeDefined();
+      expect(button!.name).toBe(interactive.label);
     }
   });
 
   it("is reached by Tab in document order", () => {
-    expect(named(driven.roomTabOrder)).toEqual(room.interactives.map((interactive) => interactive.id));
+    expect(named(inRoom(entry.id).tabOrder)).toEqual(controls);
+  });
+
+  // The live region is the whole of what a reader walking with the arrow keys
+  // gets, and in a corridor the thing it has to carry is *where they are*. A
+  // reader on Tab is told by the browser, which reads the button's own name;
+  // a reader walking the figure has no such channel and the room's own
+  // `arrival` string is the only one there is.
+  //
+  // Scoped to rooms that have stages, derived rather than named: a room with
+  // doors down it is a room where "which door am I at" is a question. The
+  // machine room's controls are on its walls and the checks about its live
+  // region are the Escape ones below.
+  if ((entry.stages?.length ?? 0) > 0) {
+    it("says which door the figure has walked up to, and says a different one at each", () => {
+      const said = inRoom(entry.id).announcements;
+      // Everything after the sentence the room says on the way in.
+      const arrivals = said.slice(1);
+      expect(
+        arrivals.length,
+        `walking ${entry.title} produced ${said.length} live-region sentence(s): ` +
+          `${said.map((one) => JSON.stringify(one)).join(", ")}. A reader who cannot see the camera and is ` +
+          `walking with the arrow keys is told nothing about arriving anywhere.`,
+      ).toBeGreaterThan(1);
+
+      // No two doors saying the same thing. One sentence repeated at every door
+      // is a region that fires and says nothing, which passes a "did it say
+      // something" check and fails this.
+      expect(
+        new Set(arrivals).size,
+        `walking ${entry.title} produced ${arrivals.length} arrivals and only ` +
+          `${new Set(arrivals).size} distinct sentence(s): ` +
+          `${arrivals.map((one) => JSON.stringify(one)).join(", ")}`,
+      ).toBe(arrivals.length);
+
+      // And each one identifies a week the manifest actually has. Derived from
+      // `stage.week` rather than from a pattern typed here: a sentence that
+      // names no week, or names two, is not telling anybody which door they are
+      // standing at.
+      for (const arrival of arrivals) {
+        const named = entry.stages!.filter((stage) =>
+          new RegExp(`\\bweek ${stage.week}\\b`, "i").test(arrival),
+        );
+        expect(
+          named.map((stage) => stage.id),
+          `${JSON.stringify(arrival)} names ${named.length} of ${entry.title}'s weeks, and an arrival at a ` +
+            `door has to say which one`,
+        ).toHaveLength(1);
+      }
+    });
+  }
+
+  it(`is opened by the ${door.label} door`, () => {
+    // The binding this whole file was driven on, asserted rather than assumed:
+    // the room that came back is the one that door opens.
+    expect(inRoom(entry.id).enteredBy).toBe(door.id);
   });
 });
 
@@ -594,12 +809,14 @@ describe("the machine room is its interactives", () => {
 //   expected [ 'play-front-t1', …(6) ] to deeply equal
 //   [ 'play-front-t1', …(7) ]
 // then reverted.
-describe("Enter opens, Escape goes back", () => {
-  it("Enter on the Studio door opens the machine room", () => {
+describe.each(roomsWithDoors)("Enter opens $room.title, Escape goes back", ({ room: entry, door }) => {
+  const controls = entry.interactives.map((interactive) => interactive.id);
+
+  it(`Enter on the ${door.label} door opens it`, () => {
     expect(
-      named(driven.roomButtons.filter((button) => !button.hidden).map((button) => button.id)),
-      "Enter on the Studio door did not open the machine room",
-    ).toEqual(room.interactives.map((interactive) => interactive.id));
+      named(inRoom(entry.id).buttons.filter((button) => !button.hidden).map((button) => button.id)),
+      `Enter on the ${door.label} door did not open ${entry.title}`,
+    ).toEqual(controls);
   });
 
   it("hands focus to a control inside the room, rather than dropping it on the body", () => {
@@ -608,41 +825,48 @@ describe("Enter opens, Escape goes back", () => {
     // take it. Both failures land on <body>, where the ring vanishes and a
     // screen reader loses its place.
     expect(
-      driven.focusAfterEnter,
+      inRoom(entry.id).focusAfterEnter,
       "focus was dropped when the room opened, so the next Tab starts from the top of the page",
     ).not.toBeNull();
-    expect(room.interactives.map((interactive) => interactive.id)).toContain(driven.focusAfterEnter);
+    expect(controls).toContain(inRoom(entry.id).focusAfterEnter);
   });
 
   it("leaves the room in at most two presses of Escape, and says what each one did", () => {
     // The staging is the contract's, not an accident: at most two, and every
     // press has to have announced something, or a reader who cannot see the
     // camera has no idea the first press did anything at all.
+    const escapes = inRoom(entry.id).escapes;
+    expect(escapes.length, `Escape never ran in ${entry.title}`).toBeGreaterThan(0);
     expect(
-      driven.escapes.length,
-      `Escape took ${driven.escapes.length} presses to leave the room: ` +
-        driven.escapes.map((e) => `${e.press}. ${e.inRoom ? "still inside" : "out"} — "${e.announced}"`).join("; "),
+      escapes.length,
+      `Escape took ${escapes.length} presses to leave ${entry.title}: ` +
+        escapes.map((e) => `${e.press}. ${e.inRoom ? "still inside" : "out"} — "${e.announced}"`).join("; "),
     ).toBeLessThanOrEqual(2);
-    expect(driven.escapes[driven.escapes.length - 1]!.inRoom, "Escape never left the room").toBe(false);
-    for (const escape of driven.escapes) {
+    expect(escapes[escapes.length - 1]!.inRoom, `Escape never left ${entry.title}`).toBe(false);
+    for (const escape of escapes) {
       expect(escape.announced, `press ${escape.press} of Escape announced nothing`).not.toBe("");
     }
   });
 
   it("Escape brings the ring back, with the doors in play again", () => {
-    expect(driven.afterEscape.buttons.filter((button) => !button.hidden).map((button) => button.id)).toEqual(
-      doors.map((door) => door.id),
-    );
+    expect(
+      inRoom(entry.id).afterEscape.buttons.filter((button) => !button.hidden).map((button) => button.id),
+    ).toEqual(doors.map((one) => one.id));
   });
 
   it("Escape puts focus back on the door the reader came through", () => {
-    expect(driven.afterEscape.focus).toBe(driven.enteredBy);
+    expect(inRoom(entry.id).afterEscape.focus).toBe(door.id);
   });
 
   it("says where the figure ended up", () => {
-    expect(driven.afterEscape.announced, "the live region says nothing about arriving back").not.toBe("");
+    expect(
+      inRoom(entry.id).afterEscape.announced,
+      "the live region says nothing about arriving back",
+    ).not.toBe("");
   });
+});
 
+describe("a door that is a door", () => {
   it("Enter on a door that is a page leaves the backlot for that page", () => {
     const door = doors.find((candidate) => candidate.id === driven.doorNavigation.from)!;
     expect(
@@ -667,14 +891,19 @@ describe("Enter opens, Escape goes back", () => {
 describe("every hotspot shows a focus ring", () => {
   const all = () => [
     ...driven.hubRings.map((ring) => ({ where: "the hub", ring })),
-    ...driven.roomRings.map((ring) => ({ where: "the machine room", ring })),
+    ...driven.rooms.flatMap((entry) =>
+      entry.rings.map((ring) => ({ where: backlotManifest.rooms.find((one) => one.id === entry.id)!.title, ring })),
+    ),
   ];
 
   it("focused every button it was supposed to", () => {
     expect(driven.hubRings.map((ring) => ring.id)).toEqual(doors.map((door) => door.id));
-    expect(driven.roomRings.map((ring) => ring.id)).toEqual(
-      room.interactives.map((interactive) => interactive.id),
-    );
+    for (const { room: entry } of roomsWithDoors) {
+      expect(
+        inRoom(entry.id).rings.map((ring) => ring.id),
+        `${entry.title} did not give a ring reading for every control`,
+      ).toEqual(entry.interactives.map((interactive) => interactive.id));
+    }
   });
 
   for (const door of doors) {
@@ -684,11 +913,14 @@ describe("every hotspot shows a focus ring", () => {
     });
   }
 
-  for (const interactive of room.interactives) {
-    it(`the ${interactive.label} button`, () => {
-      const ring = driven.roomRings.find((candidate) => candidate.id === interactive.id)!;
-      assertRing(ring, "the machine room");
-    });
+  for (const { room: entry } of roomsWithDoors) {
+    for (const interactive of entry.interactives) {
+      it(`the ${interactive.label} button in ${entry.title}`, () => {
+        const ring = inRoom(entry.id).rings.find((candidate) => candidate.id === interactive.id);
+        expect(ring, `${interactive.id} was never focused in ${entry.title}`).toBeDefined();
+        assertRing(ring!, entry.title);
+      });
+    }
   }
 
   function assertRing(ring: Measured, where: string): void {
@@ -734,8 +966,14 @@ describe("every hotspot shows a focus ring", () => {
     ).toBeGreaterThanOrEqual(AA_NON_TEXT);
   }
 
-  it("measured a ring on every control in both places", () => {
-    expect(all().length).toBe(doors.length + room.interactives.length);
+  it("measured a ring on every control in every place", () => {
+    const wanted =
+      doors.length + roomsWithDoors.reduce((sum, { room: entry }) => sum + entry.interactives.length, 0);
+    expect(
+      all().length,
+      `${all().length} ring readings came back and there are ${wanted} controls across the hub and ` +
+        `${roomsWithDoors.length} room(s)`,
+    ).toBe(wanted);
   });
 });
 

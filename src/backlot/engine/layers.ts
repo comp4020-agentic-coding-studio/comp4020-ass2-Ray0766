@@ -13,9 +13,30 @@
 // a wall cannot quietly end up with six video elements decoding at once even if
 // a room forgets to call `release`.
 import { SRGBColorSpace, TextureLoader, VideoTexture, type Object3D, type Texture } from "three";
-import type { BacklotPiece, LayerApi, VideoHandle } from "./types";
+import type { LayerApi, VideoHandle } from "./types";
 
 export interface Layers extends LayerApi {
+  /**
+   * L2 for something that is not a piece: a door's window.
+   *
+   * `LayerApi.video` takes a `BacklotPiece` because a room's clips are pieces on
+   * a wall. A door's clip is named by its `DoorWindow` and there is no piece
+   * behind it, and synthesising a fake piece to get at the same three lines
+   * would be a shape invented to satisfy a signature. Same decoder, same
+   * one-at-a-time rule: this and `video` share `playing`, so a door's clip and a
+   * wall's clip can no more run at once than two of either can.
+   */
+  videoFile(file: string): VideoHandle;
+  /**
+   * How many decoders are alive right now.
+   *
+   * Alive, not started and not drawing: a paused `<video>` still holds one, and
+   * "stopped drawing" is not "let go". This counts handles that still have an
+   * element with a source on it, which is the thing `release` actually takes
+   * away — so a check can assert that walking away from a door left nothing
+   * behind rather than asserting that the picture stopped moving.
+   */
+  liveCount(): number;
   /** Free every decoder without throwing away the stills. Run when a room is
    *  unmounted, so a room that forgot its own `release` cannot leave one
    *  playing behind a hub nobody can see it from. */
@@ -26,8 +47,9 @@ export interface Layers extends LayerApi {
 export function createLayers(assetPrefix: string): Layers {
   const loader = new TextureLoader();
   const loaded = new Set<Texture>();
-  const handles = new Set<VideoHandle & { release(): void }>();
-  let playing: (VideoHandle & { release(): void }) | null = null;
+  type Handle = VideoHandle & { release(): void; held(): boolean };
+  const handles = new Set<Handle>();
+  let playing: Handle | null = null;
 
   function resolve(file: string): string {
     // Already base-resolved by the page; the island never calls withBase and
@@ -35,7 +57,7 @@ export function createLayers(assetPrefix: string): Layers {
     return `${assetPrefix}${file}`;
   }
 
-  function makeVideo(piece: BacklotPiece): VideoHandle & { release(): void } {
+  function makeVideo(file: string): VideoHandle & { release(): void; held(): boolean } {
     let element: HTMLVideoElement | null = null;
     let texture: VideoTexture | null = null;
     let live = false;
@@ -47,12 +69,17 @@ export function createLayers(assetPrefix: string): Layers {
       get playing() {
         return live;
       },
+      /** Whether this handle is holding a decoder, which is not the same
+       *  question as whether it is playing one. */
+      held() {
+        return element !== null;
+      },
       async play() {
         if (playing && playing !== handle) playing.release();
         playing = handle;
         if (!element) {
           element = document.createElement("video");
-          element.src = resolve(piece.file);
+          element.src = resolve(file);
           element.muted = true;
           element.loop = true;
           element.playsInline = true;
@@ -111,7 +138,17 @@ export function createLayers(assetPrefix: string): Layers {
     },
 
     video(piece) {
-      return makeVideo(piece);
+      return makeVideo(piece.file);
+    },
+
+    videoFile(file) {
+      return makeVideo(file);
+    },
+
+    liveCount() {
+      let alive = 0;
+      for (const handle of handles) if (handle.held()) alive += 1;
+      return alive;
     },
 
     async model(url): Promise<Object3D | null> {

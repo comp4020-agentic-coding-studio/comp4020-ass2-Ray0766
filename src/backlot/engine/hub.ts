@@ -56,12 +56,14 @@ import {
   RingGeometry,
   Vector3,
   type BufferGeometry,
+  type Camera,
   type Object3D,
   type Texture,
 } from "three";
-import type { BacklotManifest, ColourReader, LayerApi } from "./types";
+import type { BacklotManifest, ColourReader, VideoHandle } from "./types";
+import type { Layers } from "./layers";
 import type { Palette } from "./scene";
-import { createSignwriter, type Signwriter } from "./signage";
+import { createSignwriter, type Plate, type Signwriter } from "./signage";
 
 // types.ts re-exports BacklotManifest, BacklotRoom and BacklotPiece but not
 // BacklotDoor, so the door type is read off the manifest type rather than
@@ -159,6 +161,19 @@ export interface HubDoor {
   /** The name board over the lintel. Not the window, so it is not what the door
    *  publishes — but a control parked on it is a control over the door's name. */
   board: Object3D | null;
+  /**
+   * The opening's real size, in metres.
+   *
+   * Published because the push is specified in pixels and the camera works in
+   * metres: "the window is at least 120 x 200 px after the camera has come in"
+   * is a statement about this rectangle, and the radius that delivers it is
+   * arithmetic on these two numbers and the viewport (camera.ts).
+   */
+  windowMetres: { wide: number; tall: number };
+  /** The middle of the opening in world space, which is what the camera frames.
+   *  Not the anchor: the button is parked on the middle of the leaf, up at head
+   *  height, and framing that puts the window low in the shot. */
+  windowCentre: Vector3;
 }
 
 export interface Hub {
@@ -179,6 +194,32 @@ export interface Hub {
    * the receipt's numbers are taken from.
    */
   dress(): Promise<{ id: string; kind: string; filled: boolean; capPixels: number }[]>;
+  /**
+   * Start this door's clip, if it has one, and put it in the window.
+   *
+   * Called when a reader arrives — the camera has come in and the window is
+   * worth watching. Nothing decodes before that: at the resting view a door is
+   * 57 px across and a clip there is a decoder running for nobody, which is the
+   * same rule the machine room's front wall follows. Resolves once the clip is
+   * actually playing, or immediately when there is nothing to play.
+   */
+  watch(id: string): Promise<void>;
+  /** Let the decoder go and put the still back. Not a pause: a paused `<video>`
+   *  still holds a decoder, and leaving a door has to leave nothing behind. */
+  unwatch(id: string): void;
+  /**
+   * Measure what every nameplate's cap projects to, and paint or unpaint the
+   * word accordingly. Returns the numbers, which is what the receipt reports
+   * and what `data-backlot-cap` publishes.
+   *
+   * Measured rather than derived. The cap runs along the leaf's own tangent —
+   * the word is turned ninety degrees, so the letters stack down the opening and
+   * the cap is across it — and that vector is projected through the same camera
+   * that drew the frame. Working it out on paper means multiplying a resting
+   * scale by cos of the ring angle by cos of the tilt, and that chain was wrong
+   * by a factor of two once already (receipts/rig-3d/a2-hub.md, F2).
+   */
+  readPlates(camera: Camera, width: number, height: number): PlateReading[];
   /** What the camera has to keep in shot: a floor of `radius`, with things
    *  `height` tall standing no further out than `standRadius`. */
   readonly bounds: { centre: Vector3; radius: number; height: number; standRadius: number };
@@ -189,10 +230,40 @@ export interface Hub {
   dispose(): void;
 }
 
+/** One door's plate, and the number its word was decided on. */
+export interface PlateReading {
+  id: string;
+  /**
+   * Cap height of the word as it lands on screen, in CSS pixels.
+   *
+   * The number and not the decision. This is what goes up on the button as
+   * `data-backlot-cap`, and a check reading it can assert the rule — the word is
+   * there above eleven pixels and not below — rather than asserting that the
+   * engine agrees with itself. Nothing sampling the composite can recover the
+   * same thing: at a 37 x 113 window the plate reads the same either way,
+   * because what a sampler sees there is the door's own light and not the type.
+   */
+  capPixels: number;
+}
+
+/**
+ * Below this many pixels of projected cap, a plate is lit and says nothing.
+ *
+ * Eleven is where the word stops being a word. It is not a contrast number and
+ * it is not derived from the type size: the three plates measured 8.8, 10.8 and
+ * 12.3 px of honest cap last round and the two smaller ones could not be read at
+ * 1:1 or at 6x, which is what CLAUDE.md §7 means by a proxy passing while the
+ * thing it stands for fails. So the plate carries the word only where the word
+ * is legible, and the door's name is on the board over the lintel — a horizontal
+ * surface the god view never turns away — the whole time either way.
+ */
+export const PLATE_CAP_FLOOR = 11;
+
 export interface HubOptions {
   colours: ColourReader;
-  /** Layer 1, for the two doors whose window is a recorded file. */
-  layers: LayerApi;
+  /** Layer 1 for the stills in the windows, and layer 2 for the two doors that
+   *  have a clip behind the still. */
+  layers: Layers;
 }
 
 export function createHub(doors: BacklotDoor[], palette: Palette, options: HubOptions): Hub {
@@ -267,6 +338,14 @@ export function createHub(doors: BacklotDoor[], palette: Palette, options: HubOp
     /** Made when the picture lands, so nothing is allocated for a window that
      *  never gets one. */
     lit: MeshBasicMaterial | null;
+    /** The plate, when this door has one, so its word can be turned on and off
+     *  against a projected cap height. Null for the three with a picture. */
+    plate: Plate | null;
+    /** The still that is in the window, kept so the clip has something to go
+     *  back to in the same frame it is released in. */
+    still: Texture | null;
+    /** The decoder, once one has ever been asked for. */
+    clip: VideoHandle | null;
   }
 
   const built: Built[] = [];
@@ -430,9 +509,34 @@ export function createHub(doors: BacklotDoor[], palette: Palette, options: HubOp
       pane: panes[0]!,
       board,
       windowMetres: { wide, tall },
+      // The middle of the opening, in world space. Taken from the same numbers
+      // the panes are placed with rather than read back off a matrix, because
+      // the leaf swings and this has to be where the window is when it is shut,
+      // which is where the reader is standing to look at it.
+      windowCentre: new Vector3().copy(outward).multiplyScalar(RING_RADIUS).setY(middleY),
       lit: null,
+      plate: null,
+      still: null,
+      clip: null,
     });
   }
+
+  /**
+   * Which doors a reader is at right now.
+   *
+   * A set rather than a single id, and not because two can be true at once —
+   * one reader stands at one door. It is here so that a `play()` that resolves
+   * after the reader has already gone knows it has been countermanded: the
+   * await in `watch` is a network round trip on a file that can be 4.9 MB, and
+   * the frames in between are exactly when somebody walks off.
+   */
+  const watching = new Set<string>();
+
+  /** Scratch for `readPlates`, so a per-frame measurement allocates nothing. */
+  const capBase = new Vector3();
+  const capTip = new Vector3();
+  const runTip = new Vector3();
+  const axis = new Vector3();
 
   /** Put a texture in a door's window. The material is made here rather than up
    *  front so a window that never gets a picture never allocates one. */
@@ -465,6 +569,7 @@ export function createHub(doors: BacklotDoor[], palette: Palette, options: HubOp
           const texture = await layers.texture(spec.file);
           if (texture) {
             fill(entry, texture);
+            entry.still = texture;
             filled = true;
           }
         } else if (spec.kind === "graph") {
@@ -477,6 +582,7 @@ export function createHub(doors: BacklotDoor[], palette: Palette, options: HubOp
           const plate = signs.nameplate(entry.door.label, entry.windowMetres);
           if (plate) {
             fill(entry, plate.texture);
+            entry.plate = plate;
             filled = true;
             capPixels = plate.capPixels;
           }
@@ -484,6 +590,84 @@ export function createHub(doors: BacklotDoor[], palette: Palette, options: HubOp
         report.push({ id: entry.door.id, kind: spec.kind, filled, capPixels });
       }
       return report;
+    },
+
+    async watch(id) {
+      const entry = built.find((candidate) => candidate.door.id === id);
+      if (!entry) return;
+      const spec = entry.door.window;
+      // Only a still has a clip behind it, and only two of the three stills do.
+      // Nothing about this is a fallback: a window with no clip is a window
+      // showing the frame it always showed, which is the whole picture for four
+      // of the six doors.
+      if (spec.kind !== "still" || !spec.clip) return;
+      watching.add(id);
+      if (!entry.clip) entry.clip = layers.videoFile(spec.clip);
+      const handle = entry.clip;
+      await handle.play();
+      // The reader may have walked off while the file was opening. Releasing
+      // here rather than leaving it running is the difference between "stopped
+      // drawing" and "let go".
+      if (!watching.has(id)) {
+        handle.release();
+        return;
+      }
+      if (handle.texture) fill(entry, handle.texture);
+    },
+
+    unwatch(id) {
+      watching.delete(id);
+      const entry = built.find((candidate) => candidate.door.id === id);
+      if (!entry?.clip) return;
+      entry.clip.release();
+      // Back to the still in the same tick. Waiting on anything would leave the
+      // window showing a texture whose video element has just been emptied,
+      // which WebGL reports once a frame as "texImage2D: no video" until
+      // something replaces it — the machine room learned that one first.
+      if (entry.still) fill(entry, entry.still);
+    },
+
+    readPlates(camera, width, height) {
+      const readings: PlateReading[] = [];
+      if (width <= 0 || height <= 0) return readings;
+      for (const entry of built) {
+        const plate = entry.plate;
+        if (!plate) continue;
+        const pane = entry.panes[0]!;
+        pane.updateWorldMatrix(true, false);
+        // The word is turned a quarter turn: the letters stack **down** the
+        // opening, so the run is the pane's local +y and the cap is its local
+        // +x. Both are taken off the world matrix, so a leaf mid-swing is
+        // measured where it actually is.
+        capBase.setFromMatrixPosition(pane.matrixWorld);
+        axis.setFromMatrixColumn(pane.matrixWorld, 0).normalize();
+        capTip.copy(capBase).addScaledVector(axis, plate.capMetres);
+        axis.setFromMatrixColumn(pane.matrixWorld, 1).normalize();
+        runTip.copy(capBase).addScaledVector(axis, plate.capMetres);
+        capBase.project(camera);
+        capTip.project(camera);
+        runTip.project(camera);
+        const capX = ((capTip.x - capBase.x) * width) / 2;
+        const capY = ((capBase.y - capTip.y) * height) / 2;
+        const runX = ((runTip.x - capBase.x) * width) / 2;
+        const runY = ((capBase.y - runTip.y) * height) / 2;
+        // And the readable number is **not** the cap vector's length. The
+        // letters stack along the run, so what has to be big enough is the
+        // extent perpendicular to the run on screen; the cap's component along
+        // it only shears the glyph. Getting this wrong is worth a factor of two
+        // on the four doors the ring turns away from the camera, and it was got
+        // wrong once already in exactly that direction (a2-hub.md, F2) — the
+        // first version of this function repeated it, and the tell was the two
+        // angled plates measuring *larger* than the one square on.
+        const runLength = Math.hypot(runX, runY);
+        const capPixels =
+          runLength > 1e-6
+            ? Math.abs(capX * (runY / runLength) - capY * (runX / runLength))
+            : Math.hypot(capX, capY);
+        plate.setWord(capPixels >= PLATE_CAP_FLOOR);
+        readings.push({ id: entry.door.id, capPixels });
+      }
+      return readings;
     },
 
     setOpen(id, open, instant) {
@@ -521,6 +705,12 @@ export function createHub(doors: BacklotDoor[], palette: Palette, options: HubOp
     middle: new Vector3(0, 0, 0),
     dispose() {
       unwatchSpill();
+      watching.clear();
+      // The engine disposes `layers` too, and this is deliberately not relying
+      // on that: the hub owns the handles it asked for, and a teardown that
+      // leaves a decoder alive because some other teardown was going to get it
+      // is a teardown that stops working the day the order changes.
+      for (const entry of built) entry.clip?.release();
       for (const geometry of [
         leafGeometry,
         jambGeometry,

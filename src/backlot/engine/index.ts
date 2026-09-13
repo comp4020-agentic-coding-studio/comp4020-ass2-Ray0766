@@ -15,7 +15,7 @@
 //   L1+ whatever a room asks `layers` for, after it is already on screen.
 import { Box3, Group, Vector3 } from "three";
 import { createColourReader } from "./colours";
-import { createGodCamera } from "./camera";
+import { createGodCamera, focusRadiusFor } from "./camera";
 import { createFigure } from "./player";
 import { createHotspots } from "./hotspots";
 import { createHub, DOOR_REACH } from "./hub";
@@ -24,7 +24,7 @@ import { createLayers } from "./layers";
 import { createMotionPreference } from "./motion";
 import { createResizer } from "./resize";
 import { createStage, releaseSubtree } from "./scene";
-import type { BacklotEngine, BacklotOptions, BacklotRoom, Hotspot, RoomContext } from "./types";
+import type { BacklotEngine, BacklotOptions, BacklotRoom, Hotspot, HotspotSpec, RoomContext } from "./types";
 // The engine's own stylesheet, carried by the engine's own chunk. It is here
 // rather than on the page because the buttons, the ring and the live region are
 // the engine's DOM: a page that forgot the import would ship a HUD with no
@@ -39,6 +39,21 @@ const HUB_LABEL =
 
 /** How long a leaf is given to swing before the door does what it is for. */
 const OPEN_MILLISECONDS = 420;
+
+/**
+ * What a door's window has to measure once the camera has come in, in CSS
+ * pixels. The whole of the approach-zoom's specification.
+ *
+ * The ring does not move and the windows do not grow; the camera comes to them.
+ * At 1920x1080 the hub resolves about 41 px per metre and a 1.38 x 2.45 m
+ * opening lands at 57 x 62 px, which is a picture you can see is there and not
+ * one you can watch. Coming in until it clears this costs a little over 2x —
+ * which is the push as it was asked for — and the same floor at 390x844 costs
+ * about 5.5x, because the resting ring there is fitted to a 390 px width. The
+ * pixels are the requirement and the multiple is what they cost; camera.ts's
+ * `focusRadiusFor` turns one into the other and the receipt reports both.
+ */
+const WINDOW_FLOOR = { wide: 120, tall: 200 };
 
 /** Metres of floor kept in shot past the nearest thing a room registered. */
 const NEAR_MARGIN = 0.4;
@@ -104,20 +119,8 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
   // here rather than in hotspots.ts because the camera is the engine's, and a
   // button has no business knowing one exists.
   const hotspots = createHotspots(hud, camera.camera, {
-    async frame(spec) {
-      if (!spec.focus) return;
-      await camera.focusOn(spec.position, spec.focus.radius, spec.focus.normal, motion.reduced);
-      framingArmed = false;
-      framedLabel = spec.label;
-      describeCanvas();
-      // Deliberately not announced. A live region holds one message, and the
-      // room announces what is on the thing the moment `activate` runs — the
-      // caption off its own manifest, which is a better sentence than anything
-      // the engine could assemble from a button's label. An engine
-      // announcement here was measured being replaced within the same turn,
-      // which is a message nobody ever hears. The state and the way out go on
-      // the canvas's description instead, where they are not competing.
-    },
+    frame: (spec) => arriveAt(spec),
+    unframe: (spec) => leaveOf(spec),
   });
 
   stage.scene.add(camera.rig);
@@ -146,10 +149,32 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
    *  drift out of step with each other. */
   function describeCanvas(): void {
     const place = mounted ? mounted.room.intro : HUB_LABEL;
-    canvas.setAttribute(
-      "aria-label",
-      framedLabel ? `${place} The camera is close on: ${framedLabel}. Escape pulls back.` : place,
-    );
+    // Three states, and the third one was missing. A room moves the camera
+    // through `RoomContext.focus`, which hands over a point and a radius and no
+    // name — so there was nothing to put after "close on", and the canvas went
+    // on describing the wide shot while the camera was at the wall. A reader on
+    // a screen reader got no notice that anything had moved, and a check
+    // looking for the one published condition the row hangs off found the
+    // resting sentence.
+    //
+    // It says the state rather than inventing a name for it. The framing target
+    // is a point; the nearest control to it is not what is being framed — on
+    // the front wall that would name one rung of five — and the room has
+    // already announced what the figure is at through the live region, which is
+    // where a caption belongs.
+    //
+    // `closeUp` rather than `camera.framed`, and the difference is a lag that
+    // never resolves: `release` is a journey, so `framed` stays true for the
+    // 620 ms the camera spends coming back out — and nothing describes the
+    // canvas again when it arrives. Escape out of the monitor left the room
+    // saying "The camera has come in close" for the rest of the visit. This is
+    // the state the engine **intends**, which is what a description should be.
+    const close = framedLabel
+      ? ` The camera is close on: ${framedLabel}. Escape pulls back.`
+      : closeUp
+        ? " The camera has come in close. Escape pulls back."
+        : "";
+    canvas.setAttribute("aria-label", `${place}${close}`);
   }
 
   // ------------------------------------------------------------------ state
@@ -174,6 +199,10 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
   let aimPitch = 0;
   /** The label of whatever the camera is close on, or null for the wide view. */
   let framedLabel: string | null = null;
+  /** And whether the camera is meant to be close on anything at all, which is
+   *  the room's framings as well as the engine's. Not `camera.framed`: see
+   *  `describeCanvas`. */
+  let closeUp = false;
   /** Something the reader has just backed out of. A room frames from a
    *  hotspot's proximity, and a room also walks the figure to the thing it has
    *  just been asked about — so an Esc pressed while that walk is still running
@@ -181,8 +210,142 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
    *  Esc twice and still be nose-first against the monitor. A request to frame
    *  this again is ignored until the figure has actually been away from it. */
   let refused: { at: Vector3; clear: number } | null = null;
+  /** The hotspot the camera is currently on, by id, so a `focusout` that lands
+   *  after the next button's `focusin` can tell whether it is releasing the
+   *  framing it made or somebody else's. */
+  let framedId: string | null = null;
+  /** And the door whose clip is running, which is at most one. */
+  let watchedDoorId: string | null = null;
+  /** The door the figure is standing at, which is what a window-level Enter
+   *  goes through. Kept from the proximity crossings rather than searched for,
+   *  so it is the same answer the announcement was made from. */
+  let atDoorId: string | null = null;
+  /**
+   * True while the engine is moving the keyboard itself rather than the reader
+   * moving it.
+   *
+   * Leaving a room puts focus back on the door it came out of, because a
+   * control must not drop the reader on `<body>`. That is a hand-back, not an
+   * arrival: the reader pressed Escape to get out, and being pushed straight
+   * back in on the door they just left is the opposite of what they asked for.
+   * Watched happen — the canvas came back from the machine room saying "The
+   * camera is close on: Open the Studio door".
+   */
+  let handingFocus = false;
+
+  /** Move the keyboard somewhere without it counting as the reader arriving. */
+  function handFocusTo(element: HTMLElement): void {
+    handingFocus = true;
+    try {
+      element.focus();
+    } finally {
+      handingFocus = false;
+    }
+  }
 
   const announce = (message: string) => hotspots.announce(message);
+
+  // --------------------------------------------------------------- arriving
+
+  /**
+   * Where the camera goes when a reader arrives at this hotspot.
+   *
+   * A door's framing is not its button's point. The button is parked on the
+   * middle of the leaf at head height and the thing being read is the window,
+   * 0.26 m lower, and it is read square on — so the target is the opening's own
+   * centre and the direction is the door's outward normal. Everything else in
+   * the backlot marks the thing it is about, so everything else frames its own
+   * position, which is what the contract says `focus` means.
+   */
+  function framingFor(spec: HotspotSpec): { target: Vector3; radius: number; normal: Vector3 | undefined } {
+    const radius = spec.focus?.radius ?? 1;
+    const door = hub.find(spec.id);
+    // The direction comes off the spec either way. A door only overrides where
+    // the camera looks, not which way it faces — two sources for the normal is
+    // how the negate below ended up written on a field nothing read.
+    return { target: door ? door.windowCentre : spec.position, radius, normal: spec.focus?.normal };
+  }
+
+  /**
+   * A reader has come to this hotspot. The camera comes in; if there is
+   * something behind the window worth watching, it starts.
+   *
+   * The three ways of arriving — walking the figure up, the keyboard landing on
+   * the button, and pressing it — all end here, and that equivalence is the
+   * accessibility of the thing rather than a tidiness: a reader on a keyboard
+   * gets the door framed and the clip running, not a description of somebody
+   * else getting it. `HotspotSpec.focus` and `HotspotHooks.frame` both say so.
+   */
+  async function arriveAt(spec: HotspotSpec): Promise<void> {
+    if (!spec.focus || disposed || handingFocus) return;
+    const here = framingFor(spec);
+    framedId = spec.id;
+    framedLabel = spec.label;
+    closeUp = true;
+    describeCanvas();
+    await camera.focusOn(here.target, here.radius, here.normal, motion.reduced);
+    if (disposed || framedId !== spec.id) return;
+    framingArmed = false;
+    // Only now. The still is what hangs in the window, and the clip decodes once
+    // the window is worth watching — which is the state the line above has just
+    // arrived at, not the moment somebody set off for it. The heaviest of them
+    // is 4.9 MB, and starting it on approach rather than on arrival would spend
+    // that on every reader who walked past.
+    //
+    // And not at all for a reader who asked for less motion. The machine room's
+    // front wall already holds this line — squaring up to a screen there ends
+    // whatever was playing and starts nothing, because nothing plays itself
+    // under the preference — and a clip that begins on its own is the plainest
+    // case the preference covers. The window keeps its still, no decoder is
+    // allocated, and the reader has lost nothing that was ever a still's job.
+    if (motion.reduced) return;
+    void watch(spec.id);
+  }
+
+  /** Start the clip behind a door's window, if that is what this hotspot is. */
+  async function watch(id: string): Promise<void> {
+    if (!hub.find(id)) return;
+    if (watchedDoorId && watchedDoorId !== id) hub.unwatch(watchedDoorId);
+    watchedDoorId = id;
+    await hub.watch(id);
+  }
+
+  /** And let it go. Called from every way out there is, which is the only way to
+   *  be sure a decoder does not outlive the reason for it. */
+  function dropWatch(): void {
+    if (!watchedDoorId) return;
+    hub.unwatch(watchedDoorId);
+    watchedDoorId = null;
+  }
+
+  /** The reader has left this hotspot — Tabbed off it, or walked out of reach.
+   *  Ignored unless it is the one the camera is actually on. */
+  function leaveOf(spec: HotspotSpec): void {
+    if (framedId !== spec.id) return;
+    releaseFraming(false);
+  }
+
+  /**
+   * Drop the framing outright: no travel, no announcement, nothing left behind.
+   *
+   * What crossing between the hub and a room does, in both directions. Leaving a
+   * room already did it; **entering one did not**, and a door's push is a
+   * framing, so pressing a door while the camera was close on it carried that
+   * framing into the machine room — which arrived with its camera on a window
+   * eleven metres outside its own walls, its five screens already at the size
+   * the wall push gives them, and its labels laid out as if a reader had asked
+   * for them. Every number I took in that room was taken through it. Doors had
+   * no framing before this round, so there was nothing to carry.
+   */
+  function cutFraming(): void {
+    camera.release(true);
+    dropWatch();
+    framingArmed = false;
+    framedId = null;
+    framedLabel = null;
+    closeUp = false;
+    describeCanvas();
+  }
 
   /** Back to the fixed god view, if there is anything to come back from. */
   function releaseFraming(speak: boolean): boolean {
@@ -190,8 +353,14 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
     const was = camera.framedTarget;
     const reach = Math.max(camera.framedRadius * 6, 3);
     camera.release(motion.reduced);
+    // The clip goes with the framing, whichever end the release came from — a
+    // walk away, a Tab away, Esc, leaving for a room, or the engine being torn
+    // down. One place, so there is no way out that forgets.
+    dropWatch();
     framingArmed = false;
+    framedId = null;
     framedLabel = null;
+    closeUp = false;
     describeCanvas();
     // Only a release the reader asked for countermands a pending arrival. The
     // walk-away rule calls this too, and there the figure is already clear.
@@ -225,11 +394,10 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
     roomFrames.clear();
     // A room left while the camera was close on something does not get to keep
     // the framing either: the hub is only ever seen from the god view.
-    camera.release(true);
-    framingArmed = false;
-    framedLabel = null;
+    cutFraming();
     refused = null;
     // A room that forgot to release a clip does not get to keep the decoder.
+    // `cutFraming` above took the hub's; this takes the room's.
     layers.releaseVideos();
     hotspots.endScope();
     stage.scene.remove(leaving.group);
@@ -250,6 +418,8 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
       return;
     }
     if (mounted) returnToHub();
+    // The hub's camera does not cross the threshold. See `cutFraming`.
+    cutFraming();
 
     const pressed = keyboardInHud();
     const group = new Group();
@@ -287,6 +457,8 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
         if (refused && request.target.distanceTo(refused.at) < 0.5) return;
         await camera.focusOn(request.target, request.radius, request.normal, motion.reduced);
         framingArmed = false;
+        closeUp = true;
+        describeCanvas();
       },
       unfocus: () => void releaseFraming(false),
       // A getter rather than a snapshot: the contract types this as a boolean,
@@ -375,7 +547,7 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
     hotspots.setBaseHidden(true);
     // Hiding the hub's buttons blurs whichever one was pressed, so the keyboard
     // is handed to the way out rather than dropped on <body>.
-    if (pressed) (roomExit ?? leave.button).focus();
+    if (pressed) handFocusTo(roomExit ?? leave.button);
     describeCanvas();
     // Record every new hotspot's near/far state without firing anything. The
     // figure is put down where the engine chose, not where the reader walked,
@@ -404,14 +576,19 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
       hub.setOpen(door.door.id, false, motion.reduced);
       hub.setNear(door.door.id, false);
       doorsArmed = false;
+      // Put down at the door rather than having walked to it, so no proximity
+      // crossing fires and nothing else would set this. Enter still has to
+      // reach the door the reader is visibly standing at.
+      atDoorId = door.door.id;
     } else {
       player.placeAt(hub.middle, new Vector3(0, 0, -1));
+      atDoorId = null;
     }
 
     // The room's buttons have gone, so anything that was focused in there is no
     // longer in the document. Put the keyboard on the door it came out of.
     const target = door ? hotspots.buttonFor(door.door.id) : null;
-    if (pressed && !pressed.isConnected && target) target.focus();
+    if (pressed && !pressed.isConnected && target) handFocusTo(target);
 
     describeCanvas();
     announce(door ? `Back on the backlot, at the ${door.door.label} door.` : "Back on the backlot.");
@@ -456,27 +633,70 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
     }
   }
 
+  const doorSpecs = new Map<string, HotspotSpec>();
   for (const entry of hub.doors) {
-    doorHandles.set(
-      entry.door.id,
-      hotspots.api.register({
-        id: entry.door.id,
-        label:
-          entry.door.kind === "room"
-            ? `Open the ${entry.door.label} door into the machine room`
-            : `Open the ${entry.door.label} door`,
-        position: entry.anchor,
-        radius: DOOR_REACH,
-        arrival: `At the ${entry.door.label} door.`,
-        activate: () => void use(entry.door.id),
-        onProximity(near) {
-          hub.setNear(entry.door.id, near);
-          // Walking into a door is the third way of pressing it, and it goes
-          // through the same `use` a click and an Enter do.
-          if (near && doorsArmed && !busy && !mounted) void use(entry.door.id);
-        },
-      }),
-    );
+    const spec: HotspotSpec = {
+      id: entry.door.id,
+      label:
+        entry.door.kind === "room"
+          ? `Open the ${entry.door.label} door into the machine room`
+          : `Open the ${entry.door.label} door`,
+      position: entry.anchor,
+      radius: DOOR_REACH,
+      // Where you are, and how to go on.
+      //
+      // The second sentence is new and it is not decoration. Walking up used to
+      // *be* the navigation, so there was nothing to say; now walking up frames
+      // the window and starts the clip and going through is a separate act, and
+      // a reader who is not told that is worse off than before the push existed.
+      // A live region holds one message, so this is the whole of it: two short
+      // sentences, no punctuation games, and the second one is only true because
+      // `onActivate` above makes Enter reach the door from where a walking
+      // reader actually is.
+      arrival: `At the ${entry.door.label} door. Press Enter to open it.`,
+      // Seeded with the opening's own half-extent and replaced by
+      // `refreshDoorFocus` the moment the viewport has been measured — the
+      // radius that delivers the window's floor depends on the canvas, and the
+      // canvas is not known until the resizer below has run.
+      focus: {
+        radius: Math.max(entry.windowMetres.wide, entry.windowMetres.tall) / 2,
+        // **Inward**, not outward. `FocusRequest.normal` is the face's own
+        // outward normal, and a door's window faces the middle of the ring —
+        // which is where the reader is standing. Handing the camera
+        // `entry.outward` sends it over the top of the door to look back in from
+        // outside, and the window still reads (the back pane is turned rather
+        // than mirrored, on purpose) so the shot looks plausible until you read
+        // anything else in it: every name board on the ring comes out
+        // back-to-front, including the framed door's own. Seen, in
+        // a3-plate-policies-desktop-dark-push-full.png, before this line had the
+        // negate on it.
+        normal: entry.outward.clone().negate(),
+      },
+      activate: () => void use(entry.door.id),
+      onProximity(near) {
+        hub.setNear(entry.door.id, near);
+        atDoorId = near ? entry.door.id : atDoorId === entry.door.id ? null : atDoorId;
+        // Walking up to a door is arriving at it, and arriving is what frames
+        // it. It is **not** what opens it, and that changed this round.
+        //
+        // It used to go straight through `use`, so a walk to a door was a
+        // navigation: the camera had nowhere to push to and nothing to push
+        // for, because the page was leaving. Arriving and activating are two
+        // events now — you walk up and the window comes to you, and the button
+        // over the door is what takes you through it. Every way in still ends
+        // at the same `use`; a walk is no longer one of them.
+        if (near) {
+          if (!doorsArmed || busy || mounted) return;
+          void arriveAt(spec);
+          return;
+        }
+        // And walking away puts it back, which is the half of this a keyboard
+        // reader gets by Tabbing off the button.
+        leaveOf(spec);
+      },
+    };
+    doorSpecs.set(entry.door.id, spec);
+    doorHandles.set(entry.door.id, hotspots.api.register(spec));
     // What the door's button marks the surface of. A door hotspot is parked on
     // the leaf's middle, which is not the window, and the window is the only
     // part of a door that carries a colour worth measuring — a still, a
@@ -511,6 +731,13 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
       void player.walkTo(point);
     },
     onEscape: escape,
+    // Enter with nothing in the HUD focused. It reaches the same `use` a click
+    // and an Enter on the button reach, and it does nothing at all unless the
+    // figure is standing at a door — which is the state the live region has just
+    // said "press Enter to open it" about.
+    onActivate: () => {
+      if (atDoorId) void use(atDoorId);
+    },
     aim: (yaw, pitch) => {
       aimYaw = yaw;
       aimPitch = pitch;
@@ -520,6 +747,27 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
 
   // ------------------------------------------------------------------ sizes
 
+  /**
+   * Re-derive every door's framing radius against the canvas as it is now.
+   *
+   * The push is specified in pixels — the window has to clear `WINDOW_FLOOR`
+   * once the camera is there — and a radius in metres only delivers that for one
+   * viewport. So the number on the spec is the one that is true for the canvas
+   * the reader has, and a phone that becomes a tablet gets it again. Written
+   * onto `spec.focus.radius` rather than kept beside it, because that is the
+   * field the deck and any check actually read.
+   */
+  function refreshDoorFocus(): void {
+    for (const entry of hub.doors) {
+      const focus = doorSpecs.get(entry.door.id)?.focus;
+      if (!focus) continue;
+      focus.radius = focusRadiusFor(entry.windowMetres, WINDOW_FLOOR, {
+        width: sizer.width,
+        height: sizer.height,
+      });
+    }
+  }
+
   const sizer = createResizer(canvas, (box) => {
     stage.renderer.setPixelRatio(box.pixelRatio);
     // `false`: never write an inline size back onto the canvas. The page owns
@@ -527,6 +775,7 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
     // feedback loop waiting for a phone's URL bar to slide away.
     stage.renderer.setSize(box.width, box.height, false);
     camera.resize(box.width, box.height);
+    refreshDoorFocus();
     // A viewport crossing the phone breakpoint restyles the labels, so the
     // cached button boxes the parking uses are no longer the right size.
     hotspots.remeasure();
@@ -534,6 +783,7 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
   stage.renderer.setPixelRatio(sizer.pixelRatio);
   stage.renderer.setSize(sizer.width, sizer.height, false);
   camera.resize(sizer.width, sizer.height);
+  refreshDoorFocus();
 
   // ------------------------------------------------------------- the themes
 
@@ -557,6 +807,11 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
   let frame = 0;
   let previous = performance.now();
   let presented = 0;
+  /** Last cap published per door, in tenths of a pixel, so the attribute is
+   *  written when the number changes and not sixty times a second. */
+  const publishedCap = new Map<string, number>();
+  let publishedClips = -1;
+  let publishedFramed: boolean | null = null;
   let settleReady: () => void = () => {};
   const ready = new Promise<void>((settle) => {
     settleReady = settle;
@@ -626,6 +881,54 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
     // leave every button one frame behind the picture it sits on.
     hotspots.park(sizer.width, sizer.height, camera.framedRect(sizer.width, sizer.height));
 
+    // And the plates, for the same reason and under the same rule `setRect` is
+    // under (engine/types.ts): a reading published on a button is taken from the
+    // same projection the renderer used and in the same pass that parks the
+    // button, or it does not go up. Both halves matter here — the camera that
+    // measured this cap is the one that has just drawn the frame the word will
+    // appear on, and the attribute lands beside the rect rather than a frame
+    // behind it.
+    //
+    // It is the number rather than the decision, which is why there is no
+    // `showingWord` anywhere: a cap height lets a check assert that the word is
+    // there above eleven pixels and not below, and nothing sampling the
+    // composite can tell those two apart — a 37 x 113 plate reads as the door's
+    // own light with the word on it or off it.
+    //
+    // Only while the hub is what is on screen. Inside a room the doors are
+    // hidden, and measuring what a hidden plate would project to is a number
+    // about nothing.
+    if (!mounted) {
+      for (const reading of hub.readPlates(camera.camera, sizer.width, sizer.height)) {
+        const shown = Math.round(reading.capPixels * 10);
+        if (publishedCap.get(reading.id) === shown) continue;
+        publishedCap.set(reading.id, shown);
+        hotspots.setCap(reading.id, reading.capPixels);
+      }
+    }
+
+    // What is alive, not what happened. A decoder that stopped drawing is still
+    // a decoder; this counts the ones that still hold an element with a source
+    // on it, and it is on the HUD rather than in a console so a check can read
+    // it at the moment it cares about.
+    const alive = layers.liveCount();
+    if (alive !== publishedClips) {
+      publishedClips = alive;
+      hud.dataset.backlotClips = String(alive);
+    }
+
+    // Whether the camera is off its resting view at all, published as the state
+    // and not as a consequence. "The row is owed once the camera is at the wall"
+    // needs something to hang off, and the two things a check could otherwise
+    // read are both wrong: the canvas's own sentence is prose, and a rect is a
+    // size somebody has to know the resting value of to interpret.
+    const close = camera.framed;
+    if (close !== publishedFramed) {
+      publishedFramed = close;
+      if (close) hud.dataset.backlotFramed = "true";
+      else delete hud.dataset.backlotFramed;
+    }
+
     if (sizer.width > 0 && sizer.height > 0) {
       presented += 1;
       // The frame drawn last turn has been committed by the time this one runs,
@@ -641,6 +944,7 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
     dispose() {
       disposed = true;
       window.cancelAnimationFrame(frame);
+      dropWatch();
       unmount();
       input.dispose();
       sizer.dispose();
@@ -655,6 +959,8 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
       colours.dispose();
       canvas.removeAttribute("role");
       canvas.removeAttribute("aria-label");
+      delete hud.dataset.backlotClips;
+      delete hud.dataset.backlotFramed;
     },
   };
 }

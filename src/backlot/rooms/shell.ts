@@ -309,11 +309,41 @@ export interface ShellOptions {
    * What the camera has to come in to for this piece to be readable, if
    * anything. Returning a request puts it on the hotspot — so Enter frames it —
    * and wires the figure's own proximity to the same call, so walking up to the
-   * thing and pressing its button are the same act. `target` is the frame's
-   * centre and is filled in here.
+   * thing and pressing its button are the same act. `target` defaults to the
+   * frame's own centre and is filled in here.
    */
-  focusFor?(interactive: BacklotInteractive, frame: PieceFrame | null): Omit<FocusRequest, "target"> | undefined;
+  focusFor?(interactive: BacklotInteractive, frame: PieceFrame | null): RoomFocus | undefined;
 }
+
+/**
+ * What a piece asks the camera for.
+ *
+ * `target` is the one addition to `FocusRequest`'s shape, and it is for a piece
+ * that is read as part of something bigger than itself. The monitor is a thing
+ * on a desk and frames its own centre; one screen on the front wall is a rung of
+ * a ladder, and coming in on the rung puts the four either side of it off the
+ * edge of the frame — where their controls clamp to the edge and stack, which is
+ * the two staggered rows this exists to avoid. So the five screens name the same
+ * target, the push holds the whole wall, and all five names read at once.
+ *
+ * A focus that carries one is framed by this file rather than by the engine,
+ * because `HotspotSpec.focus` deliberately has no target: the engine frames a
+ * hotspot's own position, which is right for everything that marks the thing it
+ * is about. Both branches run — the monitor takes the first, the front wall the
+ * second.
+ */
+export type RoomFocus = Omit<FocusRequest, "target"> & {
+  target?: Vector3;
+  /**
+   * Asked every time the camera is about to be sent here, and true means don't.
+   *
+   * A predicate rather than a flag because the answer can change under a reader
+   * who rotates a phone, and asking at build time would settle it for the life
+   * of the room. The one caller is the front wall, which has nothing to come in
+   * for below the width where every control is a dot.
+   */
+  skip?(): boolean;
+};
 
 export interface RoomShell {
   readonly painter: Painter;
@@ -403,7 +433,59 @@ export function buildRoomShell(context: RoomContext, options: ShellOptions = {})
   let stillFor = 0;
   const wasAt = new Vector3();
   /** The focus each framed piece asked for, by piece id. */
-  const placeFocus = new Map<string, Omit<FocusRequest, "target">>();
+  const placeFocus = new Map<string, RoomFocus>();
+
+  /**
+   * Which pieces the figure is within reach of, and which piece's framing the
+   * camera is currently on.
+   *
+   * Both exist because of the same failure. A framing belongs to whatever asked
+   * for it, and a piece leaving reach used to release it whichever piece that
+   * was: on the front wall the five reaches are 1.1 m against a 1.02 m pitch, so
+   * walking up puts the figure inside **two** of them, and the moment the outer
+   * one dropped out it tore down the framing the inner one had just asked for.
+   * Measured: one sample in twenty-four with the camera 10% into the push, then
+   * nothing — `near=t4+t5` to `near=t4`, and the framing gone with t5.
+   *
+   * So a release has to clear two bars: it is the piece that asked, and nothing
+   * else sharing that framing is still within reach. The five screens share one
+   * `RoomFocus` object, which is what "sharing" means here.
+   */
+  const withinReach = new Set<string>();
+  let framedPiece: string | null = null;
+
+  /** One piece's framing as the engine wants it, or null if this piece has said
+   *  not to frame it under the conditions the reader is actually in. */
+  function requestFor(frame: PieceFrame): FocusRequest | null {
+    const asked = placeFocus.get(frame.piece.id);
+    if (asked?.skip?.()) return null;
+    return {
+      target: (asked?.target ?? frame.centre).clone(),
+      radius: asked?.radius ?? 0.5,
+      ...(asked?.normal ? { normal: asked.normal.clone() } : {}),
+    };
+  }
+
+  /** Send the camera to what this piece is read as part of, and remember that
+   *  this piece is what sent it. */
+  function frameFor(frame: PieceFrame): void {
+    const request = requestFor(frame);
+    if (!request) return;
+    framedPiece = frame.piece.id;
+    void context.focus(request);
+  }
+
+  /** And take it back, but only if this piece is the one that sent it and
+   *  nothing else sharing the same framing is still in reach. */
+  function unframeFor(frame: PieceFrame): void {
+    if (framedPiece !== frame.piece.id) return;
+    const shared = placeFocus.get(frame.piece.id);
+    for (const other of withinReach) {
+      if (other !== frame.piece.id && placeFocus.get(other) === shared) return;
+    }
+    framedPiece = null;
+    context.unfocus();
+  }
 
   const stopFrame = context.onFrame((delta) => {
     for (const item of ticking) item.tick(delta);
@@ -415,7 +497,12 @@ export function buildRoomShell(context: RoomContext, options: ShellOptions = {})
     if (stillFor < SETTLE_SECONDS) return;
     const place = takePlaceAt;
     takePlaceAt = null;
-    void context.focus({ target: place.centre.clone(), ...(placeFocus.get(place.piece.id) ?? { radius: 0.5 }) });
+    // No framing, no place at it. The walk to the stand point exists so the
+    // figure is not between the camera and the thing it has just been asked to
+    // frame; with no framing it is the figure being dragged somewhere for no
+    // reason, which is the thing the settle rule above was added to stop.
+    if (!requestFor(place)) return;
+    frameFor(place);
     if (context.player.position.distanceTo(place.standPoint) > 0.3) void context.player.walkTo(place.standPoint);
   });
 
@@ -462,7 +549,12 @@ export function buildRoomShell(context: RoomContext, options: ShellOptions = {})
       // the screens' own edges (engine/types.ts carries the same note).
       ...(frame ? { surface: frame.face } : {}),
       ...(arrival ? { arrival } : {}),
-      ...(focus ? { focus } : {}),
+      // Only a focus the engine can frame correctly goes on the spec. One that
+      // names its own target is framed below instead, because the engine frames
+      // `position` and `position` is this screen rather than the wall it is on.
+      ...(focus && !focus.target
+        ? { focus: { radius: focus.radius, ...(focus.normal ? { normal: focus.normal } : {}) } }
+        : {}),
       ...(focus && frame
         ? {
             onProximity(near: boolean) {
@@ -470,10 +562,12 @@ export function buildRoomShell(context: RoomContext, options: ShellOptions = {})
               // away puts the camera back. The hotspot's own `focus` does the
               // same for Enter, so the keyboard is not a second-class way in.
               if (!near) {
-                takePlaceAt = null;
-                context.unfocus();
+                withinReach.delete(frame.piece.id);
+                if (takePlaceAt?.piece.id === frame.piece.id) takePlaceAt = null;
+                unframeFor(frame);
                 return;
               }
+              withinReach.add(frame.piece.id);
               // Arriving is stopping, not passing. Both halves of it wait for
               // the figure to stand still:
               //
@@ -494,6 +588,18 @@ export function buildRoomShell(context: RoomContext, options: ShellOptions = {})
           }
         : {}),
       activate() {
+        // Activating is arriving, and the contract says so: `HotspotSpec.focus`
+        // has walking up, Tab landing and activating as one event as far as the
+        // camera is concerned. For a focus the engine can frame that is already
+        // true — the deck awaits `hooks.frame` before it calls this. For one
+        // that names its own target the engine has nothing on the spec to act
+        // on, and this used to rely on the button happening to take focus on the
+        // way to being pressed, which is true for a pointer and not something to
+        // build on: a check that focused the button by hand and pressed Enter
+        // got no framing at all, because `element.focus()` fires no `focusin`
+        // (CLAUDE.md §7). So it is asked for here, explicitly, on the path that
+        // cannot get it any other way.
+        if (frame && focus?.target) frameFor(frame);
         if (interactive.kind === "leave-room") {
           context.leave();
           return;
@@ -508,6 +614,27 @@ export function buildRoomShell(context: RoomContext, options: ShellOptions = {})
       },
     });
     hotspots.set(interactive.id, hotspot);
+
+    // The keyboard's half of arriving, for the pieces the engine cannot frame.
+    //
+    // Tab landing on a control is the same event as the figure walking up to
+    // the thing — that is what `HotspotSpec.focus` is for, and it is the
+    // accessibility of this whole scheme rather than a nicety. A piece with its
+    // own target does not carry that spec, so it carries this instead, and the
+    // two say the same thing. `focusin`/`focusout` rather than focus/blur
+    // because they bubble and because they are what a headless run can be made
+    // to deliver at all (CLAUDE.md §7).
+    if (frame && focus?.target) {
+      const framed = frame;
+      const onIn = () => frameFor(framed);
+      const onOut = () => unframeFor(framed);
+      hotspot.button.addEventListener("focusin", onIn);
+      hotspot.button.addEventListener("focusout", onOut);
+      context.onDispose(() => {
+        hotspot.button.removeEventListener("focusin", onIn);
+        hotspot.button.removeEventListener("focusout", onOut);
+      });
+    }
   }
 
   context.onDispose(() => {

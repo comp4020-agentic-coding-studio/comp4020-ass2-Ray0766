@@ -4,7 +4,8 @@
 // send it somewhere:
 //
 //   keyboard   arrows and WASD, held, camera-relative so "up" is always up the
-//              screen however far the mouse has nudged the view
+//              screen however far the mouse has nudged the view; and Enter,
+//              which goes through whatever the figure is standing at
 //   mouse      click the floor to walk there; moving the pointer turns the
 //              camera a few degrees and nothing more
 //   touch      one finger down and dragged is a stick; one finger tapped is a
@@ -49,6 +50,18 @@ export interface InputOptions {
   /** A click or a tap on the floor. */
   walkTo(point: Vector3): void;
   onEscape(): void;
+  /**
+   * Enter, pressed with nothing in the HUD holding focus.
+   *
+   * This is not a second path through the backlot — it ends in the same `use`
+   * a click and an Enter on the button do, and it does nothing unless the figure
+   * is standing at something. It is here because walking up to a door stopped
+   * being the same act as going through it: a reader who walks up now gets the
+   * window and the clip and has to be told how to go on, and "press Enter"
+   * is only true if Enter works from where they are. Someone walking with the
+   * arrow keys has focus on `<body>`, where Enter reached nothing at all.
+   */
+  onActivate(): void;
   /** −1..1 each. Ignored entirely when the reader asked for less motion. */
   aim(yaw: number, pitch: number): void;
   reducedMotion(): boolean;
@@ -61,7 +74,7 @@ export interface Input {
 }
 
 export function createInput(options: InputOptions): Input {
-  const { canvas, camera, drive, walkTo, onEscape, aim, reducedMotion } = options;
+  const { canvas, camera, drive, walkTo, onEscape, onActivate, aim, reducedMotion } = options;
 
   const held = new Set<string>();
   const stick = { x: 0, y: 0 };
@@ -96,6 +109,14 @@ export function createInput(options: InputOptions): Input {
     drive(direction.clampLength(0, 1));
   }
 
+  /** Whether anything at all is holding focus. `<body>` and the root element are
+   *  what the document reports when nothing is, which is the only state the
+   *  window-level Enter above is allowed to act in. */
+  function hasFocus(): boolean {
+    const active = document.activeElement;
+    return active !== null && active !== document.body && active !== document.documentElement;
+  }
+
   /** True when the key belongs to something the reader is typing into, or to a
    *  browser shortcut. Either way it is not ours to take. */
   function busyElsewhere(event: KeyboardEvent): boolean {
@@ -109,6 +130,16 @@ export function createInput(options: InputOptions): Input {
   const onKeyDown = (event: KeyboardEvent) => {
     if (event.key === "Escape") {
       onEscape();
+      return;
+    }
+    if (event.key === "Enter") {
+      // Whatever has focus owns its own Enter. A button's activation behaviour
+      // is the browser's and runs on the button; taking the key here as well
+      // would run the door twice, and taking it while somebody is on a link in
+      // the page under the stage would run it instead of the link.
+      if (busyElsewhere(event) || hasFocus()) return;
+      event.preventDefault();
+      onActivate();
       return;
     }
     if (busyElsewhere(event) || !(event.code in WALK_KEYS)) return;

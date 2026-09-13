@@ -54,6 +54,48 @@ const TRAVEL = 0.62;
 const GROUND = new Plane(new Vector3(0, 1, 0), 0);
 const UP = new Vector3(0, 1, 0);
 
+/** What a vertical face keeps once the camera has come in on it. The framed
+ *  pose is `FOCUS_TILT_DEGREES` above the face's own normal, so a height on the
+ *  face projects to cos of that — 0.978, not the god view's 0.616. */
+const FOCUS_LEAN = Math.cos(MathUtils.degToRad(FOCUS_TILT_DEGREES));
+
+/**
+ * The framing radius that draws a face of `face` metres at no fewer than
+ * `floor` CSS pixels once the camera is there.
+ *
+ * It is here rather than at the call site because it is the frustum's own
+ * arithmetic — `FOCUS_MARGIN` and the framed tilt are private to this file, and
+ * a caller that reproduced them would drift the first time either moved.
+ *
+ * The reason it is computed per viewport rather than written down as a number:
+ * a push is a ratio, and a ratio only means something against the resting view
+ * it starts from. At 1920×1080 the hub resolves about 41 px per metre, so a
+ * door's 1.38 × 2.45 m window needs a little over 2× to clear 120 × 200 px —
+ * which is the push as it was asked for. At 390×844 the same ring is fitted to
+ * a 390 px width and resolves about 15 px per metre, and 2× there leaves the
+ * window 43 px across, which is not a window anybody reads. So the pixels are
+ * the requirement and the multiple is what they cost at each viewport; the
+ * receipt reports both.
+ */
+export function focusRadiusFor(
+  face: { wide: number; tall: number },
+  floor: { wide: number; tall: number },
+  view: { width: number; height: number },
+): number {
+  // Never closer than the face itself. A framing tighter than the thing it
+  // frames is a crop, and it is the floor this returns when a viewport has not
+  // been measured yet.
+  const ownHalf = Math.max(face.wide, face.tall * FOCUS_LEAN) / 2;
+  if (view.width <= 0 || view.height <= 0 || face.wide <= 0 || face.tall <= 0) return ownHalf;
+  const aspect = view.width / view.height;
+  const needed = Math.max(floor.wide / face.wide, floor.tall / (face.tall * FOCUS_LEAN));
+  if (!(needed > 0)) return ownHalf;
+  // `apply` fits `max(radius, radius / aspect) × FOCUS_MARGIN` as the half
+  // height, so this is that inverted.
+  const halfHeight = view.height / (2 * needed);
+  return Math.max(ownHalf, halfHeight / (FOCUS_MARGIN * Math.max(1, 1 / aspect)));
+}
+
 export interface GodCamera {
   camera: OrthographicCamera;
   /** Add this to the scene, not the camera. */
@@ -141,6 +183,9 @@ export function createGodCamera(): GodCamera {
 
   const across = new Vector3();
   const upward = new Vector3();
+  const godPivot = new Vector3();
+  const lookAt = new Vector3();
+  const heading = new Vector3();
   const rectCorner = new Vector3();
   const godPosition = new Vector3();
   const godRotation = new Quaternion();
@@ -253,6 +298,11 @@ export function createGodCamera(): GodCamera {
       camera.updateMatrixWorld(true);
     }
 
+    // Where the god view is actually looking, which is the floor's centre slid
+    // by whatever `fitGod` asked for. The blend below travels between this and
+    // the framing's target rather than between the two camera positions.
+    godPivot.copy(camera.position).addScaledVector(offset, -DOLLY);
+
     let near = 0.1;
     if (framing && blend > 0) {
       // --- the framed pose. `normal` is the face's outward direction, so the
@@ -269,8 +319,29 @@ export function createGodCamera(): GodCamera {
 
       const wantedHalf = Math.max(framing.radius, framing.radius / aspect) * FOCUS_MARGIN;
 
-      camera.position.lerpVectors(godPosition, focusPosition, blend);
+      // Blend what the camera is looking **at**, not where it is standing.
+      //
+      // Lerping the two camera positions and slerping the two rotations puts the
+      // camera on an arc between two poses that agree at the ends and about
+      // nothing in between: at half way it stands somewhere over the floor,
+      // aimed somewhere between the middle of the ring and the door, with a
+      // frustum already half-way down to the framed one. The thing being framed
+      // falls out of that frustum. Measured on the Lectures door, sampled every
+      // 50 ms through the travel: the door's own published rect went **null** —
+      // entirely off the canvas — for six consecutive samples at 1920x1080 and
+      // seventeen at 390x844, which is most of a second of a push toward a door
+      // with the door not in it.
+      //
+      // Blending the look-at point cannot do that. The frame is always centred
+      // between the ring's middle and the target, and the half-height comes down
+      // in step with the distance, so a thing inside the frame at either end is
+      // inside it the whole way. Same two end poses to the pixel — at blend 0
+      // this reconstructs `godPosition` exactly, because that is what
+      // `godPivot` was taken from.
       camera.quaternion.slerpQuaternions(godRotation, focusRotation, blend);
+      lookAt.lerpVectors(godPivot, framing.target, blend);
+      heading.set(0, 0, -1).applyQuaternion(camera.quaternion);
+      camera.position.copy(lookAt).addScaledVector(heading, -DOLLY);
       halfHeight = MathUtils.lerp(godHalf, wantedHalf, blend);
 
       // Coming at a panel head-on puts the room's near wall between the camera
@@ -361,6 +432,22 @@ export function createGodCamera(): GodCamera {
       if (instant) {
         // The state change still happens; it just does not travel.
         travel = 1;
+        apply();
+        return Promise.resolve();
+      }
+      if (travel === wanted) {
+        // Already all the way in, so there is no journey to wait for — and
+        // `update` short-circuits on exactly this condition, which means nothing
+        // would ever settle the promise. A framing asked for from a framed state
+        // hung forever, and the activation waiting behind it hung with it:
+        // **Enter on a door the keyboard was already on did nothing at all**,
+        // because the click handler awaits the framing before it acts and the
+        // framing never arrived. Found by driving the keyboard route end to end;
+        // clicking from the resting view never touches it.
+        //
+        // `apply` rather than a bare resolve, because the request may name a
+        // different target from the one the camera is on, and a framing the
+        // camera has not moved to is a framing that is lying about where it is.
         apply();
         return Promise.resolve();
       }

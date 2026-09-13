@@ -95,11 +95,36 @@ export interface Sign {
   readonly capPixels: number;
 }
 
+/**
+ * A nameplate, which is the one drawing here that is not finished when it is
+ * made.
+ *
+ * The word on it is painted only while it is big enough on screen to be a word,
+ * and nothing in this file can know that: the cap height that matters is the
+ * projected one, which depends on the camera and on which door this is. So the
+ * plate reports the cap it drew at **in metres** — the unit the engine can
+ * project — and takes the answer back through `setWord`.
+ */
+export interface Plate extends Sign {
+  /** Cap height of the word in world metres, which is what a projection needs.
+   *  `capPixels` is the same height in the drawing's own pixels. */
+  readonly capMetres: number;
+  /** Paint the word, or leave the plate lit and wordless. Redraws only when the
+   *  answer changes, so this is safe to call every frame.
+   *
+   *  There is deliberately no `showingWord` to read back. What goes up on the
+   *  button is the **cap height**, which lets a check assert the threshold
+   *  itself — on above 11 px, off below it — where a flag saying which way the
+   *  engine went would only ever prove the engine agrees with itself, and would
+   *  pass a build where the threshold had moved to 4 px. */
+  setWord(show: boolean): void;
+}
+
 export interface Signwriter {
   /** The plate behind a door's window: a ground, a hairline, and the door's own
    *  name. `metres` is the window opening, so the drawing is made at the size it
    *  will be seen at rather than at a round number. */
-  nameplate(label: string, metres: { wide: number; tall: number }): Sign | null;
+  nameplate(label: string, metres: { wide: number; tall: number }): Plate | null;
   /** The door's name on a board over its lintel, at a fixed cap height so every
    *  door's name is equally readable however long the word is. */
   lintelSign(label: string): Sign | null;
@@ -359,6 +384,35 @@ export function createSignwriter(colours: ColourReader): Signwriter {
         const extra = cap * PLATE_TRACKING;
         const run = trackedWidth(ctx, word, extra);
 
+        // And the word itself, but only while it is one.
+        //
+        // Below about eleven pixels of projected cap this stops being type and
+        // becomes texture: the letters are there, nobody can read them, and a
+        // plate with unreadable writing on it claims to say something it does
+        // not. The plate is still lit and still a sign — the name is over the
+        // lintel, on a horizontal board the god view never turns away, and that
+        // is the door's name whether this is painted or not. So the plate is
+        // allowed to stay quiet, and it says the word once the camera has come
+        // in far enough for the word to be a word.
+        //
+        // The threshold is the engine's to apply, because it is the only half
+        // that knows where the camera is; this end just draws what it is told.
+        //
+        // **And the rule under the word goes with it**, which it did not at
+        // first. I kept it on the grounds that it is the light down the edge of
+        // a lit sign rather than the word's own underline — but it is drawn from
+        // `run`, which is the word's own measured length, and at the size this
+        // rule is about that is not a distinction anything can see: at 390 the
+        // Assessment plate is a 28 x 24 px window, and a bar as long as
+        // ASSESSMENT in it is a word as far as any sampler or any reader is
+        // concerned. The checks lane measured 35 px of ink over a ground of 60
+        // and read it as the word, and they were right to. What keeps the plate
+        // lit is the wash and the hairline, neither of which is shaped like
+        // type.
+        if (!showWord) {
+          ctx.restore();
+          return;
+        }
         // The brand fill beside the word rather than under it — a rule the
         // length of the name, which is the light down the edge of the plate.
         ctx.fillStyle = ink("--at-primary");
@@ -371,7 +425,21 @@ export function createSignwriter(colours: ColourReader): Signwriter {
         ctx.restore();
       };
 
-      return { texture: bake(canvas, draw), metresWide: metres.wide, metresTall: metres.tall, capPixels: cap };
+      let showWord = false;
+      const texture = bake(canvas, draw);
+      return {
+        texture,
+        metresWide: metres.wide,
+        metresTall: metres.tall,
+        capPixels: cap,
+        capMetres: cap / PX_PER_METRE,
+        setWord(show: boolean) {
+          if (show === showWord) return;
+          showWord = show;
+          draw();
+          texture.needsUpdate = true;
+        },
+      };
     },
 
     lintelSign(label) {

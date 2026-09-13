@@ -26,7 +26,15 @@
 // something in the room.
 import { Group, PointLight, Vector3, type BufferGeometry, type Object3D, type Texture } from "three";
 import type { BacklotPiece, RoomContext, VideoHandle } from "../engine/types";
-import { ROOM, buildRoomShell, fitInside, type MountSurface, type PieceFrame } from "./shell";
+import {
+  ROOM,
+  buildRoomShell,
+  fitInside,
+  wallSurfaces,
+  type MountSurface,
+  type PieceFrame,
+  type RoomFocus,
+} from "./shell";
 import {
   DESK,
   MONITOR,
@@ -107,6 +115,58 @@ function backlotAsset(assetPrefix: string, file: string): string {
   return `${assetPrefix.replace(/studio\/$/, "backlot/")}${file}`;
 }
 
+/**
+ * How far out the front wall's push comes, in slot pitches.
+ *
+ * The ladder is five rungs and it is read as a ladder, so the push holds more
+ * than the rung the reader stopped at: it has to hold all five names at once,
+ * in one row, which is the whole of what this number is for. It is a band with
+ * a floor and a ceiling and this sits in the middle of it, and both ends are
+ * measured rather than guessed — at 1920x1080 the canvas is 923 px tall, which
+ * is the number the arithmetic below is in.
+ *
+ * **The floor.** The five labels render 113, 163, 157, 281 and 314 px wide —
+ * 1,028 px of name. Two neighbouring controls crowd, and come down to their
+ * dots, once their anchors are closer than (a + b) / 2 + 4 px; the widest pair
+ * is t4 and t5 at 301.5 px, and their anchors are exactly one pitch apart. So
+ * the wall has to resolve at least 301.5 / 1.02 = 296 px per metre, and
+ * anything further out puts two of the five back on their dots — which is the
+ * two-row answer this is instead of.
+ *
+ * **The ceiling.** The row has to fit the canvas: four pitches between the outer
+ * two anchors, plus half of the first label and half of the last, is 1,896 px of
+ * usable width at about 412 px per metre. Past that the last control clamps to
+ * the edge of the frame and stacks.
+ *
+ * 1.17 pitches lands at 339 px per metre — the wall 1,967 px across against
+ * 1,028 px of label, with 15% of headroom on the crowding test and 18% on the
+ * canvas. Measured after, at both viewports and in both themes; the numbers are
+ * in the receipt.
+ */
+const FRONT_PUSH_PITCHES = 1.17;
+
+/**
+ * And the width below which the front wall does not push at all.
+ *
+ * Not a tuning: it is the width below which **every** control on the backlot is
+ * a dot, decided rather than clipped — `backlot-hud.css` has the media query and
+ * `engine/hotspots.ts` has the same number as `PHONE_WIDTH`. This is the third
+ * place it is written down, which is a cost worth naming: if it moves, it moves
+ * in three files.
+ *
+ * The push exists to buy one row of five names. Below this width there are no
+ * names to put in a row, so there is nothing to buy — and it is not free:
+ * measured at 390x844 the framed box is 2.72 m wide against a 4.9 m run, so two
+ * of the five rungs clamp to the edge of the frame with no rect at all. Paying
+ * two screens for a row that does not exist is the wrong trade, so the wall
+ * stays where it is and the room keeps the resting view that already holds all
+ * five.
+ *
+ * The doors' push is untouched by this and should be: at 390 it is 5.71x and
+ * takes a window from 21 px across to 120, which is the whole of what it is for.
+ */
+const DOT_WIDTH = 640;
+
 /** The monitor's panel, as a mount surface the shell can hang the desk piece
  *  on: one slot, sized to the panel, leaning with it. */
 function deskSurface(aspect: [number, number]): MountSurface {
@@ -146,23 +206,55 @@ export async function buildMachineRoom(context: RoomContext): Promise<void> {
   const deskPiece = context.room.pieces.find((piece) => piece.wall === "desk");
   const desk = deskPiece ? deskSurface(deskPiece.aspect) : null;
 
+  // The front wall's own geometry, worked out from the same function the shell
+  // hangs the pieces with rather than from the pieces themselves: `focusFor` is
+  // called while the shell is still being built, so there are no frames to
+  // measure yet. Same input, same answer.
+  const frontCounts: Record<string, number> = {};
+  for (const piece of context.room.pieces) frontCounts[piece.wall] = (frontCounts[piece.wall] ?? 0) + 1;
+  const frontSurface = wallSurfaces(frontCounts).front;
+  const frontPiece = context.room.pieces.find((piece) => piece.wall === "front");
+  // Live, not read once: a reader who turns a phone sideways crosses this, and a
+  // query settled at build time would have answered for the room's whole life.
+  const dots = window.matchMedia(`(max-width: ${DOT_WIDTH}px)`);
+  const frontWall: RoomFocus | null = frontPiece
+    ? {
+        skip: () => dots.matches,
+        // The middle of the run, so every one of the five frames the same shot
+        // and the ladder does not slide sideways as the reader moves along it.
+        target: frontSurface.centre.clone(),
+        radius: frontSurface.pitch * FRONT_PUSH_PITCHES,
+        normal: frontSurface.normal.clone(),
+      }
+    : null;
+
   const shell = buildRoomShell(context, {
     surfaces: desk ? { desk } : {},
     arrivalFor: (_interactive, frame) => frame?.piece.caption,
     onInteractive: (interactive, frame) => approach(frame, interactive.kind === "play-clip"),
-    // Only the monitor. The five screens on the front wall are 86 px across at
-    // 1920×1080 and a clip is watchable at that; a sixteen-node workflow graph
-    // is not, and framing all six would mean the camera moved every time the
-    // figure crossed the room.
+    // Two things the camera comes in for, and they come in differently.
     //
-    // Half the panel's longest side, not half its diagonal. The engine fits
-    // `max(radius, radius / aspect)` as a half-height, so what it guarantees at
-    // every aspect is a box 2 × radius wide — which makes radius the thing's
-    // half-width, and a diagonal here would just frame emptier.
-    focusFor: (_interactive, frame) =>
-      frame && frame.piece.id === deskPiece?.id
-        ? { radius: Math.max(frame.width, frame.height) / 2, normal: frame.normal.clone() }
-        : undefined,
+    // The monitor is a thing on a desk: half the panel's longest side, not half
+    // its diagonal. The engine fits `max(radius, radius / aspect)` as a
+    // half-height, so what it guarantees at every aspect is a box 2 × radius
+    // wide — which makes radius the thing's half-width, and a diagonal here
+    // would just frame emptier.
+    //
+    // The front wall is a ladder, and a rung of it is not read on its own. It
+    // used to have no push at all, on the reasoning that a clip is watchable at
+    // 86 px and only the graph needed the camera. That was about the picture and
+    // it was right about the picture; it was silent about the five names, which
+    // at room distance are five labels across 143 px of artwork each and come
+    // down to their dots. The push is what pays for them: it is the same arrival
+    // the doors now have, and at the wall the row fits.
+    focusFor: (_interactive, frame) => {
+      if (!frame) return undefined;
+      if (frame.piece.id === deskPiece?.id) {
+        return { radius: Math.max(frame.width, frame.height) / 2, normal: frame.normal.clone() };
+      }
+      if (frame.piece.wall === "front" && frontWall) return frontWall;
+      return undefined;
+    },
   });
   const painter = shell.painter;
 

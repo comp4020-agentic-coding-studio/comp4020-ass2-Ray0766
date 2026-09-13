@@ -20,10 +20,35 @@ import type { Hotspot, HotspotApi, HotspotSpec } from "./types";
 
 /** What the deck needs from the engine that it cannot do itself. */
 export interface HotspotHooks {
-  /** Run before `activate()` for a hotspot carrying a `focus`, and awaited, so
-   *  the camera is already on the thing by the time the hotspot acts. This is
-   *  the whole of what makes Enter equivalent to walking up to something. */
+  /**
+   * Bring the camera onto this hotspot.
+   *
+   * Called from three places, and that is the point rather than a convenience:
+   * a click, **the keyboard landing on the button**, and the figure walking up.
+   * Arriving is one event as far as the camera is concerned, so a reader who
+   * Tabs to a door gets the same thing a reader who walks to it gets, rather
+   * than being told about it. `HotspotSpec.focus` says the same.
+   *
+   * **It used to be awaited before `activate()` and is not any more.** A press
+   * is not an arrival — it is somebody saying where they are going — and
+   * queueing the going behind 620 ms of camera spends their press on a shot
+   * they are about to leave. The framing still starts, because the camera
+   * should be doing the right thing while the figure walks to the door; it just
+   * no longer stands in front of the thing the reader actually asked for.
+   * Measured: 3.1 s from press to the address bar changing, against 2.5 s with
+   * the wait taken out and against A2's 2.5 s before any of this existed.
+   */
   frame(spec: HotspotSpec): Promise<void>;
+  /**
+   * And leaving. Tabbing off a hotspot is the keyboard's version of walking
+   * away from it, so it releases the same framing.
+   *
+   * The engine ignores it for anything that is not the hotspot currently framed,
+   * which is what stops a blur that fires *after* the next button's focus —
+   * which is the order the DOM actually delivers them in — tearing down a
+   * framing that has just been set up.
+   */
+  unframe(spec: HotspotSpec): void;
 }
 
 /** Keep a parked button this far inside the canvas, so one at the edge of the
@@ -118,6 +143,16 @@ interface Parked {
   dotHeight: number;
 }
 
+/** Whether an object is actually drawn, which is not what `visible` answers:
+ *  `visible` is one object's own flag, and a subtree switched off at the root
+ *  leaves every flag inside it set. */
+function drawn(object: Object3D): boolean {
+  for (let node: Object3D | null = object; node; node = node.parent) {
+    if (!node.visible) return false;
+  }
+  return true;
+}
+
 /** A rectangle in canvas pixels. */
 export interface Rect {
   left: number;
@@ -135,6 +170,16 @@ export interface HotspotDeck {
   registerOwn(spec: HotspotSpec): Hotspot;
   /** One polite sentence. Re-announced even when the words repeat. */
   announce(message: string): void;
+  /**
+   * Publish what a nameplate's cap measures on screen, in CSS pixels, as
+   * `data-backlot-cap` on the door's own button.
+   *
+   * Same reason `data-backlot-rect` exists: the number decides whether the word
+   * is painted, and a check that could only look at the pixels would be reading
+   * the consequence rather than the signal. Rounded to a tenth — the threshold
+   * is 11 and a reading of 10.96 against 11.02 is a real difference.
+   */
+  setCap(id: string, pixels: number | null): void;
   /** Park every button over its point, in canvas pixels. Called each frame.
    *
    *  `readable` is a rectangle no button may overlap — the thing the camera is
@@ -249,7 +294,36 @@ export function createHotspots(hud: HTMLElement, camera: OrthographicCamera, hoo
     height: number,
   ): { x: number; y: number; width: number; height: number } | null {
     if (width <= 0 || height <= 0) return null;
-    bounds.setFromObject(object);
+    // The object's **own** box, carried through its matrix — not a world-axis
+    // box drawn around it.
+    //
+    // `Box3.setFromObject` gives the axis-aligned box the thing occupies in
+    // world space, and for anything the ring has turned that is a great deal
+    // bigger than the thing. A door's window at ten o'clock is a 1.8 x 2.45 m
+    // plane standing at 60 degrees to the world's axes; its world box is the
+    // volume that plane sweeps, and projecting that reported the Policies window
+    // as 37 x 113 px where the window is 19 x 62 — **tall enough to swallow the
+    // name board over the lintel**. Anything sampling the published rect for
+    // that door was sampling the board, which is the one part of the door that
+    // always has a word on it. The checks lane read 35 px of ink on a plate that
+    // was correctly blank and was right to.
+    //
+    // Projecting the local corners through `matrixWorld` instead gives the
+    // thing's own quad, and its screen box is tight on all six doors. Nothing
+    // that is not a mesh with a box of its own falls back to the old answer,
+    // which is still correct and only loose.
+    const mesh = object as Object3D & { geometry?: { boundingBox: Box3 | null; computeBoundingBox(): void } };
+    const own = mesh.geometry;
+    let local = false;
+    if (own) {
+      if (!own.boundingBox) own.computeBoundingBox();
+      if (own.boundingBox) {
+        object.updateWorldMatrix(true, false);
+        bounds.copy(own.boundingBox);
+        local = true;
+      }
+    }
+    if (!local) bounds.setFromObject(object);
     if (bounds.isEmpty()) return null;
     let left = Infinity;
     let top = Infinity;
@@ -258,7 +332,9 @@ export function createHotspots(hud: HTMLElement, camera: OrthographicCamera, hoo
     for (const x of [bounds.min.x, bounds.max.x]) {
       for (const y of [bounds.min.y, bounds.max.y]) {
         for (const z of [bounds.min.z, bounds.max.z]) {
-          corner.set(x, y, z).project(camera);
+          corner.set(x, y, z);
+          if (local) corner.applyMatrix4(object.matrixWorld);
+          corner.project(camera);
           const px = (corner.x * 0.5 + 0.5) * width;
           const py = (-corner.y * 0.5 + 0.5) * height;
           left = Math.min(left, px);
@@ -342,24 +418,57 @@ export function createHotspots(hud: HTMLElement, camera: OrthographicCamera, hoo
       },
     };
 
+    // Arriving by keyboard. `focusin` rather than `focus` because it bubbles and
+    // because it is the event a headless harness can be made to deliver at all:
+    // Chrome with no OS-focused window defers focus events forever unless
+    // `Emulation.setFocusEmulationEnabled` is on, so a check that reads
+    // `document.activeElement` passes while this listener never runs
+    // (CLAUDE.md §7). Driven, not assumed.
+    //
+    // Not gated on `:focus-visible`. That selector is about whether to *paint* a
+    // ring, and it deliberately does not match after a pointer press; the camera
+    // is not a ring, and a reader who clicked a door and a reader who Tabbed to
+    // it are both at the door. The click path below frames as well, so the two
+    // agree either way — this is here so that Tab alone is enough.
+    button.addEventListener("focusin", () => {
+      if (!spec.focus || !entry.enabled) return;
+      void hooks.frame(spec).catch((error) => {
+        console.warn(`backlot: ${spec.id} threw on framing`, error);
+      });
+    });
+
+    button.addEventListener("focusout", () => {
+      if (!spec.focus) return;
+      hooks.unframe(spec);
+    });
+
     button.addEventListener("click", (event) => {
       event.preventDefault();
       // aria-disabled does not stop a click the way `disabled` would — that is
-      // the whole point of using it — so the guard is here, in code. It now
-      // spans the framing as well as the activation, which is what it is for:
-      // a second Enter while the camera is still travelling does nothing.
+      // the whole point of using it — so the guard is here, in code. It spans
+      // this handler only: the framing is no longer inside it, because the
+      // press does not wait for the framing. What stops a second press doing
+      // the thing twice is the engine's own re-entrancy on the act itself —
+      // `use` refuses while a door is already in progress — which is where it
+      // belongs, since a press that arrives by some other route has to hit the
+      // same guard.
       if (!entry.enabled || entry.busy) return;
       entry.busy = true;
-      void (async () => {
-        try {
-          if (spec.focus) await hooks.frame(spec);
-          spec.activate();
-        } catch (error) {
-          console.warn(`backlot: ${spec.id} threw on activation`, error);
-        } finally {
-          entry.busy = false;
+      try {
+        // Started, not awaited. See `HotspotHooks.frame`: a press goes, and
+        // whether the camera has to move on the way is the engine's business
+        // and not something to make the reader wait through.
+        if (spec.focus) {
+          void hooks.frame(spec).catch((error) => {
+            console.warn(`backlot: ${spec.id} threw on framing`, error);
+          });
         }
-      })();
+        spec.activate();
+      } catch (error) {
+        console.warn(`backlot: ${spec.id} threw on activation`, error);
+      } finally {
+        entry.busy = false;
+      }
     });
 
     parked.push(entry);
@@ -376,6 +485,16 @@ export function createHotspots(hud: HTMLElement, camera: OrthographicCamera, hoo
 
     announce: announcer,
 
+    setCap(id, pixels) {
+      const entry = parked.find((candidate) => candidate.spec.id === id);
+      if (!entry) return;
+      if (pixels === null) {
+        delete entry.button.dataset.backlotCap;
+        return;
+      }
+      entry.button.dataset.backlotCap = (Math.round(pixels * 10) / 10).toFixed(1);
+    },
+
     park(width, height, readable = null) {
       if (width <= 0 || height <= 0) return;
       placed.length = 0;
@@ -390,7 +509,6 @@ export function createHotspots(hud: HTMLElement, camera: OrthographicCamera, hoo
       // two marking viewports, not visible at all. A picture nobody can see is
       // not a smaller picture.
       keepOut.length = 0;
-      if (readable) keepOut.push({ ...readable, owner: null });
       for (const entry of parked) {
         if (!entry.surface || entry.button.hidden) {
           if (entry.surface) entry.handle.setRect(null);
@@ -403,11 +521,54 @@ export function createHotspots(hud: HTMLElement, camera: OrthographicCamera, hoo
         }
       }
       for (const object of clearances) {
-        if (!object.visible) continue;
+        // `visible` is the object's own flag and says nothing about its parents.
+        // The hub's six name boards keep theirs set while the whole hub group is
+        // switched off behind a room, so the room was laying its controls out
+        // around six signs that are not on screen and are eleven metres outside
+        // the walls. Checked up the chain, which is what "is this drawn" means.
+        if (!drawn(object)) continue;
         const rect = projectBox(object, width, height);
         if (rect) {
           keepOut.push({ left: rect.x, top: rect.y, right: rect.x + rect.width, bottom: rect.y + rect.height, owner: null });
         }
+      }
+
+      // What the camera is close on, kept clear — but only where nothing inside
+      // it has already said where it is.
+      //
+      // The framing is a square around a radius, and a radius is not a shape. On
+      // a single panel the two are nearly the same rectangle and this changes
+      // nothing. On the front wall they are not: the push holds five screens and
+      // the wall between and above them, and treating the whole square as
+      // unusable pushed all five labels to the top edge of the frame, 270 px
+      // above the pictures they name. The five screens each publish their own
+      // rect through `surface` — that is what `data-backlot-rect` is — so the
+      // pictures are already covered, and the wall between them is where a label
+      // has always belonged.
+      //
+      // So the square stands in only where nothing has published a rect inside
+      // it, which is the case it was written for: a thing the camera can frame
+      // that has no `surface` to project. Both halves of this run — the machine
+      // room's front wall takes the first, and a framing on anything that marks a
+      // point rather than a surface takes the second.
+      //
+      // And counting them answers a second question for free: **is the camera
+      // close on one thing, or on a group of them.** Exactly one surface inside
+      // the framing means the reader has come in on that one thing, which is the
+      // one case where its own control may not sit on it (see `clearOf`). Two or
+      // more means a wall, where a dot per screen is how you tell them apart.
+      let alone: Parked | null = null;
+      if (readable) {
+        const inside = keepOut.filter(
+          (rect) =>
+            rect.owner !== null &&
+            rect.left < readable.right &&
+            rect.right > readable.left &&
+            rect.top < readable.bottom &&
+            rect.bottom > readable.top,
+        );
+        if (inside.length === 0) keepOut.push({ ...readable, owner: null });
+        else if (inside.length === 1) alone = inside[0]!.owner;
       }
 
       const overlapArea = (
@@ -461,9 +622,20 @@ export function createHotspots(hud: HTMLElement, camera: OrthographicCamera, hoo
         //
         // A label never gets the exemption: 280 px of label on a 165 px picture
         // is a control in the way, which is why it came down to a dot at all.
+        //
+        // And it stops the moment the camera comes in on that thing by itself.
+        // At 390 a door's window is 21 x 24 px at rest and the 50 px control
+        // cannot sit inside it, so it is parked beside the door; after the push
+        // the window is 120 x 230 and the exemption starts applying, which put
+        // the dot dead centre on the picture the reader had just come in to
+        // watch. Seen, in a3-sessions-phone-dark-tab.png. A thing the camera is
+        // close on is being read, and a control over the top of it is a control
+        // in the way — `alone` above is what tells that apart from a wall of
+        // five screens, where a dot on each is how you tell them apart.
         const fitsInside = (rect: Rect) =>
           boxWidth <= (rect.right - rect.left) * 0.5 && boxHeight <= (rect.bottom - rect.top) * 0.5;
-        const avoid = dense ? keepOut.filter((rect) => rect.owner !== entry || !fitsInside(rect)) : keepOut;
+        const avoid =
+          dense && entry !== alone ? keepOut.filter((rect) => rect.owner !== entry || !fitsInside(rect)) : keepOut;
         if (avoid.length === 0) {
           entry.hold = null;
           return { x, y };
@@ -557,6 +729,23 @@ export function createHotspots(hud: HTMLElement, camera: OrthographicCamera, hoo
       // dense measures narrow, which would un-dense it, which would widen it
       // again. Deciding from a quantity the decision cannot change is what
       // makes this hold still.
+      //
+      // **And it is decided for the row, not for the pair.** Pairwise, the front
+      // wall came down two-and-three: "Play one line" is 113 px and "Play
+      // subject + action" is 163, their anchors are 201 px apart, and neither
+      // collides with the other — so two of five rungs kept their names while
+      // the three beside them were dots. That is not a row, it is a row with a
+      // fault in it, and the ladder reads as five of one thing or it does not
+      // read. So a control is crowded when **anything on its own line** is
+      // closer than the *widest* label on that line could be laid out at: five
+      // labels at a 201 px pitch cannot all be shown when one of them is 314 px
+      // wide, and the answer to that is the same answer for all five.
+      //
+      // The line is found from the **anchors**, not from where the buttons ended
+      // up — the placement is decided after this and depends on it, and reading
+      // it here would be deciding from a quantity the decision changes. On the
+      // wall the five anchors sit within 13 px of each other and the monitor's
+      // is 424 px away, so the row is the five screens and nothing else.
       // Below the phone breakpoint every control is a dot, and the engine says
       // so rather than letting the stylesheet clip a label that still claims to
       // be shown. Those are not the same thing: a designed dot keeps its
@@ -571,11 +760,12 @@ export function createHotspots(hud: HTMLElement, camera: OrthographicCamera, hoo
           one.entry.button.dataset.backlotDense = "true";
           continue;
         }
+        const onLine = (other: (typeof live)[number]) =>
+          Math.abs(other.y - one.y) < (other.entry.height + one.entry.height) / 2 + GAP;
+        let widest = one.entry.width;
+        for (const other of live) if (onLine(other)) widest = Math.max(widest, other.entry.width);
         const crowded = live.some(
-          (other) =>
-            other !== one &&
-            Math.abs(other.x - one.x) < (other.entry.width + one.entry.width) / 2 + GAP &&
-            Math.abs(other.y - one.y) < (other.entry.height + one.entry.height) / 2 + GAP,
+          (other) => other !== one && onLine(other) && Math.abs(other.x - one.x) < widest + GAP,
         );
         if (crowded) one.entry.button.dataset.backlotDense = "true";
         else delete one.entry.button.dataset.backlotDense;
@@ -671,7 +861,20 @@ export function createHotspots(hud: HTMLElement, camera: OrthographicCamera, hoo
         // A hidden button is not on screen, so its threshold is not a place the
         // reader can be standing in: while a room is mounted the hub's doors
         // must not go on firing proximity at a figure that is inside the room.
-        if (radius === undefined || entry.button.hidden) continue;
+        //
+        // It has to stop *saying* it too. Skipping the whole entry left the
+        // attribute at whatever it was when the button went away, so the Studio
+        // door read `data-backlot-near="true"` for the entire time the reader
+        // was inside the machine room — the door they had walked into, still
+        // claiming the figure was standing at it from eleven metres outside the
+        // walls. Nothing acted on it; anything reading it would have been wrong.
+        if (radius === undefined || entry.button.hidden) {
+          if (entry.near) {
+            entry.near = false;
+            delete entry.button.dataset.backlotNear;
+          }
+          continue;
+        }
         // Ground distance, not the straight line. A hotspot's position is where
         // its button is parked, which for a door is up at head height on the
         // leaf; measuring in three dimensions from there put the figure 2.2 m

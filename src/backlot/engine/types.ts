@@ -152,6 +152,14 @@ export interface Hotspot {
    * drawn; and it updates in the same pass that parks the button, so it is
    * right while the camera is still travelling. Pass `null` for a hotspot that
    * marks a point rather than a surface, and the attribute comes off.
+   *
+   * The engine may publish further readings on the same button as other
+   * `data-backlot-*` attributes, and they carry the same two properties or they
+   * do not go up: same projection as the renderer, same pass as the parking.
+   * The one that exists is a plate's cap height, because whether a nameplate is
+   * showing its word is a decision the engine makes from the projection and
+   * nothing sampling the composite can recover — a 37x113 window reads as the
+   * door's own light whether the word is on it or not.
    */
   setRect(rect: { x: number; y: number; width: number; height: number } | null): void;
   dispose(): void;

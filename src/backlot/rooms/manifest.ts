@@ -80,8 +80,17 @@ export interface BacklotRoom {
  * nameplate carries the nav's own word and nothing else.
  */
 export type DoorWindow =
-  /** A real file under public/studio/, with its real pixel size. */
-  | { kind: "still"; file: string; aspect: [number, number] }
+  /**
+   * A real file under public/studio/, with its real pixel size, and the clip it
+   * is a frame of where one exists.
+   *
+   * The still is what hangs in the window. The clip decodes only once the camera
+   * has come in far enough for the window to be worth watching — the same rule
+   * the machine room's front wall follows, where only the screen the figure is
+   * facing holds a decoder. A door seen from the middle of the ring is 29 px
+   * across and a video there would be a decoder running for nobody.
+   */
+  | { kind: "still"; file: string; aspect: [number, number]; clip?: string }
   /** A ComfyUI workflow graph, drawn to a texture at window size. */
   | { kind: "graph"; file: string }
   /** No image exists, so the door is lit and says its own name. */
@@ -128,13 +137,18 @@ const doorKinds: Record<string, { kind: "page" | "room"; roomId?: string; blurb:
     blurb: "Twelve teaching weeks, four phases, one technique added to the rig each week.",
     // Week 5's third rung: the four-sentence prompt, which is the clearest single
     // frame the teaching ladder produced.
-    window: { kind: "still", file: "week05-t3.avif", aspect: [576, 1024] },
+    window: { kind: "still", file: "week05-t3.avif", aspect: [576, 1024], clip: "week05-t3.mp4" },
   },
   "/sessions/": {
     kind: "page",
     blurb: "The Wednesday screening: what to bring, and what gets said about it.",
-    // The reference episode, which is the thing Dailies screens.
-    window: { kind: "still", file: "reference-episode.avif", aspect: [1080, 1920] },
+    // The reference episode, which is the thing Dailies screens. Its clip is
+    // 4.9 MB against the front wall's 250-690 kB, because it is a whole episode
+    // rather than one rung of a ladder. It streams, and it only starts once a
+    // reader has walked up to this door — but it is the heaviest thing the
+    // backlot can ask for and the receipt says so rather than the size hiding
+    // behind "it only loads on demand".
+    window: { kind: "still", file: "reference-episode.avif", aspect: [1080, 1920], clip: "reference-episode.mp4" },
   },
   "/studio/": {
     kind: "room",

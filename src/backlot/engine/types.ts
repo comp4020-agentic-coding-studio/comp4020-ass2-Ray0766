@@ -97,9 +97,15 @@ export interface HotspotSpec {
   /** Where it lives, so the button can be parked over it and the figure can walk to it. */
   position: Vector3;
   /**
-   * When set, activating this hotspot frames it before anything else happens —
-   * which is what makes a keyboard reader's Enter equivalent to walking up to
-   * the thing. Esc backs out of the framing first and leaves the room second.
+   * When set, this hotspot is framed when a reader comes to it — by walking the
+   * figure up to it, by Tab landing on its button, or by activating it. All
+   * three are the same event as far as the camera is concerned, and that is the
+   * point: a keyboard reader arrives at a door the same way a walking one does,
+   * rather than being told about it. Leaving, or Esc, frames back out; Esc backs
+   * out of a framing before it leaves a room.
+   *
+   * Under `prefers-reduced-motion` the camera cuts rather than travels. The
+   * arrival still happens; it just does not move to get there.
    */
   focus?: Omit<FocusRequest, "target">;
   /**

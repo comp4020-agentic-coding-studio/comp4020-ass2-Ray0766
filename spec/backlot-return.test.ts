@@ -681,18 +681,58 @@ const DOOR = (id: string) => String.raw`
     // box, takes the race away without changing what is driven: a reader
     // clicking this control focuses it on mousedown too. It only fails under
     // load, which is what made it look like a slow machine for two rounds.
+    // Blurred first, so every attempt is the same attempt. A retry that focuses
+    // an already-focused button fires no focusin, starts no travel, and would
+    // never satisfy the rule below -- so the blur is what makes findDoor's
+    // retries symmetrical rather than one real probe and five that cannot pass.
+    // The wait is the camera's travel back, the same 900 ms
+    // spec/backlot-contrast.test.ts waits for the same reason.
+    const focused = document.activeElement;
+    if (focused instanceof HTMLElement) focused.blur();
+    await new Promise((done) => setTimeout(done, 900));
+
+    const resting = button.getBoundingClientRect();
     button.focus();
+
+    // It has to have MOVED before stillness means anything, and that is lane 2's
+    // rule rather than mine. Two identical readings are what you get before the
+    // travel starts as well as after it ends, so the old form here answered
+    // "has not started" with "has arrived" -- and it only looked safe because
+    // arriveAt happens to command the travel synchronously today. That is a
+    // timing detail of a function in somebody else's file, and a check keyed on
+    // one expires when it changes shape (CLAUDE.md section 7).
+    //
+    // Measured, with a 30 ms await put in front of the travel in arriveAt: the
+    // old form returned the resting box after 2 frames and 0 px of travel, and
+    // the click at that box stayed on /backlot/ with the live region silent --
+    // the press lost, exactly as in production. The new form waited 4 frames and
+    // 466 px, returned a box 410 px away, and the click reached /sessions/.
     let previous = null;
     let still = false;
+    let moved = false;
     let travelled = 0;
-    for (let attempt = 0; attempt < 80 && !still; attempt++) {
+    for (let attempt = 0; attempt < 160 && !(moved && still); attempt++) {
       await new Promise((done) => requestAnimationFrame(() => done()));
       const now = button.getBoundingClientRect();
+      if (now.left !== resting.left || now.top !== resting.top || now.width !== resting.width) moved = true;
       if (previous) {
         travelled += Math.abs(now.left - previous.left) + Math.abs(now.top - previous.top);
         still = now.left === previous.left && now.top === previous.top && now.width === previous.width;
       }
       previous = now;
+    }
+    if (!moved) {
+      // Reported, not shrugged off. A control that never leaves its resting box
+      // on focus is either one the camera does not travel to -- which no hub
+      // door is -- or a travel that had not started when this gave up, and
+      // handing back the resting box is how the click gets lost.
+      return {
+        found: false,
+        why:
+          "the " + ${JSON.stringify(id)} + " door's control never left its resting box after focus, so there " +
+          "is no settled position to click. It is still at " + Math.round(resting.left) + "," +
+          Math.round(resting.top) + " after 160 frames.",
+      };
     }
 
     const box = button.getBoundingClientRect();

@@ -17,13 +17,14 @@
 //      swapping its map. A material that gains a map jumps in one frame; a
 //      picture that fades up over its own fill does not, and under reduced
 //      motion the same code path arrives at opacity 1 immediately.
-import { BoxGeometry, Group, Mesh, PlaneGeometry, Vector3, type BufferGeometry, type Texture } from "three";
+import { BoxGeometry, Group, Mesh, PlaneGeometry, Vector3, type BufferGeometry, type Object3D, type Texture } from "three";
 import type { BacklotPiece, FocusRequest, Hotspot, RoomContext } from "../engine/types";
 // `BacklotInteractive` is the one shape in the manifest that engine/types.ts
 // does not re-export. Types erase at build, so this import costs the island
 // nothing and the rule it is under — client code takes the manifest's types and
 // never its values — still holds.
 import type { BacklotInteractive } from "./manifest";
+import type { Kit } from "./furniture";
 import { Painter, type Role } from "./palette";
 
 // --------------------------------------------------------------- dimensions
@@ -313,6 +314,47 @@ export interface ShellOptions {
    * frame's own centre and is filled in here.
    */
   focusFor?(interactive: BacklotInteractive, frame: PieceFrame | null): RoomFocus | undefined;
+  /**
+   * Things the room builds that a manifest interactive names but no `pieceId`
+   * points at — furniture rather than a picture. The machine room's tower is
+   * the one there is.
+   *
+   * Called with the shell's own painter and geometry tracker, **after** the
+   * pieces are up and **before** the buttons are registered, and that timing is
+   * the whole reason it is a callback rather than an argument. A control's place
+   * in the Tab order is its place in the manifest, and a room that built its
+   * furniture after `buildRoomShell` returned could only register the control
+   * afterwards — which put "Look at the machine" behind "Back to the backlot".
+   * Building it here keeps the way out last, where a way out belongs.
+   *
+   * Keyed by interactive id.
+   */
+  fixtures?(kit: Kit): Record<string, RoomFixture>;
+}
+
+/**
+ * A thing in the room that a button is about but no piece describes.
+ *
+ * It carries what a `PieceFrame` would have carried: where the control is
+ * parked, how close counts as arriving, what the camera comes in to, and —
+ * the reason this exists at all — **the object**, so the parking pass publishes
+ * where it is on screen from the same matrices the renderer used. Without one,
+ * the only handle anything has on the tower is its 4 px light bar, which is
+ * sub-pixel at 390 px wide.
+ */
+export interface RoomFixture {
+  /** For `HotspotSpec.surface`. The object itself, turned as it is turned. */
+  object: Object3D;
+  /** Where the button parks and what `facingWhich` answers from: the thing, in
+   *  world space, not the floor in front of it. */
+  position: Vector3;
+  /** Metres. How close the figure has to be for this to be what it is at. */
+  radius: number;
+  /** How the camera comes in, if it does. No `target`: the engine frames
+   *  `position`, which for a fixture is the fixture. */
+  focus?: { radius: number; normal?: Vector3 };
+  /** What the live region says on arrival. */
+  arrival?: string;
 }
 
 /**
@@ -513,12 +555,19 @@ export function buildRoomShell(context: RoomContext, options: ShellOptions = {})
   const pieceOf = new Map<string, string>();
   // An interactive with no piece — the way out, the link to the real page — is
   // a spot by the back wall, which is where the figure comes in.
-  const looseCount = context.room.interactives.filter((interactive) => !interactive.pieceId).length;
+  // Built before the loop, not after the function returns: see `fixtures`.
+  const fixtures = options.fixtures?.({ painter, track }) ?? {};
+  const looseCount = context.room.interactives.filter(
+    (interactive) => !interactive.pieceId && !fixtures[interactive.id],
+  ).length;
   let loose = 0;
   for (const interactive of context.room.interactives) {
     const frame = interactive.pieceId ? (frames.get(interactive.pieceId) ?? null) : null;
+    const fixture = frame ? undefined : fixtures[interactive.id];
     let position: Vector3;
-    if (frame) {
+    if (fixture) {
+      position = fixture.position.clone();
+    } else if (frame) {
       // The picture, not the spot on the floor in front of it. The engine parks
       // the button on this point and answers `facingWhich` from it, so it has to
       // be the thing itself: anchored to the floor, a figure standing on the
@@ -529,7 +578,7 @@ export function buildRoomShell(context: RoomContext, options: ShellOptions = {})
       position = new Vector3((loose - (looseCount - 1) / 2) * 1.8, 1.2, ROOM.depth / 2 - 1.3);
       loose += 1;
     }
-    const arrival = options.arrivalFor?.(interactive, frame);
+    const arrival = fixture?.arrival ?? options.arrivalFor?.(interactive, frame);
     const focus = frame ? options.focusFor?.(interactive, frame) : undefined;
     if (frame && focus) placeFocus.set(frame.piece.id, focus);
     const hotspot = context.hotspots.register({
@@ -538,7 +587,7 @@ export function buildRoomShell(context: RoomContext, options: ShellOptions = {})
       // along does not: on the front wall the spots are 1.28 m apart and the
       // diagonal to a neighbour is 2.13 m, which leaves 1.7 to 2.13 as the band
       // where exactly one picture is ever the one being stood at.
-      radius: frame ? reachOf(surfaces[frame.piece.wall]) : 1.8,
+      radius: fixture ? fixture.radius : frame ? reachOf(surfaces[frame.piece.wall]) : 1.8,
       label: interactive.label,
       position,
       // What the button is parked near, and separately what it is *about*. A
@@ -547,14 +596,16 @@ export function buildRoomShell(context: RoomContext, options: ShellOptions = {})
       // at 1920×1080 with the nearest stray 439 px off, and 26 px at 390×844
       // with three brighter cells 27, 29 and 35 px off — one cell of error, on
       // the screens' own edges (engine/types.ts carries the same note).
-      ...(frame ? { surface: frame.face } : {}),
+      ...(fixture ? { surface: fixture.object } : frame ? { surface: frame.face } : {}),
       ...(arrival ? { arrival } : {}),
       // Only a focus the engine can frame correctly goes on the spec. One that
       // names its own target is framed below instead, because the engine frames
       // `position` and `position` is this screen rather than the wall it is on.
-      ...(focus && !focus.target
-        ? { focus: { radius: focus.radius, ...(focus.normal ? { normal: focus.normal } : {}) } }
-        : {}),
+      ...(fixture?.focus
+        ? { focus: { radius: fixture.focus.radius, ...(fixture.focus.normal ? { normal: fixture.focus.normal } : {}) } }
+        : focus && !focus.target
+          ? { focus: { radius: focus.radius, ...(focus.normal ? { normal: focus.normal } : {}) } }
+          : {}),
       ...(focus && frame
         ? {
             onProximity(near: boolean) {

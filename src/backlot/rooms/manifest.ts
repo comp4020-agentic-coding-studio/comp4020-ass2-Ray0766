@@ -51,7 +51,7 @@ export interface BacklotInteractive {
   id: string;
   /** The piece it acts on, when it acts on one. */
   pieceId?: string;
-  kind: "play-clip" | "read-graph" | "leave-room" | "open-page";
+  kind: "play-clip" | "read-graph" | "look-at" | "leave-room" | "open-page";
   /** Button text, and what the live region says when the figure reaches it. */
   label: string;
   /** For "open-page": site-root-relative, base-resolved by the page. */
@@ -372,6 +372,21 @@ const machineRoom: BacklotRoom = {
       pieceId: deskScreen.id,
       kind: "read-graph",
       label: "Read the workflow graph on the monitor",
+    },
+    // The tower is the only thing in this room a reader cannot walk up to. The
+    // front wall and the monitor both pull the camera in when the figure
+    // approaches or when Tab lands on them; the tower had neither, so a reader
+    // on the keyboard could not look at the machine the room is named for. It
+    // is listed here rather than registered by the room because the order of
+    // this array is the Tab order, and a control the room adds for itself lands
+    // after the way out.
+    //
+    // "Look at the machine", not "the GPU" or "the vents": one room, one
+    // machine, and nothing in here names a part.
+    {
+      id: "look-machine",
+      kind: "look-at",
+      label: "Look at the machine",
     },
     {
       id: "open-studio",

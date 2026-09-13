@@ -83,9 +83,24 @@ const VIEWPORTS = [
  *  preference, which is why it is checked too (CLAUDE.md §7). */
 const THEMES: readonly ColourScheme[] = ["dark", "light"];
 
+/** What each place shows, derived from the manifest.
+ *
+ *  **The machine room grew a ninth control this round** — `look-machine`, the
+ *  tower, which was the one fitting in a room named after it that a keyboard
+ *  reader could not approach. Nothing here was widened by hand to absorb it: it
+ *  is a `BacklotInteractive` like the other eight, so this list came out nine on
+ *  its own, and the new control is now held to every floor in this file — its
+ *  fill against its dot, its label's ink, its reveal on focus — exactly like the
+ *  rest.
+ *
+ *  That is the case for deriving a scope from the data rather than keeping one
+ *  by hand, made by a round in which the data changed twice: the control first
+ *  appeared under a namespaced id the room registered itself, and then moved
+ *  into the manifest under a plain one. A list typed here would have been wrong
+ *  in two different ways inside an hour. */
 const PLACES = [
-  { name: "the hub", expect: () => doors.map((door) => door.id) },
-  { name: "the machine room", expect: () => room.interactives.map((entry) => entry.id) },
+  { name: "the hub", required: () => doors.map((door) => door.id) },
+  { name: "the machine room", required: () => room.interactives.map((entry) => entry.id) },
 ] as const;
 
 interface Probe {
@@ -594,14 +609,14 @@ const at = (place: string, viewport: string, theme: ColourScheme) =>
 //   (14 failed | 54 passed — every control at 1920, in both themes)
 // then reverted. Injected into the build rather than into backlot-hud.css
 // because that file belongs to the engine this round.
-describe.each(PLACES)("$name", ({ name: place, expect: expected }) => {
+describe.each(PLACES)("$name", ({ name: place, required }) => {
   describe.each(VIEWPORTS)("at $name", ({ name: viewport, labelled }) => {
     describe.each(THEMES)("in the %s theme", (theme) => {
       it("has the controls it should have", () => {
-        expect(at(place, viewport, theme).map((r) => r.id)).toEqual(expected());
+        expect(at(place, viewport, theme).map((r) => r.id)).toEqual(required());
       });
 
-      for (const id of expected()) {
+      for (const id of required()) {
         it(`the ${id} control`, () => {
           const found = at(place, viewport, theme).find((r) => r.id === id);
           // Named, rather than a TypeError two lines down. The one way this is

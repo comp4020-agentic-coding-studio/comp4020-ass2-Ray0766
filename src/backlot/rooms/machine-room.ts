@@ -38,6 +38,7 @@ import {
 import {
   DESK,
   MONITOR,
+  TOWER,
   buildCables,
   buildChair,
   buildDesk,
@@ -47,6 +48,7 @@ import {
   buildStoryboards,
   buildTower,
   type Kit,
+  type TowerBuild,
 } from "./furniture";
 
 /** How often the room asks which screen the figure is facing. Four times a
@@ -228,8 +230,54 @@ export async function buildMachineRoom(context: RoomContext): Promise<void> {
       }
     : null;
 
+  // The machine, worked out before the shell is asked for it.
+  //
+  // `DESK.centre + TOWER.centre` because the tower is parented to the desk
+  // group; the hotspot's position is world space either way, so it is the same
+  // arithmetic `buildTower` does, not a second copy of the answer.
+  const towerCentre = DESK.centre.clone().add(TOWER.centre).setY(TOWER.height / 2);
+  // The front panel's own normal. `TOWER.turn` is a positive rotation about y,
+  // so the face points at (sin, 0, cos).
+  const towerFacing = new Vector3(Math.sin(TOWER.turn), 0, Math.cos(TOWER.turn));
+  // Half the longest side. The engine fits `max(radius, radius / aspect)` as a
+  // half-height, so a radius guarantees a box two of them wide — which makes it
+  // the thing's half-width. Same reasoning as the monitor.
+  const towerReach = Math.max(TOWER.width, TOWER.height, TOWER.depth) / 2;
+  let built: TowerBuild | undefined;
+
   const shell = buildRoomShell(context, {
     surfaces: desk ? { desk } : {},
+    /**
+     * The tower, built here so that the button the manifest asks for can be
+     * registered in the manifest's own order.
+     *
+     * Two things this is load-bearing for, and the second one is the one that
+     * would not have been noticed:
+     *
+     *   - **the control is parked at the machine.** An interactive with no
+     *     `pieceId` is otherwise laid out on a row by the back wall, and a
+     *     button by the back wall that claims to be about the tower is the
+     *     defect `HotspotSpec.surface` exists to fix, re-made.
+     *   - **the loose row does not move.** That row's x positions are
+     *     `(loose - (looseCount - 1) / 2) * 1.8`, so a third loose control takes
+     *     `open-studio` and `leave-machine-room` from ±0.9 m to ±1.8 — half the
+     *     room — and with them the composition. A fixture is not loose, so the
+     *     count stays 2.
+     */
+    fixtures(kit) {
+      built = buildTower(kit);
+      return {
+        "look-machine": {
+          object: built.group,
+          position: towerCentre,
+          // Far enough out that standing at the desk is not standing at the
+          // machine: the two are 1.4 m apart on the desk's own axis.
+          radius: 0.62,
+          focus: { radius: towerReach, normal: towerFacing.clone() },
+          arrival: "At the machine.",
+        },
+      };
+    },
     arrivalFor: (_interactive, frame) => frame?.piece.caption,
     onInteractive: (interactive, frame) => approach(frame, interactive.kind === "play-clip"),
     // Two things the camera comes in for, and they come in differently.
@@ -274,9 +322,15 @@ export async function buildMachineRoom(context: RoomContext): Promise<void> {
   const monitor = buildMonitor(kit, desk?.heightHint ?? MONITOR.screenWidth);
   deskGroup.add(monitor.group);
 
-  const tower = buildTower(kit);
+  // Built by `fixtures` above, before the buttons, and parented here. Nothing
+  // renders between those two points — the whole of L0 is synchronous — so the
+  // first park sees it in place and the published rect is right from the first
+  // frame.
+  if (!built) throw new Error("backlot: the shell never asked for the room's fixtures, so there is no machine");
+  const tower = built;
   deskGroup.add(tower.group);
   deskGroup.add(buildCables(kit));
+
 
   // On the near corner, in the monitor's own light. At the room's scale it is
   // nine pixels across and reads as nothing; it is there for the close-up the

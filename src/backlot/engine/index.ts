@@ -216,6 +216,18 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
   let framedId: string | null = null;
   /** And the door whose clip is running, which is at most one. */
   let watchedDoorId: string | null = null;
+  /**
+   * The door press that is in flight, or null.
+   *
+   * A press is not one act: it is a walk, a leaf swinging, and then either a
+   * room or a navigation, and between the press and the last of those is about
+   * two and a half seconds of the reader watching a figure cross a floor. That
+   * stretch is deliberate — the walk is the point — but it has to be possible
+   * to change your mind in it, and until this existed it was not: `escape`
+   * pulled the camera back and returned, and the walk it left behind went on
+   * and navigated.
+   */
+  let pressing: { id: string; label: string } | null = null;
   /** The door the figure is standing at, which is what a window-level Enter
    *  goes through. Kept from the proximity crossings rather than searched for,
    *  so it is the same answer the announcement was made from. */
@@ -596,6 +608,67 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
 
   // ------------------------------------------------------------------ doors
 
+  /** Pages already asked for. A reader who presses the same door twice, or
+   *  changes their mind and presses it again, does not ask for it twice. */
+  const prefetched = new Map<string, HTMLLinkElement>();
+
+  /**
+   * Ask the browser for the page behind a door **at the moment the door is
+   * pressed**, not when the figure gets there.
+   *
+   * The walk is 2.5 s of wall clock in which the network is doing nothing, and
+   * the thing it ends in is a full document load. `rel="prefetch"` with
+   * `as="document"` is the cheap half of what is available here: it puts the
+   * response in the cache so the navigation can be served from it, and it costs
+   * one request for a page the reader has already said they want. It does
+   * **not** fetch that page's stylesheet or its scripts, so it can only ever
+   * buy the document's own round trip — which is why the receipt measures what
+   * that is worth rather than asserting it is worth something.
+   *
+   * Only for a door that leaves the backlot. The Studio door mounts a room out
+   * of a chunk that is already in the tab, and prefetching /studio/ for it would
+   * be spending a request on a page the press is not going to.
+   */
+  function prefetchPage(href: string): void {
+    if (prefetched.has(href)) return;
+    const link = document.createElement("link");
+    link.rel = "prefetch";
+    // Without `as` the browser has no destination for the request and Chrome
+    // treats it as a subresource, which is a different cache entry from the one
+    // the navigation will look in.
+    link.as = "document";
+    link.href = href;
+    document.head.append(link);
+    prefetched.set(href, link);
+  }
+
+  /**
+   * Esc, pressed while a door press is walking or opening.
+   *
+   * It stops the figure **where it stands** rather than sending it anywhere:
+   * "not that door" is what was asked, and walking back to the middle of the
+   * ring is a second decision the reader did not make. The leaf goes back, the
+   * camera comes off the door the press had framed, and the `generation` bump
+   * is what makes the `await` inside `use` come back to a press that is no
+   * longer anybody's.
+   *
+   * Returns whether there was one, so `escape` can fall through to the framing
+   * and the room when there was not.
+   */
+  function stopPress(): boolean {
+    const press = pressing;
+    // `mounted` means the press already got where it was going, and Esc there
+    // is the room's Esc, not this one.
+    if (!press || mounted) return false;
+    pressing = null;
+    generation += 1;
+    player.placeAt(player.position.clone());
+    hub.setOpen(press.id, false, motion.reduced);
+    releaseFraming(false);
+    announce(`Stopped. The ${press.label} door is closed again.`);
+    return true;
+  }
+
   async function use(doorId: string): Promise<void> {
     if (busy || mounted) return;
     const entry = hub.find(doorId);
@@ -603,11 +676,19 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
     const mine = ++generation;
     const handle = doorHandles.get(doorId);
     busy = true;
+    pressing = { id: doorId, label: entry.door.label };
     // aria-disabled, never the `disabled` property: `disabled` blurs the
     // element it is set on, and the reader loses the ring on the control they
     // just pressed (CLAUDE.md §7). The guard that actually stops a second
     // press is `busy`.
     handle?.setEnabled(false);
+    // Where this press is going, decided **here** rather than after the walk,
+    // because the point of asking now is to spend the walk on the fetch. It is
+    // the same test the end of this function makes, and it is one expression so
+    // the two cannot drift.
+    const roomId = entry.door.roomId;
+    const intoARoom = entry.door.kind === "room" && Boolean(roomId) && Boolean(roomId && rooms[roomId]);
+    if (!intoARoom) prefetchPage(entry.door.href);
     try {
       if (player.position.distanceTo(entry.standing) > 0.3) await player.walkTo(entry.standing);
       if (disposed || generation !== mine) return;
@@ -617,8 +698,7 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
       if (!motion.reduced) await wait(OPEN_MILLISECONDS);
       if (disposed || generation !== mine) return;
 
-      const roomId = entry.door.roomId;
-      if (entry.door.kind === "room" && roomId && rooms[roomId]) {
+      if (intoARoom && roomId) {
         await enterRoom(roomId);
         return;
       }
@@ -629,6 +709,7 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
       window.location.assign(entry.door.href);
     } finally {
       busy = false;
+      pressing = null;
       handle?.setEnabled(true);
     }
   }
@@ -710,7 +791,13 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
   // ------------------------------------------------------------------ input
 
   function escape(): void {
-    // The framing first, the room second. A reader who has come in close on
+    // A press already on its way to a navigation is the biggest thing Esc can
+    // be countermanding, so it goes first — and it takes the framing with it,
+    // because a camera left pushed in on a door the figure is no longer walking
+    // to is a shot of nothing. Before this, Esc during a walk released the
+    // framing, returned, and let the navigation happen anyway.
+    if (stopPress()) return;
+    // Then the framing, then the room. A reader who has come in close on
     // something expects Esc to pull back, not to throw them out of the room.
     if (releaseFraming(true)) return;
     if (mounted) {
@@ -957,6 +1044,8 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
       stage.dispose();
       motion.dispose();
       colours.dispose();
+      for (const link of prefetched.values()) link.remove();
+      prefetched.clear();
       canvas.removeAttribute("role");
       canvas.removeAttribute("aria-label");
       delete hud.dataset.backlotClips;

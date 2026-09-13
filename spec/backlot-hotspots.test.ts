@@ -503,12 +503,40 @@ describe("the hub is the doors", () => {
 //   manifest: expected [ 'play-front-t1', …(6) ] to deeply equal
 //   [ 'play-front-t1', …(7) ]
 //   (6 failed | 23 passed)
+/** The machine room grew a ninth control this round: `look-machine`, the tower.
+ *  It was the one fitting in a room named after it that a keyboard reader could
+ *  not approach — the five screens and the monitor all frame the camera when you
+ *  walk up or Tab to them, and the machine did neither.
+ *
+ *  **Nothing here was widened to absorb it.** It is a `BacklotInteractive` in
+ *  `manifest.ts` like the other eight, so `room.interactives` is nine by
+ *  derivation and every list below came out nine on its own. That is the shape
+ *  this file already had and the reason it had it.
+ *
+ *  The equality below is therefore back to what it always was: **the room's
+ *  visible buttons are exactly its manifest's interactives, in order.** Worth
+ *  saying out loud is what that equality *also* forbids, because the engine can
+ *  in principle put a control in a room that the manifest does not name —
+ *  `engine/index.ts` registers its own way out under `${room.id}:leave` for a
+ *  room that has none of its own. **No room in this tree takes that path**: the
+ *  machine room's manifest has a `leave-room` interactive, so `index.ts` finds
+ *  it and disposes the engine's. So the case exists in the code and has never
+ *  run here, this assertion has never seen it, and when a room without its own
+ *  exit appears this is where it will fail and what to change. Said rather than
+ *  guarded — a branch nobody has watched execute is a comment (CLAUDE.md §7),
+ *  and a rule written for a case that cannot occur would read as coverage. */
+const named = (ids: (string | null)[]): string[] => ids.filter((id): id is string => typeof id === "string");
+
 describe("the machine room is its interactives", () => {
   it("has one button per interactive in the manifest, and no others in play", () => {
-    const live = driven.roomButtons.filter((button) => !button.hidden);
+    const live = named(driven.roomButtons.filter((button) => !button.hidden).map((button) => button.id));
     expect(
-      live.map((button) => button.id),
-      "the machine room has one button per interactive in its manifest",
+      live,
+      `the machine room's visible buttons are not its manifest's interactives. It was showing ` +
+        `${live.join(", ")}; the manifest has ` +
+        `${room.interactives.map((interactive) => interactive.id).join(", ")}. An id here that the manifest ` +
+        `does not have is either a piece that has fallen out of it or a control the engine registered for a ` +
+        `room with no exit of its own — see the note above.`,
     ).toEqual(room.interactives.map((interactive) => interactive.id));
   });
 
@@ -532,7 +560,7 @@ describe("the machine room is its interactives", () => {
   });
 
   it("is reached by Tab in document order", () => {
-    expect(driven.roomTabOrder).toEqual(room.interactives.map((interactive) => interactive.id));
+    expect(named(driven.roomTabOrder)).toEqual(room.interactives.map((interactive) => interactive.id));
   });
 });
 
@@ -562,7 +590,7 @@ describe("the machine room is its interactives", () => {
 describe("Enter opens, Escape goes back", () => {
   it("Enter on the Studio door opens the machine room", () => {
     expect(
-      driven.roomButtons.filter((button) => !button.hidden).map((button) => button.id),
+      named(driven.roomButtons.filter((button) => !button.hidden).map((button) => button.id)),
       "Enter on the Studio door did not open the machine room",
     ).toEqual(room.interactives.map((interactive) => interactive.id));
   });

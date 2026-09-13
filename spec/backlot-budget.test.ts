@@ -500,7 +500,26 @@ async function time(): Promise<Record<string, Timing>> {
       // and the boot 39-95 ms. Anything that makes the page slower moves the
       // floor by the whole amount — a kilobyte is half a millisecond at this
       // throughput and a millisecond of boot work is a millisecond. What the
-      // floor drops is only the part no page can control.
+      // floor drops is only the part no page can control. Measured against real
+      // delays in front of the island: +150 ms fails on every one of nine loads
+      // and +60 ms passes, which is the line's own headroom rather than the
+      // statistic going blind — 150 ms is 28% of the 529 ms the suite's
+      // contention spans, caught every time, against a median of three that was
+      // crossing the line 36% of the time on a **clean** build.
+      //
+      // **And here is what it cannot see, which is the assumption the whole
+      // statistic rests on.** A floor is blind to a regression that affects only
+      // *some* loads — a cache-miss branch, a race that fires one time in three.
+      // "The floor reports the page" is true only while the page has one speed.
+      // It has one speed today: the island is one chunk fetched the same way
+      // every time, and fifteen loads span 11 ms of arrival and 56 ms of boot,
+      // which is a page with no second path through it. The day something here
+      // is fast when a cache hits and slow when it misses, this estimator will
+      // report the fast path and say nothing, and the spreads printed in the
+      // failure message are the only place that would show. Anyone adding a
+      // branch that can be slow on some loads and not others has to come back to
+      // this comment: the answer then is a high quantile or a separate line for
+      // the slow path, not a floor.
       //
       // Nine rather than three because a floor wants samples: with three, an
       // unlucky triple reads high and there is no lower one to find. The
@@ -582,11 +601,16 @@ const captionCount = backlotManifest.rooms.reduce((sum, room) => sum + room.piec
 // the island chunk prefixed by `await new Promise(r => setTimeout(r, 200))`.
 //
 //     clean       floor 3575 ms   boot  39 ms   0 of 9 loads over the line
+//     +60 ms      floor 3635 ms                  passes — the line's own headroom
+//     +150 ms     floor 3744 ms   nine loads spanning 57 ms, 9 of 9 over the line
 //     +200 ms     floor 3787 ms   boot 241 ms   9 of 9 loads over the line
 //
-// A fifth of the contention noise, caught on every single load. The floor moved
-// by 212 ms for 200 ms of delay and the island's arrival did not move at all,
-// which is the decomposition saying where it went.
+// The floor moved by 212 ms for 200 ms of delay and the island's arrival did not
+// move at all, which is the decomposition saying where it went. 150 ms is 28% of
+// the 529 ms the suite's contention spans and it is caught on every load, which
+// is the number that settles whether the floor bought its steadiness by going
+// blind: the median of three it replaced was crossing the line 36% of the time
+// with nothing wrong at all.
 //
 // Seen red under a real delay, which is the only thing that proves this probe is
 // looking at the right event: the built island chunk prefixed with

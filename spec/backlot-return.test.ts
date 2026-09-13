@@ -678,13 +678,26 @@ const PAGE_DOOR = backlotDoors.find((door) => door.kind === "page")!;
  *  crash. */
 async function arriveAt(tab: Tab, path: string, what: string): Promise<number | null> {
   const started = Date.now();
-  const deadline = started + 15_000;
+  // Thirty seconds, and the number moved because the claim under it turned out
+  // to be false. It was fifteen, on the reasoning below that a press reaches the
+  // address bar in about 2,505 ms so running out means "it did not navigate".
+  // Run inside the whole suite, where up to a dozen browsers compete for this
+  // machine, it ran out on a press that navigates: the same build, the same
+  // build output, this file alone is 28 passed, and driving that exact click by
+  // hand reaches /sessions/ in under a second. Seven failures, six of them
+  // downstream of a reader who never left.
+  //
+  // Waiting longer is not a weaker check — the assertion is still that the
+  // address bar says this exact path, and nothing about what counts as arriving
+  // has changed. What was wrong was the harness's claim about its own timeout,
+  // and the fix to a wait that is too short is a longer wait.
+  const deadline = started + 30_000;
   while (Date.now() < deadline) {
     const here = await tab.evaluate<string>("return location.pathname;");
     if (here === path) return Date.now() - started;
     await pause(100);
   }
-  console.warn(`backlot-return: ${what} did not reach ${path} within 15 s`);
+  console.warn(`backlot-return: ${what} did not reach ${path} within 30 s`);
   return null;
 }
 
@@ -760,7 +773,10 @@ async function walkBack(): Promise<BackLap[]> {
       // traversal never took at all — the session history stayed at index 2 with
       // the reader still on the real page, and every assertion below failed
       // about the wrong thing.
-      const deadline = Date.now() + 15_000;
+      // Thirty, with `arriveAt` above and for the same reason: under the whole
+      // suite this machine is slow enough that a wait sized on a clean run is a
+      // harness reporting its own contention as a finding.
+      const deadline = Date.now() + 30_000;
       let arrived = false;
       while (Date.now() < deadline) {
         await pause(150);
@@ -833,7 +849,7 @@ describe.each(VIEWPORTS)("out through a door and back with the Back button at $n
     expect(
       one.away.path,
       `pressing "${one.door.text}" landed on ${one.away.path} ` +
-        `${one.leftBy === null ? "after 15 s of waiting for the address bar to change" : `after ${one.leftBy} ms`}. ` +
+        `${one.leftBy === null ? "after 30 s of waiting for the address bar to change" : `after ${one.leftBy} ms`}. ` +
         `The door's href is ${one.door.href} and the site is served under ${prefix}, so the whole path is what it ` +
         `has to be — a root-absolute URL from the island ends with the same slug and 404s on the deployed ` +
         `sub-path. A press takes about 2,505 ms to reach the address bar, because the figure walks to the door and ` +
@@ -954,7 +970,7 @@ describe("the walk measured something", () => {
       expect(one.door.text, `${one.viewport}: the control pressed had no accessible name`).toMatch(/\S/);
       expect(
         one.leftBy,
-        `${one.viewport}: pressing "${one.door.text}" never reached ${prefix}${one.door.id}/ in fifteen seconds; ` +
+        `${one.viewport}: pressing "${one.door.text}" never reached ${prefix}${one.door.id}/ in thirty seconds; ` +
           `the reader is on ${one.away.path}. A press is a walk to the door and a leaf swinging before anything ` +
           `navigates — about 2,505 ms of it — so this waits rather than beats. A null means either that the ` +
           `navigation did not happen at all or that it went somewhere else, and the path above says which.`,

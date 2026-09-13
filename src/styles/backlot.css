@@ -332,6 +332,33 @@
   max-inline-size: 62ch;
 }
 
+/* A catalogue entry that is not near the reader is not rendered, and therefore
+   its frame is never discovered and never asked for. That is what keeps six
+   thousand pixels of gallery off the island's pipe.
+
+   `loading="lazy"` does not do this: Chrome's threshold is about 3000 px on a
+   slow connection, so it holds back nothing on the first screen (CLAUDE.md §7),
+   and `fetchpriority="low"` does not either — measured at 4036 ms against 4043,
+   because this harness serves HTTP/1.1 and round-robins six connections, so a
+   priority hint barely bites. Both of those are things the page can say; this is
+   the one that changes what the browser asks for.
+
+   **Per entry, not per wall**, and the difference is 273 ms. On the wall the
+   whole section is one box: the machine room's front wall starts inside
+   `content-visibility`'s relevance margin, so the section renders whole and all
+   five of its posters are discovered at once. Per entry the margin reaches the
+   first few and stops. Measured on Slow 4G, floor of nine: 4043 ms and ten image
+   requests as it was, 3770 ms and five per entry, 4023 ms per wall.
+
+   `contain-intrinsic-size` is the placeholder a skipped entry stands in with —
+   280px is what one measures. It does not change which frames are fetched (320px
+   reads the same five), only whether the scroller's length is honest. */
+.backlot-piece,
+.backlot-week {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 280px;
+}
+
 .backlot-wall {
   margin-block-start: var(--at-spacing-xl);
 }

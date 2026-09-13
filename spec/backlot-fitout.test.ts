@@ -551,6 +551,37 @@ async function sweep(): Promise<Case[]> {
             await tab.evaluate(
               "return new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)));",
             );
+            // **The same last step before both readings, so the figure is in
+            // the same pose for both.**
+            //
+            // This check compares two readings of the figure by where the
+            // brightest cell of it lands, and that only means anything if the
+            // two are of the same thing seen the same way. `returnToHub` puts
+            // the figure back at the door it came out of and the second Escape
+            // walks it to `hub.middle`, so its **position** is restored by
+            // design — but its **heading** is whatever the last step set, and
+            // the two are not the same: at boot it is placed facing (0,0,-1)
+            // and after the walk back it faces the way it travelled.
+            //
+            // That did not matter when the figure was a capsule with a sphere
+            // on top, which looks identical from every side. It matters now: the
+            // rebuilt figure has a hat brim, a collar across the front of its
+            // shoulders and two arms, so the brightest cell of it is in a
+            // different place depending on which way it is pointing. Measured,
+            // the search found it at (950,475) before the room and (950,491)
+            // after — the same x, 16 px apart in y, on a figure standing in
+            // exactly the place it started. The sentinel was keying on a
+            // consequence that stopped being one (CLAUDE.md §7's expiry rule),
+            // and the honest fix is to take the confound out rather than to
+            // widen the number until it fits.
+            //
+            // So both readings are preceded by the same short walk in the same
+            // direction. The last drive decides the facing, so after it the
+            // figure is in one deterministic pose either side of the room, and
+            // the coordinates mean what they always meant. 120 ms at 4.6 m/s is
+            // about half a metre, which is nowhere near a door's reach.
+            await tab.hold("ArrowUp", 120);
+            await pause(900);
             const seen = await tab.evaluate<Rects | null>(RECTS);
             if (!seen) return { best: -1, at: "" };
             const raster = await tab.raster({
@@ -1664,8 +1695,19 @@ describe("the brightest thing in the machine room is the front wall", () => {
       // the numbers are not comparable.
       expect(
         one.hubAfterAt,
+        // The numbers go in this message as well as in the drift one below,
+        // because this is the assertion that actually fires when the exposure
+        // is never released: a figure that has gone dark stops being the
+        // brightest thing in the band, so the search lands somewhere else and
+        // the guard trips before the comparison it guards ever runs. Taken
+        // under that injection it read "(950,467) before and (942,491) after"
+        // and said nothing about brightness, which is the whole finding.
         `the figure was found at ${one.hubBeforeAt} before the room and ${one.hubAfterAt} after, so the two ` +
-          `readings are not of the same thing`,
+          `readings are not of the same thing — ${one.hubBefore?.toFixed(1)} against ` +
+          `${one.hubAfter?.toFixed(1)}. Both readings are taken after the same short walk, so the figure is ` +
+          `in the same pose for both; if it has moved, the likeliest reason is that it is no longer the ` +
+          `brightest thing in the middle of the ring, which is what the room failing to give its exposure ` +
+          `back looks like.`,
       ).toBe(one.hubBeforeAt);
       const drift = Math.abs(one.hubAfter! - one.hubBefore!);
       expect(

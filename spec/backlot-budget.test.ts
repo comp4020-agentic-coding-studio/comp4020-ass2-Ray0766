@@ -211,6 +211,56 @@ describe("the island fits its budget", () => {
     );
   });
 
+  // The failure mode of the walker itself, which is worth more than it looks.
+  //
+  // `importsOf` matches a specifier inside `"`, `'` **or a backtick**, and the
+  // backtick is load-bearing: measured on a clean rebuild, the same graph walked
+  // with a quote-only pattern comes to 3 chunks and 175,685 B against the
+  // backtick-aware 4 and 189,044 B. Thirteen kilobytes of budget, gone silently,
+  // under a number that still reads like a pass.
+  //
+  // **Which chunk goes missing is a fact about the walker and the tree, not a
+  // constant.** On this build it was the model loader; an earlier walk of the
+  // same graph with a different seed and pattern lost `graph-reader` at 4,278 B
+  // instead. So the assertion below names no chunk. It says that **nothing** the
+  // island's own code names went unweighed, which is the question, and it lists
+  // whatever it found in the message.
+  //
+  // A second and deliberately looser reading of the same files, whose only job
+  // is to notice the walker narrowing: every `_astro/*.js` the island's own
+  // chunks name, however it is quoted, has to have been weighed somewhere — in
+  // the island or on some other page. Independent of `importsOf` on purpose; a
+  // guard written with the same regex would agree with it about everything,
+  // including being wrong.
+  //
+  // Seen red by narrowing `importsOf` to `["']` and reverting, with dist hashed
+  // either side of the run so a concurrent rebuild could not pass for evidence:
+  //   AssertionError: 1 chunk(s) are named by the backlot's own code and were
+  //   weighed by nothing: index.astro_…_lang.D9Sla43H.js names
+  //   GLTFLoader.DLtarcah.js. The budget above is therefore smaller than the
+  //   page, which is the one way a budget check fails by passing.
+  it("counts every chunk the backlot's own chunks name, however the specifier is quoted", () => {
+    const weighedSomewhere = new Set([...island, ...everywhereElse]);
+    const missed: string[] = [];
+    for (const file of island) {
+      const text = readFileSync(resolve(CHUNKS, file), "utf8");
+      for (const match of text.matchAll(/(?:\.\/|_astro\/)([\w.\-]+\.js)/g)) {
+        const named = match[1]!;
+        // A name that is not a file in _astro/ is not a chunk — a source-map
+        // comment, a string that happens to end in .js.
+        if (!existsSync(resolve(CHUNKS, named))) continue;
+        if (weighedSomewhere.has(named)) continue;
+        if (!missed.some((one) => one.endsWith(named))) missed.push(`${file} names ${named}`);
+      }
+    }
+    expect(
+      missed,
+      `${missed.length} chunk(s) are named by the backlot's own code and were weighed by nothing: ` +
+        `${missed.join(", ")}. The budget above is therefore smaller than the page, which is the one way a ` +
+        `budget check fails by passing.`,
+    ).toEqual([]);
+  });
+
   it("keeps the model loader out of the first chunk", () => {
     // The contract's one dynamic import: GLTFLoader is a separate chunk, so it
     // costs nothing until a room asks for a model.

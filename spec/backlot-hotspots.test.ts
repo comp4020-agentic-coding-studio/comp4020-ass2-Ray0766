@@ -752,30 +752,54 @@ describe.each(roomsWithDoors)("$room.title is its interactives", ({ room: entry,
           `walking with the arrow keys is told nothing about arriving anywhere.`,
       ).toBeGreaterThan(1);
 
-      // No two doors saying the same thing. One sentence repeated at every door
-      // is a region that fires and says nothing, which passes a "did it say
-      // something" check and fails this.
-      expect(
-        new Set(arrivals).size,
-        `walking ${entry.title} produced ${arrivals.length} arrivals and only ` +
-          `${new Set(arrivals).size} distinct sentence(s): ` +
-          `${arrivals.map((one) => JSON.stringify(one)).join(", ")}`,
-      ).toBe(arrivals.length);
-
-      // And each one identifies a week the manifest actually has. Derived from
-      // `stage.week` rather than from a pattern typed here: a sentence that
-      // names no week, or names two, is not telling anybody which door they are
-      // standing at.
+      // **Not "every arrival is distinct".** That is what this said first, and
+      // it was wrong about the page rather than about the region: the walk
+      // strafes, so the figure comes back past a door it has already been at,
+      // and arriving at week 8 twice is the corridor working. It read "8
+      // arrivals and only 6 distinct sentences" and the six were correct.
+      //
+      // What has teeth, and what a repeated sentence would actually break, is
+      // that the sentence and the door are the same fact: every arrival naming a
+      // week says the same thing, and no two weeks share a sentence. A region
+      // that says one line everywhere fails the first assertion below, because a
+      // constant collapses to a single entry; a region that says the same line
+      // at two different doors fails this one.
+      const named = new Map<number, Set<string>>();
       for (const arrival of arrivals) {
-        const named = entry.stages!.filter((stage) =>
+        const weeks = entry.stages!.filter((stage) =>
           new RegExp(`\\bweek ${stage.week}\\b`, "i").test(arrival),
         );
         expect(
-          named.map((stage) => stage.id),
-          `${JSON.stringify(arrival)} names ${named.length} of ${entry.title}'s weeks, and an arrival at a ` +
+          weeks.map((stage) => stage.id),
+          `${JSON.stringify(arrival)} names ${weeks.length} of ${entry.title}'s weeks, and an arrival at a ` +
             `door has to say which one`,
         ).toHaveLength(1);
+        const week = weeks[0]!.week;
+        if (!named.has(week)) named.set(week, new Set());
+        named.get(week)!.add(arrival);
       }
+
+      expect(
+        named.size,
+        `walking ${entry.title} arrived at ${named.size} door(s): ` +
+          `${arrivals.map((one) => JSON.stringify(one)).join(", ")}. One door is not enough to show that two ` +
+          `of them say different things.`,
+      ).toBeGreaterThan(1);
+
+      for (const [week, sentences] of named) {
+        expect(
+          [...sentences],
+          `week ${week}'s door announced ${sentences.size} different sentences`,
+        ).toHaveLength(1);
+      }
+
+      const sentences = [...named.values()].map((one) => [...one][0]!);
+      expect(
+        new Set(sentences).size,
+        `${named.size} different doors in ${entry.title} share ${new Set(sentences).size} sentence(s): ` +
+          `${sentences.map((one) => JSON.stringify(one)).join(", ")}. A live region that says the same thing ` +
+          `at two doors is not announcing position.`,
+      ).toBe(named.size);
     });
   }
 

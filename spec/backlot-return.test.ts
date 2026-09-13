@@ -773,6 +773,9 @@ async function arriveAt(tab: Tab, path: string, what: string): Promise<number | 
   return null;
 }
 
+/** What the page said about a press that did not navigate, for the message. */
+let pressDiagnosis = "";
+
 async function walkBack(): Promise<BackLap[]> {
   const site = await serveBuild("dist", base);
   const tab = await Tab.launch();
@@ -828,7 +831,26 @@ async function walkBack(): Promise<BackLap[]> {
       // assertion after it failed as well, because the reader had never left.
       // The timeout below is long enough that when it runs out the answer is "it
       // did not navigate" rather than "I did not wait".
-      const leftBy = await arriveAt(tab, `${prefix}${PAGE_DOOR.id}/`, `pressing "${door.text}"`);
+      let leftBy = await arriveAt(tab, `${prefix}${PAGE_DOOR.id}/`, `pressing "${door.text}"`);
+      // What the press did, when it did not navigate. Read before anything else
+      // so the answer is about the moment it went wrong rather than about a page
+      // that has since settled: the live region says "Opening the … door" the
+      // instant `use()` commits, so a press that started and did not arrive
+      // looks nothing like a press that never ran.
+      if (leftBy === null) {
+        pressDiagnosis = await tab.evaluate<string>(
+          `const live = document.querySelector("[data-backlot-hud] [aria-live]");
+           const near = [...document.querySelectorAll("[data-backlot-hud] button")]
+             .filter((b) => b.dataset.backlotNear === "true").map((b) => b.dataset.backlotHotspot);
+           return JSON.stringify({
+             said: (live ? live.textContent : "").trim(),
+             near,
+             focus: document.activeElement ? (document.activeElement.dataset.backlotHotspot ?? document.activeElement.tagName) : null,
+             mode: document.querySelector("[data-backlot-stage]")?.dataset.backlotMode ?? null,
+           });`,
+        );
+        console.warn(`backlot-return: the press did not navigate — ${pressDiagnosis}`);
+      }
       const away = await tab.evaluate<State>(STATE);
       const landed = await tab.evaluate<{ heading: string; title: string }>(
         `const h = document.querySelector("main h1") ?? document.querySelector("h1");
@@ -921,7 +943,7 @@ describe.each(VIEWPORTS)("out through a door and back with the Back button at $n
     expect(
       one.away.path,
       `pressing "${one.door.text}" landed on ${one.away.path} ` +
-        `${one.leftBy === null ? "after 30 s of waiting for the address bar to change" : `after ${one.leftBy} ms`}. ` +
+        `${one.leftBy === null ? `after 30 s of waiting for the address bar to change (${pressDiagnosis})` : `after ${one.leftBy} ms`}. ` +
         `The door's href is ${one.door.href} and the site is served under ${prefix}, so the whole path is what it ` +
         `has to be — a root-absolute URL from the island ends with the same slug and 404s on the deployed ` +
         `sub-path. A press takes about 2,505 ms to reach the address bar, because the figure walks to the door and ` +

@@ -432,6 +432,47 @@ export class Tab {
     await loaded;
   }
 
+  /** The browser's Back button, which is not `history.back()` and not a
+   *  navigation to the previous URL.
+   *
+   *  It traverses the session history the way the chrome button does —
+   *  `Page.navigateToHistoryEntry` is the protocol call behind it — because the
+   *  thing being asked about is what the *browser* does on a traversal, and a
+   *  traversal is the one navigation that can end without a document being
+   *  parsed at all. A `goto` of the previous URL would answer a different
+   *  question with the same address bar, which is the mistake this file already
+   *  has a comment about one method up.
+   *
+   *  It deliberately does **not** wait for `Page.loadEventFired`. A restore from
+   *  the back/forward cache resumes the document instead of creating one, so no
+   *  load event is coming and an await here would hang until the timeout and
+   *  then report a failure that is really a success. The caller polls for what
+   *  it actually needs; `history()` says where the tab ended up.
+   *
+   *  Returns the URL it left and the URL it went to, so a caller can fail with
+   *  the journey in the message rather than with "something did not happen". */
+  async back(): Promise<{ from: string; to: string }> {
+    const history = (await this.#connection.send("Page.getNavigationHistory")) as {
+      currentIndex: number;
+      entries: { id: number; url: string }[];
+    };
+    const at = history.currentIndex;
+    if (at <= 0) throw new Error("Back was pressed with nothing behind this page in the session history");
+    const target = history.entries[at - 1]!;
+    await this.#connection.send("Page.navigateToHistoryEntry", { entryId: target.id });
+    return { from: history.entries[at]!.url, to: target.url };
+  }
+
+  /** Where the tab is in its own session history: every entry's URL, and which
+   *  one is current. Read after a traversal to prove it went where it was sent. */
+  async history(): Promise<{ index: number; urls: string[] }> {
+    const history = (await this.#connection.send("Page.getNavigationHistory")) as {
+      currentIndex: number;
+      entries: { url: string }[];
+    };
+    return { index: history.currentIndex, urls: history.entries.map((entry) => entry.url) };
+  }
+
   /** Wait for the page to stop moving. `load` is not that moment: a webfont
    *  swapping in or a lazy image resolving relayouts the page afterwards, and
    *  it does so *without* changing the scroll offset --- so an element's

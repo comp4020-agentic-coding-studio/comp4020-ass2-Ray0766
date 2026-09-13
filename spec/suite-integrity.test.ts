@@ -41,6 +41,79 @@
 // `spec/backlot-contrast.test.ts (0 test)` on one line and
 // `Tests 1210 passed` on another, which is the pair this file exists to break up.
 
+// ---------------------------------------------------------------------------
+// And the typecheck fails on a hint, which is the cheap half of a different
+// problem
+// ---------------------------------------------------------------------------
+//
+// `pnpm typecheck` is `astro check`, and `pnpm check` is that plus the suite.
+// Until now `astro check` printed its hints and exited 0, so a hint was a thing
+// nothing ever failed on. It now runs with `--minimumFailingSeverity hint` and
+// a hint stops the run.
+//
+// **The reasoning is here rather than only in a commit, because package.json is
+// JSON and cannot hold a comment, and because the wrong lesson is easy to draw
+// from this change.** It is a cheap half-measure, and the expensive half it does
+// not replace is `spec/backlot-exports.test.ts`.
+//
+// This round produced three dead symbols. Failing on hints would have caught
+// exactly one:
+//
+//   src/backlot/engine/hub.ts   NAME_RADIUS           orphaned when the floor
+//                                                     names came out. ts(6133),
+//                                                     "declared but its value is
+//                                                     never read" — a hint, and
+//                                                     the only one of the three
+//                                                     any compiler setting sees.
+//   src/backlot/engine/signage.ts  Signwriter.floorName   declared on the
+//                                                     interface, fully
+//                                                     implemented, called by
+//                                                     nothing. TypeScript has no
+//                                                     notion of an unused
+//                                                     interface member, so no
+//                                                     value of --noUnusedLocals
+//                                                     would ever have mentioned
+//                                                     it.
+//   src/backlot/engine/signage.ts  name(label, board)   a parameter with one
+//                                                     value at one call site.
+//                                                     The `false` branch drew
+//                                                     the floor markings, the
+//                                                     floor markings went, and
+//                                                     the branch stayed. The
+//                                                     parameter is read inside
+//                                                     the function, so it is not
+//                                                     unused by any definition a
+//                                                     compiler has.
+//
+// So the ceiling of this setting is one in three, and the two it cannot see are
+// the two that would have gone on shipping. What found all three was a check
+// that walks the exported surface and fails on a name nothing reachable from the
+// page reads — `spec/backlot-exports.test.ts`, which also found `Hotspot.setLabel`,
+// the exact shape of `floorName`, on its first honest run.
+//
+// **Nobody should delete the expensive half on the strength of the cheap one.**
+// A hint is the compiler noticing a name in a file that nothing in that file
+// mentions again; it is silent about a name that is mentioned once, by the
+// declaration that keeps it alive. Those are different questions and only one of
+// them has a compiler flag.
+//
+// The check below asserts the flag is on. It is a check about a script rather
+// than about code, which is a small thing to test — but the flag is one word in
+// a JSON file with no comment next to it, and the failure mode of losing it is
+// that everything goes on passing.
+//
+// Seen red by putting `"typecheck": "astro check"` back:
+//
+//   AssertionError: package.json runs the typecheck as `astro check`, which
+//   prints hints and exits 0 — so a hint is a thing nothing ever fails on. It
+//   needs --minimumFailingSeverity hint.: expected 'astro check' to contain
+//   '--minimumFailingSeverity hint'
+//
+// And the flag itself was seen to work, rather than assumed: an unused import
+// added to this file made `astro check` report "0 errors, 0 warnings, 1 hint"
+// and exit **0**, and `astro check --minimumFailingSeverity hint` report the
+// same line and exit **1**. Both runs are in receipts/rig-3d/a3-checks.md.
+
 import { globSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import ts from "typescript";
@@ -87,4 +160,39 @@ describe("every spec file is a file the runner can load", () => {
       ).toBeGreaterThan(0);
     });
   }
+});
+
+describe("the typecheck fails on a hint", () => {
+  const scripts = (JSON.parse(source("package.json")) as { scripts: Record<string, string> }).scripts;
+
+  it("runs astro check at hint severity", () => {
+    expect(
+      scripts.typecheck ?? "",
+      "package.json runs the typecheck as " +
+        JSON.stringify(scripts.typecheck ?? "") +
+        ", which prints hints and exits 0 — so a hint is a thing nothing ever fails on. It needs " +
+        "--minimumFailingSeverity hint. The flag's ceiling, and the check it does not replace, are argued at the " +
+        "top of this file.",
+    ).toContain("--minimumFailingSeverity hint");
+  });
+
+  it("folds that into the one command anybody runs", () => {
+    // `pnpm check` is the gate. A typecheck that fails on hints and a `check`
+    // that does not run it is the flag switched on somewhere nobody looks.
+    expect(scripts.check ?? "", `package.json's check script is ${JSON.stringify(scripts.check ?? "")}`).toContain(
+      "typecheck",
+    );
+  });
+
+  it("keeps the expensive half of the same job", () => {
+    // The cheap half catches one dead symbol in three. The file that catches
+    // the other two is named here so that deleting it fails rather than
+    // quietly halving what this repo can see.
+    expect(
+      SPEC_FILES,
+      "spec/backlot-exports.test.ts is gone. It is the half of the dead-code question no compiler setting can " +
+        "answer — an unused interface member and a parameter with one value at one call site are invisible at " +
+        "every level of --noUnusedLocals — and the hint flag above was only ever the cheap third of it.",
+    ).toContain("spec/backlot-exports.test.ts");
+  });
 });

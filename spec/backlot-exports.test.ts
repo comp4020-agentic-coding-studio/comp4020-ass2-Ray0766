@@ -28,6 +28,17 @@
 // cannot be a diagnostic setting. It has to be a check that walks what the
 // engine exports and asks what reaches it.
 //
+// **`pnpm typecheck` now fails on hints, and that changes nothing here.** The
+// flag is `--minimumFailingSeverity hint` on `astro check`, and it is worth
+// having: `reachFor` above, and `NAME_RADIUS` alongside it, were both hints that
+// nothing failed on. But the ceiling of that setting is the first row of the
+// table and nothing below it — a hint is the compiler noticing a name that
+// nothing else in its own file mentions, which is a different question from a
+// name that is exported, mentioned exactly once by the declaration keeping it
+// alive, and read by nobody. So this file is not made redundant by the flag and
+// must not be deleted on the strength of it. `spec/suite-integrity.test.ts`
+// argues the same point from the other end and fails if this file goes missing.
+//
 // The scope comes off the filesystem, never a list. spec/palette.test.ts already
 // paid for that lesson — fourteen stylesheets named by hand, five never checked,
 // and an accent painted as an outline found on the first run after it became a

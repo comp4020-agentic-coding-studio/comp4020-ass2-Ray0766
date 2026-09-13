@@ -356,7 +356,22 @@ const PROBE = String.raw`
  *  leaves three of the machine room's controls nameless to anybody driving the
  *  page from the keyboard, whatever their accessible name says. The label is
  *  found by being the descendant that carries the text, so a class rename does
- *  not turn this into a check that measures nothing. */
+ *  not turn this into a check that measures nothing.
+ *
+ *  **It puts the scene back before it reads the "before", and it has to now.**
+ *  Focus pushes the camera — that is ruling 1, and the front wall inherits it —
+ *  so focusing one control brings the whole wall in and every label on it out
+ *  of its dot. This probe is run over the collapsed controls in turn, so by the
+ *  third one the "unfocused" reading was being taken with the camera still at
+ *  the wall from the second: `play-front-t4` measured 247 px wide unfocused and
+ *  247 px focused, and the check read that as a keyboard that does not bring
+ *  the name back. The control was fine; the reading was of a scene the probe
+ *  had moved itself.
+ *
+ *  So: blur, wait out the camera's travel back, read the resting width, then
+ *  focus. What satisfies this afterwards may be the stylesheet's reveal or may
+ *  be the push — on the front wall at 1920 it is now the push — and either is
+ *  the keyboard bringing the name back, which is the whole of what it asks. */
 const REVEAL = (id: string) => String.raw`
   return (async () => {
     const button = document.querySelector('[data-backlot-hotspot="${id}"]');
@@ -364,10 +379,17 @@ const REVEAL = (id: string) => String.raw`
     const carrying = [...button.querySelectorAll("*")].filter((child) => child.textContent.trim() !== "");
     const label = carrying[carrying.length - 1];
     if (!label) return null;
+    const resting = document.activeElement;
+    if (resting instanceof HTMLElement) resting.blur();
+    // The camera's travel is 620 ms and the buttons are parked from it, so this
+    // is that plus room for the frame the parking lands on.
+    await new Promise((done) => setTimeout(done, 900));
     const before = label.getBoundingClientRect();
     button.focus();
     await new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)));
-    await new Promise((done) => setTimeout(done, 400));
+    // Long enough for a push to finish as well as for a transition to, since
+    // on the front wall the push is what brings the label back.
+    await new Promise((done) => setTimeout(done, 900));
     const after = label.getBoundingClientRect();
     return {
       focused: document.activeElement === button,

@@ -62,6 +62,7 @@
 
 import { describe, expect, it } from "vitest";
 
+import { backlotDoors } from "../src/backlot/rooms/manifest.ts";
 import { gitOrigin, resolveDeployment } from "../scripts/pages-base.ts";
 import { serveBuild, Tab, type ColourScheme } from "./lib/chrome.ts";
 
@@ -527,9 +528,453 @@ describe.each(VIEWPORTS)("coming back to the backlot at $name", ({ name }) => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// And the other way out: a door, and then the browser's Back button
+// ---------------------------------------------------------------------------
+//
+// The lap above is the one the status bar advertises, and it is a **soft**
+// navigation both ways. A door is not that. `engine/index.ts` sends a page door
+// through `window.location.assign`, which is a hard navigation — and the way
+// back from it is not a link at all, it is the browser's own Back button.
+//
+// **What Back actually does here, measured before anything was asserted**, at
+// 1920×1080 on the built site, HEAD b3139e1:
+//
+//   after the Lectures door     path /lectures/, a fresh document, 0 WebGL
+//                               contexts ever created in it
+//   Back                        path /backlot/
+//     pagehide  persisted true  the backlot's document was **put into the
+//                               back/forward cache**, not destroyed
+//     pageshow  persisted true  and **resumed** out of it 1,034 ms later
+//     document id              unchanged — the same document object, not a
+//                               re-parse
+//     astro:page-load          fired **once**, on the original load, and **not
+//                               on the restore**
+//     astro:before-swap        never fired at all
+//     ready                    true, canvas 1920×923, contexts drawing 1,
+//                               alive 1, attached 1
+//
+// **And one thing about the harness that nearly became a finding about the
+// page.** The first version of this lap reached /backlot/ with `Page.navigate`
+// — the address bar — and then Back did **nothing at all**: session history at
+// index 2 before and index 2 after, the reader still on /lectures/, and
+// `history.back()` from inside the page equally inert. That is Chrome marking
+// the entry skippable, because a document that navigates away from an entry
+// that was never user-activated is what the history-manipulation intervention
+// is for; with only `about:blank` behind it, Back had nowhere left to go. It
+// correlated with `prefers-reduced-motion` — inert under the preference,
+// working without it — which is exactly the shape of a page bug and is not one.
+// Reached by clicking the status bar's link instead, Back works under both
+// preferences. **An address bar is not a reader and a `Page.navigate` is not a
+// click**, and here the difference is not softness but whether the browser
+// will go back at all.
+//
+// So: it is a bfcache restore, `astro:page-load` does not fire, and the backlot
+// is nonetheless alive — because a hard navigation out never fired
+// `astro:before-swap` either, so the engine was never torn down. It was frozen
+// with the document and resumed with it. **It is not broken, and it works for a
+// reason worth writing down**: the teardown and the re-entry are paired on the
+// router's two events, and a bfcache round trip fires neither, so the pair
+// stays balanced by not being used.
+//
+// That is also exactly how it could break. Any teardown hung on `pagehide` — a
+// reasonable-looking thing to add, since `pagehide` is the event that actually
+// fires on the way out — disposes the engine into the cache, and nothing fires
+// on the way back to boot it again. The reader gets a dead canvas and the
+// static gallery is not there to cover it, because the gallery was hidden
+// before the page was frozen. The check below is keyed on that: what is alive
+// after Back, not what drew.
+//
+// Nothing here asserts the mechanism. A bfcache entry can be evicted, and a
+// reader who comes back to a re-parsed document is entitled to the same page —
+// so the mechanism is *reported* in every failure message and the assertions are
+// about the outcome: one engine, alive and attached, with the gallery back
+// under it. The one thing asserted about the mechanism is the one that is true
+// either way: **whichever happened, there is exactly one engine.**
+
+/** The document's own life, installed before the page's script. A restore out
+ *  of the back/forward cache resumes the document, so `id` comes back unchanged
+ *  and nothing in here is re-installed; a re-parse gets a new one. That is the
+ *  only reliable way to tell the two apart from inside. */
+const LIFE_WATCH = String.raw`
+  (() => {
+    if (window.__life) return;
+    const life = { id: Math.random().toString(36).slice(2), pageLoad: 0, beforeSwap: 0, restored: 0, frozen: 0 };
+    window.__life = life;
+    document.addEventListener("astro:page-load", () => { life.pageLoad += 1; });
+    document.addEventListener("astro:before-swap", () => { life.beforeSwap += 1; });
+    window.addEventListener("pageshow", (event) => { if (event.persisted) life.restored += 1; });
+    window.addEventListener("pagehide", (event) => { if (event.persisted) life.frozen += 1; });
+  })();
+`;
+
+const LIFE = String.raw`
+  const life = window.__life;
+  return life ? { id: life.id, pageLoad: life.pageLoad, beforeSwap: life.beforeSwap, restored: life.restored, frozen: life.frozen } : null;
+`;
+
+/** A door's own button in the HUD, as a point to press.
+ *
+ *  Same rule as `LINK_TO`: no fallback. A door is a real `<button>` with an
+ *  accessible name, and if it is not on the page this returns why and the
+ *  caller fails — it does not reach for the href the manifest happens to know. */
+const DOOR = (id: string) => String.raw`
+  const button = document.querySelector("[data-backlot-hotspot=" + ${JSON.stringify(JSON.stringify(id))} + "]");
+  if (!button) return { found: false, why: "the HUD has no control for the " + ${JSON.stringify(id)} + " door" };
+  if (button.hidden) return { found: false, why: "the " + ${JSON.stringify(id)} + " door's control is hidden" };
+  const box = button.getBoundingClientRect();
+  if (box.width < 4 || box.height < 4) {
+    return { found: false, why: "the door's control measures " + Math.round(box.width) + "x" + Math.round(box.height) };
+  }
+  return {
+    found: true,
+    why: "",
+    text: (button.textContent || "").replace(/\s+/g, " ").trim(),
+    x: Math.round(box.left + box.width / 2),
+    y: Math.round(box.top + box.height / 2),
+  };
+`;
+
+interface Life {
+  id: string;
+  pageLoad: number;
+  beforeSwap: number;
+  restored: number;
+  frozen: number;
+}
+
+interface BackLap {
+  viewport: string;
+  /** The door that was pressed, and the label on its control. */
+  door: { id: string; href: string; text: string };
+  /** How long the press took to reach the address bar, or null if it never
+   *  did. Reported rather than asserted: it is the backlot's own cost, and the
+   *  number is only here so a failure downstream can say whether the reader
+   *  ever left. */
+  leftBy: number | null;
+  first: State;
+  firstLife: Life | null;
+  /** On the real page the door leads to, and what that page says it is. */
+  away: State;
+  landed: { heading: string; title: string };
+  /** After the browser's Back button. */
+  back: State;
+  backLife: Life | null;
+  backDrawing: Drawing | null;
+  /** Where the tab ended up in its own session history. */
+  history: { index: number; urls: string[] };
+}
+
+/** A door that leaves the backlot for a real page, taken from the manifest
+ *  rather than named here — `kind: "page"` is the property that decides, and a
+ *  door that changes kind should change what this walks. */
+const PAGE_DOOR = backlotDoors.find((door) => door.kind === "page")!;
+
+/** Wait for the address bar to say what it was asked to say.
+ *
+ *  Returns how long it took, or null if it never did. It never throws: an
+ *  assertion that names the moment is worth more than a sweep that died on the
+ *  way to it, and "the press did not navigate" is a finding rather than a
+ *  crash. */
+async function arriveAt(tab: Tab, path: string, what: string): Promise<number | null> {
+  const started = Date.now();
+  const deadline = started + 15_000;
+  while (Date.now() < deadline) {
+    const here = await tab.evaluate<string>("return location.pathname;");
+    if (here === path) return Date.now() - started;
+    await pause(100);
+  }
+  console.warn(`backlot-return: ${what} did not reach ${path} within 15 s`);
+  return null;
+}
+
+async function walkBack(): Promise<BackLap[]> {
+  const site = await serveBuild("dist", base);
+  const tab = await Tab.launch();
+  const laps: BackLap[] = [];
+
+  try {
+    await tab.onNewDocument(DRAW_COUNTER);
+    await tab.onNewDocument(LIFE_WATCH);
+
+    for (const viewport of VIEWPORTS) {
+      await tab.viewport(viewport.width, viewport.height);
+      await tab.media({ colourScheme: THEME, reducedMotion: true });
+      // **Into the backlot by clicking the link, not by the address bar**, and
+      // the reason is not tidiness — it changes what Back does. An entry the
+      // address bar created has no user activation on it, and a document that
+      // navigates away from an unactivated entry gets that entry marked
+      // skippable by Chrome's history-manipulation intervention. Measured on
+      // this build: arriving at /backlot/ with `Page.navigate`, taking the
+      // Lectures door and pressing Back moved the session history **not at all**
+      // — index 2 before and index 2 after, the reader still on /lectures/ —
+      // and `history.back()` from inside the page did nothing either. Arriving
+      // by clicking the status bar's own link, everything else identical, Back
+      // lands on a ready backlot. So the rule this file already has about never
+      // navigating by anything but a real link turns out to reach further than
+      // softness: it decides whether there is anything behind the page at all.
+      await tab.goto(`${site.origin}${prefix}studio/`);
+      await tab.evaluate(
+        `try { localStorage.setItem("at-theme", ${JSON.stringify(THEME)}); } catch {} return null;`,
+      );
+      await tab.goto(`${site.origin}${prefix}studio/`);
+      await tab.settle();
+      const inbound = await tab.evaluate<Link>(LINK_TO("/backlot/"));
+      if (!inbound.found) throw new Error(`cannot reach /backlot/ from /studio/ by clicking: ${inbound.why}`);
+      await tab.click(inbound.x!, inbound.y!);
+      await arriveAt(tab, `${prefix}backlot/`, "clicking the status bar's link to the backlot");
+      await tab.evaluate<string>(READY);
+      await pause(900);
+      const first = await tab.evaluate<State>(STATE);
+      const firstLife = await tab.evaluate<Life | null>(LIFE);
+      if (first.path !== `${prefix}backlot/`) {
+        throw new Error(`clicking "${inbound.text}" on /studio/ landed on ${first.path}, not on ${prefix}backlot/`);
+      }
+
+      const door = await tab.evaluate<Link>(DOOR(PAGE_DOOR.id));
+      if (!door.found) throw new Error(`cannot leave /backlot/ through the ${PAGE_DOOR.label} door: ${door.why}`);
+      await tab.click(door.x!, door.y!);
+      // **Waited for, not beaten.** A press on a door takes about 2,505 ms to
+      // reach the address bar: the figure walks to the door and the leaf swings
+      // before anything navigates, and that is the backlot's own cost rather
+      // than a delay in the harness. A fixed 3,000 ms beat had 500 ms of margin
+      // on it and this lap flaked on exactly that — a run that looked one beat
+      // early reported the door press landing back on /backlot/, and then every
+      // assertion after it failed as well, because the reader had never left.
+      // The timeout below is long enough that when it runs out the answer is "it
+      // did not navigate" rather than "I did not wait".
+      const leftBy = await arriveAt(tab, `${prefix}${PAGE_DOOR.id}/`, `pressing "${door.text}"`);
+      const away = await tab.evaluate<State>(STATE);
+      const landed = await tab.evaluate<{ heading: string; title: string }>(
+        `const h = document.querySelector("main h1") ?? document.querySelector("h1");
+         return { heading: (h ? h.textContent : "").replace(/\\s+/g, " ").trim(), title: document.title };`,
+      );
+
+      // The browser's Back button. Not `history.back()` and not a navigation to
+      // the previous URL — see `Tab.back`.
+      await tab.back();
+      // Polled from out here, in short evaluates, rather than with one long
+      // in-page wait. A traversal is not allowed to be raced by a script that is
+      // still running in the document being left: the first version of this used
+      // `READY`, which polls inside the page for up to twelve seconds, and the
+      // traversal never took at all — the session history stayed at index 2 with
+      // the reader still on the real page, and every assertion below failed
+      // about the wrong thing.
+      const deadline = Date.now() + 15_000;
+      let arrived = false;
+      while (Date.now() < deadline) {
+        await pause(150);
+        const here = await tab.evaluate<{ path: string; ready: boolean }>(
+          `const stage = document.querySelector("[data-backlot-stage]");
+           return { path: location.pathname, ready: Boolean(stage && stage.hasAttribute("data-backlot-ready")) };`,
+        );
+        if (here.path === first.path && here.ready) {
+          arrived = true;
+          break;
+        }
+      }
+      if (!arrived) {
+        // Not thrown: the assertions below name the moment and print the state,
+        // which a thrown sweep cannot. A slow boot and a dead one both end here.
+        await pause(500);
+      }
+      await pause(1200);
+      const back = await tab.evaluate<State>(STATE);
+      const backLife = await tab.evaluate<Life | null>(LIFE);
+      const backDrawing = await tab.evaluate<Drawing | null>(DRAWING(1500));
+      const history = await tab.history();
+
+      laps.push({
+        viewport: viewport.name,
+        door: { id: PAGE_DOOR.id, href: PAGE_DOOR.href, text: door.text! },
+        first,
+        firstLife,
+        leftBy,
+        away,
+        landed,
+        back,
+        backLife,
+        backDrawing,
+        history,
+      });
+    }
+  } finally {
+    await tab.close();
+    await site.close();
+  }
+
+  return laps;
+}
+
+const laps = await walkBack();
+const lap = (viewport: string) => laps.find((one) => one.viewport === viewport)!;
+/** Which of the two things happened, said in the words of the evidence. */
+const howBack = (one: BackLap) =>
+  one.backLife && one.firstLife && one.backLife.id === one.firstLife.id
+    ? `restored from the back/forward cache (same document, ${one.backLife.restored} persisted pageshow, ` +
+      `astro:page-load fired ${one.backLife.pageLoad}×)`
+    : `re-parsed (a new document, astro:page-load fired ${one.backLife?.pageLoad ?? 0}×)`;
+
+describe.each(VIEWPORTS)("out through a door and back with the Back button at $name", ({ name }) => {
+  // Seen red by making the door write a **root-absolute** URL in the built
+  // bundle — the CLAUDE.md §4 hazard, which opens fine from a repo root and
+  // 404s under the deployed sub-path. The output is in
+  // receipts/rig-3d/a3-checks.md.
+  //
+  // The first version of this asserted `away.path.endsWith(door.href)` and was
+  // **green under that injection**, because the manifest's href is
+  // site-root-relative — `/lectures/` — and the 404's path ends with
+  // `/lectures/` too. That is §7's bare-substring trap with a URL in it: the
+  // assertion has to be the whole base-resolved path, and it has to be paired
+  // with something that says the page is the real one rather than a page with
+  // the right address.
+  it("left through the door's own control, and landed on the real page", () => {
+    const one = lap(name);
+    expect(
+      one.away.path,
+      `pressing "${one.door.text}" landed on ${one.away.path} ` +
+        `${one.leftBy === null ? "after 15 s of waiting for the address bar to change" : `after ${one.leftBy} ms`}. ` +
+        `The door's href is ${one.door.href} and the site is served under ${prefix}, so the whole path is what it ` +
+        `has to be — a root-absolute URL from the island ends with the same slug and 404s on the deployed ` +
+        `sub-path. A press takes about 2,505 ms to reach the address bar, because the figure walks to the door and ` +
+        `the leaf swings first; if this says /backlot/ the reader never left at all.`,
+    ).toBe(`${prefix}${one.door.id}/`);
+    expect(
+      one.landed.heading,
+      `the page the door led to has the heading ${JSON.stringify(one.landed.heading)} and the title ` +
+        `${JSON.stringify(one.landed.title)}. An address is not a page: a 404 under the right path would satisfy ` +
+        `every other assertion in this lap.`,
+    ).toMatch(/\S/);
+    expect(
+      one.landed.title.toLowerCase(),
+      `the page the door led to is titled ${JSON.stringify(one.landed.title)}`,
+    ).not.toContain("not found");
+    expect(one.away.stageInDocument, "the backlot's stage is still in the document on the page the door led to").toBe(
+      false,
+    );
+  });
+
+  it("comes back to the backlot, not to somewhere that looks like it", () => {
+    const one = lap(name);
+    expect(
+      one.back.path,
+      `Back left the reader on ${one.back.path}. Session history: ${one.history.urls.join(" → ")}, now at index ` +
+        `${one.history.index}.`,
+    ).toBe(one.first.path);
+  });
+
+  it("comes back to a backlot that is running", () => {
+    const one = lap(name);
+    expect(
+      one.back.ready,
+      `after Back the stage ${one.back.stageInDocument ? "is in the document" : "is not in the document"} and ` +
+        `data-backlot-ready is ${one.back.ready ? "set" : "absent"}; the canvas measures ${one.back.canvas}. The ` +
+        `page ${howBack(one)}. A teardown hung on pagehide disposes the engine into the cache and nothing fires on ` +
+        `the way back to boot it again — which reads exactly like this.`,
+    ).toBe(true);
+    expect(
+      one.back.galleryHidden,
+      `the static gallery is ${one.back.galleryHidden ? "hidden" : "still over the stage"} after Back. Ready with ` +
+        `the gallery over it is ready about nothing.`,
+    ).toBe(true);
+  });
+
+  // **This one has not been seen red, and here is exactly what was tried.**
+  //
+  // The bug it is written against is a teardown hung on `pagehide`: it disposes
+  // the engine into the back/forward cache, where nothing fires on the way back
+  // to boot it again. Injected into the built bundle beside the
+  // `astro:before-swap` listener, **the lap stayed green** — because on the
+  // route a reader actually takes, Back does not restore from the cache at all.
+  // Measured with the document's own identity: arriving at /backlot/ by
+  // clicking the status bar's link makes it a ClientRouter swap of the /studio/
+  // document, and when the door's `location.assign` destroys that document,
+  // Back **re-parses** /backlot/ from the network — new document id,
+  // `astro:page-load` fires once, `pageshow.persisted` false. A disposal into a
+  // cache that is never used is invisible, and it should be.
+  //
+  // The bfcache restore is real, and it is what an address-bar arrival gets:
+  // `pagehide.persisted` true on the way out, `pageshow.persisted` true 1,034 ms
+  // later, the same document id, `astro:page-load` not fired, and the same
+  // engine still drawing. It is not driven here, because the only way the
+  // harness can produce that arrival is `Page.navigate` — and an entry the
+  // address bar created is one Chrome will mark skippable, which made Back a
+  // no-op in the session history. Driving a route the browser treats
+  // differently and calling the result a reader's experience is the mistake
+  // this file was written about.
+  //
+  // So: the two counts below are the same counts the soft lap makes, at a
+  // different moment on a different route, and what was shown red on this lap
+  // is the door above. The injections tried and their outcomes are in
+  // receipts/rig-3d/a3-checks.md rather than left as a claim.
+  it("runs exactly one engine after Back, whichever way it came back", () => {
+    const one = lap(name);
+    expect(one.backDrawing, "the draw counter did not survive the return").not.toBeNull();
+    // Alive first. A restore that resumed a disposed engine draws nothing and
+    // has nothing alive; a restore that booted a second engine beside the frozen
+    // one has two. Both are invisible to a count of what drew.
+    expect(
+      one.backDrawing!.alive,
+      `${one.backDrawing!.alive} WebGL contexts are alive after Back, ${one.backDrawing!.attached} of them attached ` +
+        `to a canvas in the document, out of ${one.backDrawing!.known} ever created in this document. The page ` +
+        `${howBack(one)}.`,
+    ).toBe(1);
+    expect(
+      one.backDrawing!.attached,
+      `${one.backDrawing!.attached} of the live contexts are attached to a canvas in the document after Back`,
+    ).toBe(1);
+    expect(
+      one.backDrawing!.drawing,
+      `${one.backDrawing!.drawing} contexts drew in the sample window after Back. A resumed engine whose frame loop ` +
+        `never restarted is alive, attached, and drawing nothing.`,
+    ).toBe(1);
+  });
+
+  it("gives the box back to the 3D, the way the soft return does", () => {
+    const one = lap(name);
+    expect(
+      one.back.boxed,
+      `data-backlot-box is ${one.back.boxed ? "set" : "absent"} after Back, and the shell measures ` +
+        `${one.back.shell} against ${one.first.shell} on the first load.`,
+    ).toBe(true);
+    expect(one.back.canvas, `the canvas measures ${one.back.canvas} after Back, ${one.first.canvas} before`).toBe(
+      one.first.canvas,
+    );
+  });
+});
+
 describe("the walk measured something", () => {
   it("walked both viewports", () => {
     expect(journeys.length).toBe(VIEWPORTS.length);
+  });
+
+  it("took the Back lap at both viewports, through a door and not through an address bar", () => {
+    expect(laps.length).toBe(VIEWPORTS.length);
+    for (const one of laps) {
+      expect(one.door.text, `${one.viewport}: the control pressed had no accessible name`).toMatch(/\S/);
+      expect(
+        one.leftBy,
+        `${one.viewport}: pressing "${one.door.text}" never reached ${prefix}${one.door.id}/ in fifteen seconds; ` +
+          `the reader is on ${one.away.path}. A press is a walk to the door and a leaf swinging before anything ` +
+          `navigates — about 2,505 ms of it — so this waits rather than beats. A null means either that the ` +
+          `navigation did not happen at all or that it went somewhere else, and the path above says which.`,
+      ).not.toBeNull();
+      expect(
+        one.history.urls.length,
+        `${one.viewport}: the session history is ${one.history.urls.join(" → ")}. Back is only a traversal if there ` +
+          `is something behind the page to traverse to.`,
+      ).toBeGreaterThanOrEqual(3);
+    }
+  });
+
+  it("saw a WebGL draw on the backlot before the door, so the counts after Back mean something", () => {
+    for (const one of laps) {
+      expect(one.back.ready, `${one.viewport}`).toBe(true);
+      expect(
+        one.backDrawing?.draws ?? 0,
+        `no WebGL draw was counted at ${one.viewport} across the whole Back lap, so the counter is measuring nothing`,
+      ).toBeGreaterThan(100);
+    }
   });
 
   it("watched a context draw at all, so the counter is not measuring nothing", () => {

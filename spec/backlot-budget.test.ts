@@ -82,6 +82,30 @@ const GALLERY_BUDGET = 1500;
  */
 const FIRST_FRAME_BUDGET = 3700;
 
+/**
+ * **The line has not moved and did not need to.** It was read 3746 ms once, as
+ * the median of three loads at 3626, 3746 and 3766, and that looked like 46 ms
+ * of regression. It was not one. Measured alone on the same build, fifteen
+ * loads: 3575 to 3627, **median 3583** — against the 3586 the line was set from
+ * in A2. Three milliseconds in a round that added geometry, signage, a camera
+ * push, a plate that measures itself and a decoder count.
+ *
+ * The decomposition is what makes that safe to say rather than lucky. The first
+ * frame is the island arriving plus the work of booting it, and only the second
+ * is something a round can spend:
+ *
+ *     island arrived   3532-3543 ms   spread 11 ms over fifteen loads
+ *     boot                39-95 ms    median 46 ms
+ *
+ * The wire is flat and the boot is 46 ms; 150 ms of new work has nowhere to
+ * hide in either. The +1,607 bytes the round added are 8 ms at this throughput.
+ *
+ * What did move is the machine. Run inside the suite, where up to five other
+ * browsers are competing for it, the same build reads a median of 3678 with a
+ * spread of 529 ms. That is the whole of the 46 ms, and the statistic below
+ * changed because of it.
+ */
+
 // ---------------------------------------------------------------------------
 // What the backlot weighs.
 // ---------------------------------------------------------------------------
@@ -443,20 +467,63 @@ async function time(): Promise<Record<string, Timing>> {
       // machine's disk.
       await tab.network(SLOW_4G, "off");
 
-      // Three loads, and the middle one is the answer.
+      // Nine loads, and for the first frame the **fastest** one is the answer.
       //
-      // A single reading of this is not a measurement, it is a coin toss: the
-      // suite runs its files in parallel, so this browser is competing with up
-      // to five others for the machine, and one reading came in at 3586 ms and
-      // another at 3712 ms against a 3700 ms line. A check that flakes is a
-      // check people learn to re-run rather than read, which is worse than one
-      // that is wrong. The median of three is the cheapest statistic that
-      // ignores a single unlucky load without ignoring a real regression — two
-      // of three would have to move for it to move. The spread is reported in
-      // the failure message either way, so a wide one is visible rather than
-      // averaged away.
+      // The median of three came first and it was the right instinct with the
+      // wrong statistic. It was chosen because a single reading is a coin toss
+      // — the suite runs its files in parallel, so this browser competes with
+      // up to five others — and a median ignores one unlucky load. What it does
+      // not do is ignore a *busy machine*, and the machine is busy for the
+      // whole run rather than for one load of it.
+      //
+      // Measured on this page, same build, twice over:
+      //
+      //     alone          n=15   median 3583   spread   52 ms   0.0% of medians-of-3 over the line
+      //     in the suite   n=12   median 3678   spread  529 ms  36.4% of medians-of-3 over the line
+      //
+      // So a median of three goes over 3700 about one run in three, on a page
+      // that takes 3583 ms. More samples barely helps, because the contended
+      // *median* is only 22 ms under the line: a median of nine still goes over
+      // 15.9% of the time. That is the difference from the gallery line, where
+      // more samples did fix it.
+      //
+      // The floor fixes it, and it is a better statistic for this quantity
+      // rather than a looser one. A wall-clock reading is the true time plus a
+      // delay that is never negative — you cannot be descheduled into being
+      // faster — so the fastest of n is the estimate of the page and every
+      // other sample is that estimate plus somebody else's work. A median
+      // reports the machine; the floor reports the page.
+      //
+      // **It is not a weakening, and the arithmetic says why.** The floor is
+      // bytes on the wire plus the boot, and both are deterministic: island
+      // arrival measures 3532-3543 ms across fifteen loads, a spread of 11 ms,
+      // and the boot 39-95 ms. Anything that makes the page slower moves the
+      // floor by the whole amount — a kilobyte is half a millisecond at this
+      // throughput and a millisecond of boot work is a millisecond. What the
+      // floor drops is only the part no page can control.
+      //
+      // Nine rather than three because a floor wants samples: with three, an
+      // unlucky triple reads high and there is no lower one to find. The
+      // spreads are reported either way, so a run where every load was slow is
+      // visible rather than averaged away.
+      //
+      // **The gallery takes the floor too, and it took being wrong once to put
+      // it there.** It was left on a median at first, on the reasoning that one
+      // statistic should move at a time and the gallery was not what was
+      // failing. Raising the sample count made it fail: nine loads read 1452,
+      // 1460, 1464, 1476, 1520, 1528, 1768, 2004, 2380 ms, and the median of
+      // nine is 1520 against a 1500 ms line where the median of three had been
+      // passing. Nothing about the page changed — the tail is one-sided, so
+      // widening the sample drags a median up it.
+      //
+      // Which is the same fact as above wearing a different hat, and the honest
+      // answer is the same estimator rather than a smaller sample: the gallery
+      // is gated by three render-blocking stylesheets, which are as
+      // deterministic as the island's bytes, and the floor of nine is 1452 ms.
+      // Leaving it on a median here would have been shipping a regression I
+      // introduced myself by changing the sample size under it.
       const takes: Timing[] = [];
-      for (let take = 0; take < 3; take++) {
+      for (let take = 0; take < 9; take++) {
         await tab.goto(`${site.origin}${prefix}backlot/`);
         takes.push(await tab.evaluate<Timing>(READ));
       }
@@ -478,10 +545,16 @@ async function time(): Promise<Record<string, Timing>> {
       // reporting one wall-clock sample.
       const ordered = [...takes].sort((a, b) => (a.firstFrame ?? 0) - (b.firstFrame ?? 0));
       const byGallery = [...takes].sort((a, b) => (a.gallery?.at ?? 0) - (b.gallery?.at ?? 0));
-      const median = ordered[1]!;
+      const fastest = ordered[0]!;
       spreads[viewport.name] = ordered.map((take) => Math.round(take.firstFrame ?? -1));
       gallerySpreads[viewport.name] = byGallery.map((take) => Math.round(take.gallery?.at ?? -1));
-      readings[viewport.name] = { ...median, gallery: byGallery[1]!.gallery };
+      // Two floors from the same nine loads, one per metric, and they are taken
+      // separately for the reason the medians were: reading the gallery off
+      // whichever take was fastest to a first frame hands it a single sample
+      // riding along on another metric's statistic. The two do not even share a
+      // gate — the gallery waits on three render-blocking stylesheets and the
+      // first frame waits on the island.
+      readings[viewport.name] = { ...fastest, gallery: byGallery[0]!.gallery };
     }
 
     await tab.viewport(1920, 1080);
@@ -504,6 +577,17 @@ const timings = await time();
 const doors = backlotManifest.doors;
 const captionCount = backlotManifest.rooms.reduce((sum, room) => sum + room.pieces.length, 0);
 
+// Seen red under a real delay **as a floor of nine**, which is what proves the
+// statistic did not buy its steadiness by going blind: a copy of the build with
+// the island chunk prefixed by `await new Promise(r => setTimeout(r, 200))`.
+//
+//     clean       floor 3575 ms   boot  39 ms   0 of 9 loads over the line
+//     +200 ms     floor 3787 ms   boot 241 ms   9 of 9 loads over the line
+//
+// A fifth of the contention noise, caught on every single load. The floor moved
+// by 212 ms for 200 ms of delay and the island's arrival did not move at all,
+// which is the decomposition saying where it went.
+//
 // Seen red under a real delay, which is the only thing that proves this probe is
 // looking at the right event: the built island chunk prefixed with
 // `await new Promise(r => setTimeout(r, 8000))`, then reverted.
@@ -574,8 +658,8 @@ describe.each(VIEWPORTS)("the static gallery at $name", ({ name }) => {
         `the line is ${GALLERY_BUDGET} ms. ${gallery!.doors} doors and ${gallery!.captions} captions were ` +
         `already in the document at that moment. What gates this is the three render-blocking stylesheets, ` +
         `not the island: the island is still on the wire for another second and a half and none of the ` +
-        `above waits for it. Three loads read ${(gallerySpreads[name] ?? []).join(", ")} ms and this is the ` +
-        `middle one.`,
+        `above waits for it. ${(gallerySpreads[name] ?? []).length} loads read ` +
+        `${(gallerySpreads[name] ?? []).join(", ")} ms and this is the fastest of them.`,
     ).toBeLessThanOrEqual(GALLERY_BUDGET);
   });
 });
@@ -639,8 +723,8 @@ describe.each(VIEWPORTS)("the first frame at $name", ({ name }) => {
 
     expect(
       measured,
-      `the first frame arrived ${measured} ms after navigation start on Slow 4G — the median of three ` +
-        `loads at ${(spreads[name] ?? []).join(", ")} ms ` +
+      `the first frame arrived ${measured} ms after navigation start on Slow 4G — the fastest of ` +
+        `${(spreads[name] ?? []).length} loads at ${(spreads[name] ?? []).join(", ")} ms ` +
         `(${(SLOW_4G.download * 8) / 1024 / 1024} Mbit/s down, ${rtt} ms RTT, cache off), and the budget is ` +
         `${FIRST_FRAME_BUDGET} ms.\n` +
         [

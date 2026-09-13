@@ -146,6 +146,23 @@ interface Measured extends Ring {
   /** The button's box, re-read once both pixels were taken. A difference means
    *  the scene moved under the sampler and the reading is worthless. */
   boxAfter: Box | null;
+  /** How the control came to a stop before it was sampled. A travel with an end
+   *  is a push; something that never stops is not. */
+  rest: Settling;
+}
+
+/** What happened between focusing a control and the control holding still. */
+interface Settling {
+  /** True once two consecutive reads of the box were identical. */
+  settled: boolean;
+  samples: number;
+  /** How many different places the box was seen in. Lane 1's own distinction:
+   *  twelve to eighteen distinct positions in forty samples is a walk, two is a
+   *  flip, and a push is neither — it is a travel with an end. */
+  distinct: number;
+  waited: number;
+  /** How far it moved in total, so a failure can say whether it moved at all. */
+  travelled: number;
 }
 
 interface Sweep {
@@ -259,22 +276,60 @@ const RING = String.raw`
   };
 `;
 
-/** Focus one hotspot and measure its ring. The button does not move when it
- *  takes focus, but the camera does — so the box is re-read after the pixels
- *  are taken and the caller fails the reading if it moved. */
+/** Where a control's box is right now, in viewport pixels. */
+const BOX_OF = (id: string) => `const button = document.querySelector('[data-backlot-hotspot="${id}"]');
+   if (!button) return null;
+   const box = button.getBoundingClientRect();
+   return { left: box.left, top: box.top, width: box.width, height: box.height };`;
+
+/** Wait for a control to stop moving, and say how it stopped.
+ *
+ *  **Focus now pushes the camera**, which is ruling 1: Tab landing on a door is
+ *  the same event as walking up to it, so a control genuinely moves between one
+ *  reading and the next by design. The `boxAfter` guard below is still right —
+ *  two readings of two different places are worthless — but it is a guard, not
+ *  a verdict, and the answer to a worthless reading is to take another one
+ *  rather than to fail. So this waits for the push to finish first.
+ *
+ *  "Finished" is two consecutive reads of the same box, not a fixed sleep: the
+ *  travel is 620 ms of camera plus however long the figure takes to walk, and a
+ *  sleep long enough for the worst case is a sleep on every one of fourteen
+ *  controls. What it reports when it gives up is the shape of what it saw —
+ *  lane 1's distinction, that a walk is a dozen distinct places in forty
+ *  samples, a flip is two, and a push is a travel with an end. */
+async function settleControl(tab: Tab, id: string): Promise<Settling> {
+  const started = Date.now();
+  const places = new Set<string>();
+  let previous: Box | null = null;
+  let travelled = 0;
+  let samples = 0;
+  for (let attempt = 0; attempt < 60; attempt++) {
+    const box = await tab.evaluate<Box | null>(BOX_OF(id));
+    samples += 1;
+    if (!box) break;
+    places.add(`${Math.round(box.left)},${Math.round(box.top)}`);
+    if (previous) {
+      travelled += Math.hypot(box.left - previous.left, box.top - previous.top);
+      if (box.left === previous.left && box.top === previous.top && box.width === previous.width) {
+        return { settled: true, samples, distinct: places.size, waited: Date.now() - started, travelled };
+      }
+    }
+    previous = box;
+    await new Promise<void>((done) => setTimeout(done, 80));
+  }
+  return { settled: false, samples, distinct: places.size, waited: Date.now() - started, travelled };
+}
+
+/** Focus one hotspot, let the push it starts finish, and measure its ring. */
 async function measureRing(tab: Tab, id: string): Promise<Measured | null> {
   await tab.evaluate(`document.querySelector('[data-backlot-hotspot="${id}"]')?.focus(); return null;`);
+  const rest = await settleControl(tab, id);
   const ring = await tab.evaluate<Ring | null>(RING);
   if (!ring) return null;
   const ringPixel = ring.ringPoint ? await tab.pixel(ring.ringPoint.x, ring.ringPoint.y) : null;
   const haloPixel = ring.haloPoint ? await tab.pixel(ring.haloPoint.x, ring.haloPoint.y) : null;
-  const boxAfter = await tab.evaluate<Box | null>(
-    `const button = document.querySelector('[data-backlot-hotspot="${id}"]');
-     if (!button) return null;
-     const box = button.getBoundingClientRect();
-     return { left: box.left, top: box.top, width: box.width, height: box.height };`,
-  );
-  return { ...ring, ringPixel, haloPixel, boxAfter };
+  const boxAfter = await tab.evaluate<Box | null>(BOX_OF(id));
+  return { ...ring, ringPixel, haloPixel, boxAfter, rest };
 }
 
 async function sweep(): Promise<Sweep> {
@@ -613,9 +668,22 @@ describe("every hotspot shows a focus ring", () => {
     expect(ring.ringPoint, `${ring.id}: ${ring.why}`).not.toBeNull();
     expect(ring.ringPixel, `no pixel came back for ${ring.id}'s ring`).not.toBeNull();
     expect(ring.haloPixel, `no pixel came back beside ${ring.id}'s ring`).not.toBeNull();
+    // The push has to have ended before any of this is worth reading, and
+    // "ended" is a thing to wait for rather than a thing to assume. Focusing a
+    // control is now an arrival, so the camera moves on purpose; what would be
+    // wrong is a control that never comes to rest.
+    expect(
+      ring.rest.settled,
+      `${ring.id} never stopped moving: ${ring.rest.distinct} distinct positions in ${ring.rest.samples} samples ` +
+        `over ${ring.rest.waited} ms, ${Math.round(ring.rest.travelled)}px travelled in total. Focus pushes the ` +
+        `camera, so a control moving after focus is ruling 1 working — but a push is a travel with an end, and a ` +
+        `dozen places in forty samples is a walk rather than a push.`,
+    ).toBe(true);
     expect(
       ring.boxAfter,
-      `${ring.id} moved while its ring was being sampled, so both readings are of somewhere else`,
+      `${ring.id} moved while its ring was being sampled, so both readings are of somewhere else. It had already ` +
+        `come to rest after ${ring.rest.waited} ms in ${ring.rest.distinct} distinct positions, so this is movement ` +
+        `after the push finished rather than the push itself.`,
     ).toEqual(ring.box);
 
     // The ring has to be seen against what it sits on, which is the button's

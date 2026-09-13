@@ -1024,14 +1024,36 @@ describe("the four headings were four different pictures", () => {
         const one = at(viewport.name, theme)!;
         const pictures = one.looks.filter((look) => look.picture.size > 0);
         expect(pictures.length, "no heading produced a picture of the figure").toBe(HEADINGS.length);
+        // **The same criterion, said out loud.** This used to decide two pictures
+        // were the same with `pair.endsWith(" 0.0%")` — a threshold hidden in a
+        // number's rendering, because `(0.0004 * 100).toFixed(1)` is "0.0". So
+        // the check already had an epsilon of 0.05%; it was just written where
+        // nobody could argue with it, which is the one thing the note above this
+        // describe says it refuses to do. `IDENTICAL` is that number, unchanged,
+        // in a place it can be read: 0, 0.0002 and 0.0004 counted as identical
+        // before and count as identical now, 0.0005 and 0.001 passed before and
+        // pass now. Nothing about what this accepts has moved.
+        //
+        // What has moved is what it prints. A pair is now rendered to three
+        // decimals, because when this goes red the first question is whether it
+        // was a **true zero** — two readings of one frame, which is what the
+        // message claims — or a small number under the epsilon, and "0.0%" cannot
+        // tell those apart. The control for this instrument is the same heading
+        // read twice, and it comes back **54-91% different**; against noise that
+        // large, 0.000% and 0.031% mean very different things and the next person
+        // to see this needs to know which one they have.
+        const IDENTICAL = 0.0005;
         const pairs: string[] = [];
+        const identical: string[] = [];
         for (let first = 0; first < pictures.length; first++) {
           for (let second = first + 1; second < pictures.length; second++) {
             const apart = pictureApart(pictures[first]!, pictures[second]!).apart;
-            pairs.push(`${pictures[first]!.heading} vs ${pictures[second]!.heading} ${(apart * 100).toFixed(1)}%`);
+            const said =
+              `${pictures[first]!.heading} vs ${pictures[second]!.heading} ${(apart * 100).toFixed(3)}%`;
+            pairs.push(said);
+            if (apart < IDENTICAL) identical.push(said);
           }
         }
-        const identical = pairs.filter((pair) => pair.endsWith(" 0.0%"));
         expect(
           identical,
           `two headings produced the same picture of the figure at ${viewport.name} in the ${theme} theme, ` +

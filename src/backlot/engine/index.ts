@@ -434,6 +434,35 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
     return active instanceof HTMLElement && hud.contains(active) ? active : null;
   };
 
+  /**
+   * And whether it is on nothing at all, which is the other half of the same
+   * rule and the half this engine did not have.
+   *
+   * A reader can cross a threshold in either direction without ever having
+   * touched a control: the arrow keys walk, `onActivate` puts a window-level
+   * Enter through the door the figure is standing at, and neither of those
+   * focuses anything. `keyboardInHud` is null for that reader, so the hand-back
+   * never ran and they arrived in a room — or came back out of one — with
+   * `document.activeElement` on `<body>` while every control around them had
+   * just been replaced.
+   *
+   * Measured at 1920x1080 with focus emulation on, on both rooms: walk to a
+   * door, press Enter, and the **next Tab lands on the page's own skip link** —
+   * past the nav, past everything, with the room's thirteen controls behind the
+   * reader. Chrome's sequential-focus start is what hides it: after any click on
+   * the canvas the same Tab lands on a hotspot, so a screenshot and a casual
+   * keyboard pass both look fine. receipts/rig-3d/c1-focus.ts drives it.
+   *
+   * Deliberately **not** "focus something whenever a room changes". It is the
+   * narrow case where the keyboard has nowhere to be: something outside the HUD
+   * holding focus is somebody using the page, and moving that would be the theft
+   * the same rule forbids.
+   */
+  const keyboardAdrift = (): boolean => {
+    const active = document.activeElement;
+    return active === null || active === document.body;
+  };
+
   // ------------------------------------------------------------------ rooms
 
   function unmount(): void {
@@ -488,6 +517,7 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
     atDoorId = null;
 
     const pressed = keyboardInHud();
+    const adrift = keyboardAdrift();
     const group = new Group();
     const teardown: (() => void)[] = [];
     const fromDoorId = hub.doors.find((entry) => entry.door.roomId === roomId)?.door.id ?? null;
@@ -639,8 +669,10 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
 
     hotspots.setBaseHidden(true);
     // Hiding the hub's buttons blurs whichever one was pressed, so the keyboard
-    // is handed to the way out rather than dropped on <body>.
-    if (pressed) handFocusTo(roomExit ?? leave.button);
+    // is handed to the way out rather than dropped on <body>. And a reader who
+    // came in on a window-level Enter never had one to blur — see
+    // `keyboardAdrift` — so they get the same hand-over.
+    if (pressed || adrift) handFocusTo(roomExit ?? leave.button);
     describeCanvas();
     // Record every new hotspot's near/far state without firing anything. The
     // figure is put down where the engine chose, not where the reader walked,
@@ -656,6 +688,7 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
     generation += 1;
     const door = mounted.fromDoorId ? hub.find(mounted.fromDoorId) : undefined;
     const pressed = keyboardInHud();
+    const adrift = keyboardAdrift();
 
     hub.group.visible = true;
     hotspots.setBaseHidden(false);
@@ -679,9 +712,17 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
     }
 
     // The room's buttons have gone, so anything that was focused in there is no
-    // longer in the document. Put the keyboard on the door it came out of.
+    // longer in the document. Put the keyboard on the door it came out of —
+    // which is where the figure is standing and what the live region is about to
+    // name, so the three agree.
+    //
+    // `adrift` is the reader who pressed Escape having touched no control. They
+    // have just used the keyboard to change every control on the screen, and
+    // leaving them on `<body>` means their next Tab starts from the top of the
+    // page. It is not the same as leaving focus alone: something outside the HUD
+    // holding it is somebody using the page, and `adrift` is false there.
     const target = door ? hotspots.buttonFor(door.door.id) : null;
-    if (pressed && !pressed.isConnected && target) handFocusTo(target);
+    if (target && ((pressed && !pressed.isConnected) || adrift)) handFocusTo(target);
 
     describeCanvas();
     announce(door ? `Back on the backlot, at the ${door.door.label} door.` : "Back on the backlot.");

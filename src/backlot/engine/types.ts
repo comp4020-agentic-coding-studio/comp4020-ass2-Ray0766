@@ -192,6 +192,23 @@ export interface LayerApi {
   texture(file: string): Promise<Texture | null>;
   /** L2. A clip that only exists while it is being watched. */
   video(piece: BacklotPiece): VideoHandle;
+  /**
+   * L2 for a clip that is not a piece: a window's own.
+   *
+   * `video` takes a `BacklotPiece` because a room's clips are pictures on a
+   * wall. A door's clip and a corridor stage's clip are both named by a
+   * `DoorWindow` and there is no piece behind either, and synthesising a fake
+   * piece to reach the same three lines would be a shape invented to satisfy a
+   * signature. Same decoder and the same one-at-a-time rule: this and `video`
+   * share `playing`, so a window's clip and a wall's clip can no more run at
+   * once than two of either can.
+   *
+   * It sits on the shared contract rather than on `Layers` because a room needs
+   * it as much as the engine does: the Lectures corridor is twelve windows and
+   * six of them have a clip behind the still, and `RoomContext.layers` is this
+   * interface.
+   */
+  videoFile(file: string): VideoHandle;
   /** L3. Resolves null on any failure, including no WebGL budget left for it. */
   model(url: string): Promise<Object3D | null>;
 }
@@ -223,6 +240,64 @@ export interface PlayerApi {
 
 // --------------------------------------------------------------------- rooms
 
+/**
+ * A door a room built, handed to the engine so that pressing it is the same act
+ * as pressing a door in the ring.
+ *
+ * This exists because of what the Lectures corridor found, which is worth
+ * stating plainly: **the shell was a shell, and the press was the hub's.**
+ * Standing a second room up over `buildRoomShell` cost one option (the box's
+ * own metres); making a door in that room behave like a door cost this. A press
+ * is not one act — it is a walk, a leaf swinging, a page asked for at the moment
+ * of the press, and about two and a half seconds in which a reader has to be
+ * able to change their mind — and every one of those lived in `engine/index.ts`
+ * keyed on `hub.find`. A room that reimplemented them would have twelve doors
+ * that look like the ring's and answer Escape differently, which is the shape of
+ * bug this repo keeps paying for.
+ *
+ * So the engine keeps the meaning of a door and the room keeps the door.
+ */
+export interface RoomDoor {
+  /** The hotspot the room registered for this door: its id is the door's, and
+   *  it is how the press takes the button out of service while it runs. */
+  hotspot: Hotspot;
+  /** What the live region calls it — "week 5", not the button's whole label.
+   *  "Opening the week 5 door." is a sentence; the label is a title. */
+  name: string;
+  /** Where the figure walks to before the leaf swings. */
+  standing: Vector3;
+  /** Where the press ends up. Already base-resolved by the page. */
+  href: string;
+  /** The opening's real size in metres. The push is specified in **pixels** —
+   *  the window has to clear a floor once the camera is there — and only the
+   *  engine knows the canvas, so it turns these two numbers into the radius. */
+  windowMetres: { wide: number; tall: number };
+  /** The framing this door's hotspot carries, **by reference**. The engine
+   *  writes `radius` onto this object on every resize, which is the same field
+   *  `HotspotSpec.focus` carries and the field any check reads. */
+  focus: { radius: number; normal?: Vector3 };
+  /** Swing the leaf, or put it back. Under `instant` it is simply open. */
+  setOpen(open: boolean, instant: boolean): void;
+  /** The name board over its lintel, if it has one. Not the door's published
+   *  surface — that is the window — but a parked button must stay off it, and
+   *  the engine keeps one list of those for the whole scene. */
+  board?: Object3D;
+}
+
+/** What the engine hands back for a door a room registered. */
+export interface RoomDoorHandle {
+  /** A press: the walk to the standing mark, the leaf, the page already asked
+   *  for, and Escape able to call the whole thing off part-way. */
+  press(): void;
+  /** The figure has arrived at this door, or left it. It is what makes an Enter
+   *  with nothing focused reach the door the reader is visibly standing at —
+   *  the state the live region has just said "press Enter to open it" about.
+   *  The room says it rather than the engine working it out a second time: the
+   *  room is already running that proximity to frame the camera, and two
+   *  proximity tests that disagree by a frame is a bug nobody finds. */
+  near(at: boolean): void;
+}
+
 /** What a room builder is handed. It adds to `root` and touches nothing else. */
 export interface RoomContext {
   /** The room's own group. The engine adds and removes it; the builder fills it. */
@@ -250,6 +325,17 @@ export interface RoomContext {
   reducedMotion: boolean;
   /** Per-frame work. Returns an unsubscribe. Keep it cheap. */
   onFrame(handler: (delta: number, elapsed: number) => void): () => void;
+  /**
+   * Hand the engine a door this room built, and take back the press.
+   *
+   * Calling the returned function is what a press on that door is, and it is the
+   * **same** function a door in the ring gets: the walk to the standing mark,
+   * the leaf, `rel="prefetch" as="document"` fired at the moment of the press
+   * rather than when the figure arrives, and Escape stopping the figure where it
+   * stands with the leaf closed again and nothing navigated. Registered doors go
+   * when the room does.
+   */
+  door(entry: RoomDoor): RoomDoorHandle;
   /** Leaves this room for the hub. */
   leave(): void;
   /** Registered teardown, run when the room is unloaded. */

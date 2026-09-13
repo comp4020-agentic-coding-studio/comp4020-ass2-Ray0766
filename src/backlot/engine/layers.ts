@@ -17,17 +17,6 @@ import type { LayerApi, VideoHandle } from "./types";
 
 export interface Layers extends LayerApi {
   /**
-   * L2 for something that is not a piece: a door's window.
-   *
-   * `LayerApi.video` takes a `BacklotPiece` because a room's clips are pieces on
-   * a wall. A door's clip is named by its `DoorWindow` and there is no piece
-   * behind it, and synthesising a fake piece to get at the same three lines
-   * would be a shape invented to satisfy a signature. Same decoder, same
-   * one-at-a-time rule: this and `video` share `playing`, so a door's clip and a
-   * wall's clip can no more run at once than two of either can.
-   */
-  videoFile(file: string): VideoHandle;
-  /**
    * How many decoders are alive right now.
    *
    * Alive, not started and not drawing: a paused `<video>` still holds one, and

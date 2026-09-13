@@ -30,6 +30,22 @@ import { Painter, type Role } from "./palette";
 // --------------------------------------------------------------- dimensions
 
 /**
+ * The metres a room's box is built to.
+ *
+ * It is a parameter rather than a constant because the corridor asked for one,
+ * and that is the only thing standing a second room up over this file cost.
+ * `ROOM` below was written as if there were one room — it is the machine room's
+ * plan, argued from the machine room's content — and a corridor is fifteen
+ * metres of floor four and a half wide. Everything else in here turned out to
+ * be about *a* room rather than about that one.
+ */
+export interface RoomBox {
+  width: number;
+  depth: number;
+  height: number;
+}
+
+/**
  * Metres. Five 9:16 screens across one end, five stills down each side, a desk,
  * a tower, a chair, and room to walk between them — 5.8 wide, 4.6 deep, 2.2 to
  * the ceiling.
@@ -142,9 +158,12 @@ export function fitInside(aspect: [number, number], box: { width: number; height
  * the back wall facing the front one, so the front wall runs along +x, and each
  * side wall runs the way it reads when the figure turns to face it.
  */
-export function wallSurfaces(pieceCounts: Record<string, number>): Record<string, MountSurface> {
-  const frontSpan = ROOM.width - ROOM.margin;
-  const sideSpan = ROOM.depth - ROOM.margin;
+export function wallSurfaces(
+  pieceCounts: Record<string, number>,
+  box: RoomBox = ROOM,
+): Record<string, MountSurface> {
+  const frontSpan = box.width - ROOM.margin;
+  const sideSpan = box.depth - ROOM.margin;
   const frontSlots = Math.max(1, pieceCounts.front ?? 1);
   const sideSlots = Math.max(1, pieceCounts.left ?? pieceCounts.right ?? 1);
   const frontPitch = frontSpan / frontSlots;
@@ -152,7 +171,7 @@ export function wallSurfaces(pieceCounts: Record<string, number>): Record<string
 
   return {
     front: {
-      centre: new Vector3(0, FRAME_HEIGHT, -ROOM.depth / 2 + ROOM.relief),
+      centre: new Vector3(0, FRAME_HEIGHT, -box.depth / 2 + ROOM.relief),
       along: new Vector3(1, 0, 0),
       normal: new Vector3(0, 0, 1),
       pitch: frontPitch,
@@ -160,7 +179,7 @@ export function wallSurfaces(pieceCounts: Record<string, number>): Record<string
       standOff: ROOM.standOff,
     },
     left: {
-      centre: new Vector3(-ROOM.width / 2 + ROOM.rake, FRAME_HEIGHT, 0),
+      centre: new Vector3(-box.width / 2 + ROOM.rake, FRAME_HEIGHT, 0),
       along: new Vector3(0, 0, -1),
       normal: new Vector3(1, 0, ROOM.rakeTurn).normalize(),
       pitch: sidePitch,
@@ -168,7 +187,7 @@ export function wallSurfaces(pieceCounts: Record<string, number>): Record<string
       standOff: ROOM.standOff,
     },
     right: {
-      centre: new Vector3(ROOM.width / 2 - ROOM.rake, FRAME_HEIGHT, 0),
+      centre: new Vector3(box.width / 2 - ROOM.rake, FRAME_HEIGHT, 0),
       along: new Vector3(0, 0, 1),
       normal: new Vector3(-1, 0, ROOM.rakeTurn).normalize(),
       pitch: sidePitch,
@@ -298,6 +317,8 @@ function frameAt(
 // --------------------------------------------------------------------- shell
 
 export interface ShellOptions {
+  /** The room's own metres. Defaults to `ROOM`, which is the machine room's. */
+  box?: RoomBox;
   /** Mount surfaces the room adds on top of the three walls, keyed by
    *  `BacklotPiece["wall"]`. The machine room hands in "desk". */
   surfaces?: Record<string, MountSurface>;
@@ -351,10 +372,38 @@ export interface RoomFixture {
   /** Metres. How close the figure has to be for this to be what it is at. */
   radius: number;
   /** How the camera comes in, if it does. No `target`: the engine frames
-   *  `position`, which for a fixture is the fixture. */
+   *  `position`, which for a fixture is the fixture.
+   *
+   *  Handed to the hotspot **by reference** rather than copied, because the one
+   *  thing specified in pixels rather than in metres is a door's push — the
+   *  window has to clear a floor once the camera is there, and only the engine
+   *  knows the canvas. The engine writes `radius` on this object every resize;
+   *  a copy here would leave the spec holding the number the room guessed at
+   *  build time, which is right for exactly one viewport. */
   focus?: { radius: number; normal?: Vector3 };
   /** What the live region says on arrival. */
   arrival?: string;
+  /**
+   * What pressing it does, when the manifest's own verb is not what it means.
+   *
+   * A stage down the Lectures corridor is an `open-page` interactive and it does
+   * not open a page the way this file otherwise does: it is a **door**, so the
+   * press is a walk, a leaf and then the page, and Escape has to be able to call
+   * it off. The room owns that and hands it in here, and the shell's own
+   * `open-page` — `window.location.assign`, immediately — is what an interactive
+   * that is a link rather than a door still gets.
+   */
+  activate?(): void;
+  /**
+   * Fired when the figure comes within `radius`, and again when it leaves.
+   *
+   * A piece gets this from the shell, because the shell knows what a piece's
+   * framing is. A fixture's framing is the room's, so its proximity is too —
+   * and without it, walking up to a fixture is the one way of arriving at
+   * something in this backlot that does nothing, while Tab and a press both
+   * work. That is exactly the asymmetry `HotspotSpec.focus` exists to rule out.
+   */
+  onProximity?(near: boolean): void;
 }
 
 /**
@@ -410,30 +459,34 @@ export function buildRoomShell(context: RoomContext, options: ShellOptions = {})
   };
 
   // --- the box ---------------------------------------------------------
+  // The room's own metres, not this file's. `ROOM` is the machine room's plan
+  // and the corridor is not that shape; everything else in here turned out to be
+  // about *a* room rather than about that one.
+  const box = options.box ?? ROOM;
   const shell = new Group();
-  const floorGeometry = track(new PlaneGeometry(ROOM.width, ROOM.depth));
+  const floorGeometry = track(new PlaneGeometry(box.width, box.depth));
   const floor = new Mesh(floorGeometry, painter.lit("floor"));
   floor.rotation.x = -Math.PI / 2;
   shell.add(floor);
 
-  const ceilingGeometry = track(new PlaneGeometry(ROOM.width, ROOM.depth));
+  const ceilingGeometry = track(new PlaneGeometry(box.width, box.depth));
   const ceiling = new Mesh(ceilingGeometry, painter.lit("ceiling"));
   ceiling.rotation.x = Math.PI / 2;
-  ceiling.position.y = ROOM.height;
+  ceiling.position.y = box.height;
   shell.add(ceiling);
 
   const wallMaterial = painter.lit("wall");
   const skirtingMaterial = painter.lit("skirting");
-  const longWall = track(new PlaneGeometry(ROOM.width, ROOM.height));
-  const shortWall = track(new PlaneGeometry(ROOM.depth, ROOM.height));
-  const longSkirting = track(new BoxGeometry(ROOM.width, 0.12, 0.03));
-  const shortSkirting = track(new BoxGeometry(ROOM.depth, 0.12, 0.03));
+  const longWall = track(new PlaneGeometry(box.width, box.height));
+  const shortWall = track(new PlaneGeometry(box.depth, box.height));
+  const longSkirting = track(new BoxGeometry(box.width, 0.12, 0.03));
+  const shortSkirting = track(new BoxGeometry(box.depth, 0.12, 0.03));
 
   const walls: { geometry: PlaneGeometry; skirting: BoxGeometry; position: Vector3; faces: Vector3 }[] = [
-    { geometry: longWall, skirting: longSkirting, position: new Vector3(0, ROOM.height / 2, -ROOM.depth / 2), faces: new Vector3(0, 0, 1) },
-    { geometry: longWall, skirting: longSkirting, position: new Vector3(0, ROOM.height / 2, ROOM.depth / 2), faces: new Vector3(0, 0, -1) },
-    { geometry: shortWall, skirting: shortSkirting, position: new Vector3(-ROOM.width / 2, ROOM.height / 2, 0), faces: new Vector3(1, 0, 0) },
-    { geometry: shortWall, skirting: shortSkirting, position: new Vector3(ROOM.width / 2, ROOM.height / 2, 0), faces: new Vector3(-1, 0, 0) },
+    { geometry: longWall, skirting: longSkirting, position: new Vector3(0, box.height / 2, -box.depth / 2), faces: new Vector3(0, 0, 1) },
+    { geometry: longWall, skirting: longSkirting, position: new Vector3(0, box.height / 2, box.depth / 2), faces: new Vector3(0, 0, -1) },
+    { geometry: shortWall, skirting: shortSkirting, position: new Vector3(-box.width / 2, box.height / 2, 0), faces: new Vector3(1, 0, 0) },
+    { geometry: shortWall, skirting: shortSkirting, position: new Vector3(box.width / 2, box.height / 2, 0), faces: new Vector3(-1, 0, 0) },
   ];
   for (const wall of walls) {
     const mesh = new Mesh(wall.geometry, wallMaterial);
@@ -451,7 +504,7 @@ export function buildRoomShell(context: RoomContext, options: ShellOptions = {})
   // --- the pieces ------------------------------------------------------
   const counts: Record<string, number> = {};
   for (const piece of context.room.pieces) counts[piece.wall] = (counts[piece.wall] ?? 0) + 1;
-  const surfaces: Record<string, MountSurface> = { ...wallSurfaces(counts), ...(options.surfaces ?? {}) };
+  const surfaces: Record<string, MountSurface> = { ...wallSurfaces(counts, box), ...(options.surfaces ?? {}) };
 
   const frames = new Map<string, PieceFrame>();
   const ticking: { tick(delta: number): void }[] = [];
@@ -575,7 +628,7 @@ export function buildRoomShell(context: RoomContext, options: ShellOptions = {})
       position = frame.centre.clone();
       pieceOf.set(interactive.id, frame.piece.id);
     } else {
-      position = new Vector3((loose - (looseCount - 1) / 2) * 1.8, 1.2, ROOM.depth / 2 - 1.3);
+      position = new Vector3((loose - (looseCount - 1) / 2) * 1.8, 1.2, box.depth / 2 - 1.3);
       loose += 1;
     }
     const arrival = fixture?.arrival ?? options.arrivalFor?.(interactive, frame);
@@ -601,11 +654,18 @@ export function buildRoomShell(context: RoomContext, options: ShellOptions = {})
       // Only a focus the engine can frame correctly goes on the spec. One that
       // names its own target is framed below instead, because the engine frames
       // `position` and `position` is this screen rather than the wall it is on.
+      // A fixture's framing goes on by reference, which is the one place this
+      // file hands an object over rather than copying it out. See
+      // `RoomFixture.focus`: a door's push is specified in pixels and the engine
+      // rewrites the radius on every resize, so the spec and the room have to be
+      // holding the same object or the spec keeps a number that is true for one
+      // viewport.
       ...(fixture?.focus
-        ? { focus: { radius: fixture.focus.radius, ...(fixture.focus.normal ? { normal: fixture.focus.normal } : {}) } }
+        ? { focus: fixture.focus }
         : focus && !focus.target
           ? { focus: { radius: focus.radius, ...(focus.normal ? { normal: focus.normal } : {}) } }
           : {}),
+      ...(fixture?.onProximity ? { onProximity: fixture.onProximity } : {}),
       ...(focus && frame
         ? {
             onProximity(near: boolean) {
@@ -651,6 +711,15 @@ export function buildRoomShell(context: RoomContext, options: ShellOptions = {})
         // (CLAUDE.md §7). So it is asked for here, explicitly, on the path that
         // cannot get it any other way.
         if (frame && focus?.target) frameFor(frame);
+        // A fixture that is a door is pressed, not followed. See
+        // `RoomFixture.activate`: the corridor's stages are `open-page` in the
+        // manifest and a door's press is a walk, a leaf and then the page, with
+        // Escape able to call the whole thing off. Everything else keeps the two
+        // verbs below, which are what an interactive that really is a link gets.
+        if (fixture?.activate) {
+          fixture.activate();
+          return;
+        }
         if (interactive.kind === "leave-room") {
           context.leave();
           return;

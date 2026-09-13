@@ -51,6 +51,8 @@ export interface BacklotInteractive {
   id: string;
   /** The piece it acts on, when it acts on one. */
   pieceId?: string;
+  /** The corridor stage it acts on, when it acts on one. */
+  stageId?: string;
   kind: "play-clip" | "read-graph" | "look-at" | "leave-room" | "open-page";
   /** Button text, and what the live region says when the figure reaches it. */
   label: string;
@@ -66,7 +68,40 @@ export interface BacklotRoom {
   /** The room's own sentence: what a reader gets from it with no 3D at all. */
   intro: string;
   pieces: BacklotPiece[];
+  /** Doors down a corridor, where the room has them. The machine room has none. */
+  stages?: BacklotStage[];
   interactives: BacklotInteractive[];
+}
+
+/**
+ * One teaching week, as one door down the Lectures corridor.
+ *
+ * Everything a reader reads off a stage comes from the lecture itself. The week
+ * number and the title are the lecture's own frontmatter and the href is the
+ * route the site already builds for it, so a week renamed in
+ * `src/content/lectures/` is renamed on its door in the same commit, and there
+ * is no second place to forget.
+ */
+export interface BacklotStage {
+  /** The lecture's own id, e.g. "week-05". Hotspot id and gallery anchor. */
+  id: string;
+  /** From the lecture's frontmatter. */
+  week: number;
+  /** From the lecture's frontmatter, never retyped here. */
+  title: string;
+  /** "/lectures/week-05/" -- site-root-relative; the page base-resolves it. */
+  href: string;
+  /**
+   * Odd weeks left, even weeks right, looking down the corridor -- for weeks 1
+   * to 11, which is six on the left and five on the right. **Week 12 is "end"**:
+   * the last week of the course faces you down the corridor, on the end wall,
+   * and is the last thing seen. The parity rule governs the sides; it does not
+   * govern the finish.
+   */
+  side: "left" | "right" | "end";
+  /** 0-based along the corridor. Deeper is later in the course. */
+  depth: number;
+  window: DoorWindow;
 }
 
 /**
@@ -94,7 +129,23 @@ export type DoorWindow =
   /** A ComfyUI workflow graph, drawn to a texture at window size. */
   | { kind: "graph"; file: string }
   /** No image exists, so the door is lit and says its own name. */
-  | { kind: "nameplate" };
+  | { kind: "nameplate" }
+  /**
+   * A week that has not been shot yet.
+   *
+   * Not the same thing as a nameplate, and the difference is the whole point: a
+   * nameplate door has nothing behind it to show, but a teaching week that
+   * recorded nothing **has a slot for the thing it has not made**. So the window
+   * is there, in the same frame and the same pool of light as a week that did
+   * shoot, and it is a dark 9:16 panel carrying the week's number. A reader who
+   * walks up to it reads "this week has not been shot", which is true, rather
+   * than "this door is broken", which is not.
+   *
+   * The shape is the course's own 9:16 output size, so the empty frame is the
+   * same frame the shot weeks hang -- an empty slot in a row of full ones reads
+   * as empty; a differently shaped one reads as a mistake.
+   */
+  | { kind: "unshot"; week: number; aspect: [number, number] };
 
 export interface BacklotDoor {
   /** Stable id, from the href, e.g. "lectures". Hotspot id and gallery anchor. */
@@ -133,8 +184,11 @@ export interface BacklotManifest {
  */
 const doorKinds: Record<string, { kind: "page" | "room"; roomId?: string; blurb: string; window: DoorWindow }> = {
   "/lectures/": {
-    kind: "page",
-    blurb: "Twelve teaching weeks, four phases, one technique added to the rig each week.",
+    kind: "room",
+    roomId: "corridor",
+    blurb:
+      "Twelve teaching weeks, four phases, one technique added to the rig each week. This one opens into " +
+      "the corridor they run down; every door off it is that week's page.",
     // Week 5's third rung: the four-sentence prompt, which is the clearest single
     // frame the teaching ladder produced.
     window: { kind: "still", file: "week05-t3.avif", aspect: [576, 1024], clip: "week05-t3.mp4" },
@@ -402,7 +456,152 @@ const machineRoom: BacklotRoom = {
   ],
 };
 
+// ----------------------------------------------------------------- corridor
+
+// The lectures, read the way the site reads them. Raw rather than as modules:
+// an eager glob of the .mdx themselves pulls every lecture's imported widget
+// components into this module's graph, and this module is imported by the page
+// at build time. `?raw` takes the twelve files as text and nothing else.
+const LECTURE_PREFIX = "../../content/lectures/";
+const lectureSources = import.meta.glob<string>("../../content/lectures/*.mdx", {
+  eager: true,
+  query: "?raw",
+  import: "default",
+});
+
+/** `title` and `week` out of a lecture's frontmatter, or a build error.
+ *
+ *  Deliberately narrow: it reads the two scalars this file needs out of the
+ *  block between the first pair of `---` lines, and throws if either is
+ *  missing. A lecture with no title is a door with no name, and finding that
+ *  out in the browser is worse than not building. */
+function lectureFront(path: string, text: string): { week: number; title: string; draft: boolean } {
+  const block = /^---\r?\n([\s\S]*?)\r?\n---/.exec(text);
+  if (!block) throw new Error(`backlot: ${path} has no frontmatter block`);
+  const body = block[1]!;
+  const weekMatch = /^week:\s*(\d+)\s*$/m.exec(body);
+  const titleMatch = /^title:\s*(.+?)\s*$/m.exec(body);
+  if (!weekMatch) throw new Error(`backlot: ${path} has no \`week:\` in its frontmatter`);
+  if (!titleMatch) throw new Error(`backlot: ${path} has no \`title:\` in its frontmatter`);
+  return {
+    week: Number(weekMatch[1]),
+    // Quoted where the title contains a comma; unquoted otherwise. Both forms
+    // are in the collection today.
+    title: titleMatch[1]!.replace(/^["'](.*)["']$/, "$1"),
+    draft: /^draft:\s*true\s*$/m.test(body),
+  };
+}
+
+/**
+ * A stage's window.
+ *
+ * Weeks 2 to 9 recorded something and hang it. **Weeks 1, 10, 11 and 12 did
+ * not**, and they get a lit nameplate carrying their own number and title --
+ * the same answer the ring already gives People, Policies and Assessment. The
+ * alternative is inventing a frame for a week that produced none, or hanging
+ * the reference episode's cuts on a week that did not make them; both are the
+ * site inventing an artefact to make the fiction look furnished, which
+ * CLAUDE.md section 3 rules out. This includes the far end of the corridor:
+ * week 12's stage is lit and says its name.
+ *
+ * The still, the clip and the pixel size are all the week manifest's own. A
+ * tier whose output is already an image is hung directly; one whose output is a
+ * clip hangs its poster and keeps the clip behind it.
+ */
+function stageWindow(weekNumber: number): DoorWindow {
+  const week = studioWeeks.find((candidate) => candidate.week === weekNumber);
+  const rung = week?.tiers[0];
+  // 576x1024 is the size weeks 2, 5, 6, 7, 8 and 9 actually shot at, so an
+  // unshot week's empty panel is the same frame as a shot week's full one.
+  if (!week || !rung) return { kind: "unshot", week: weekNumber, aspect: [576, 1024] };
+  const size = /^(\d+)x(\d+)$/.exec(week.resolution ?? "");
+  if (!size) throw new Error(`backlot: week ${weekNumber} has no usable resolution to size its window`);
+  const aspect: [number, number] = [Number(size[1]), Number(size[2])];
+  const moving = /\.(mp4|webm)$/i.test(rung.output.file);
+  if (!moving) return { kind: "still", file: rung.output.file, aspect };
+  if (!rung.output.poster) {
+    throw new Error(`backlot: week ${weekNumber}'s first rung is a clip with no poster to hang`);
+  }
+  return { kind: "still", file: rung.output.poster, aspect, clip: rung.output.file };
+}
+
+/**
+ * Which wall a week hangs on.
+ *
+ * Odd left, even right for weeks 1 to 11 -- six and five -- so the sides
+ * alternate as a reader walks in and no week is opposite its own neighbour.
+ * **Week 12 is the end wall.** It is the last week of the course and it is the
+ * last thing seen: the corridor finishes on it rather than running past it, and
+ * a reader who walks to the end has arrived somewhere rather than run out of
+ * doors. That is a decision about the finish, not an exception to the parity.
+ */
+const sideFor = (week: number): "left" | "right" | "end" =>
+  week === 12 ? "end" : week % 2 === 1 ? "left" : "right";
+
+/** The twelve, in teaching order, off the collection rather than a list here. */
+export const corridorStages: BacklotStage[] = Object.entries(lectureSources)
+  .map(([path, text]) => {
+    const id = path.slice(LECTURE_PREFIX.length).replace(/\.mdx$/, "");
+    return { id, ...lectureFront(path, text) };
+  })
+  .filter((lecture) => !lecture.draft)
+  .sort((a, b) => a.week - b.week)
+  .map((lecture, depth) => ({
+    id: lecture.id,
+    week: lecture.week,
+    title: lecture.title,
+    href: `/lectures/${lecture.id}/`,
+    side: sideFor(lecture.week),
+    depth,
+    window: stageWindow(lecture.week),
+  }));
+
+// Twelve teaching weeks is a hard line of the brief, and the corridor is built
+// from whatever the collection holds -- so the two are checked against each
+// other here rather than assumed to agree. Same shape as `doorKinds` above: a
+// week added, removed or left in draft is a build error, not a corridor that
+// quietly disagrees with the course.
+if (corridorStages.length !== 12) {
+  throw new Error(
+    `backlot: the corridor is twelve stages and the lectures collection published ` +
+      `${corridorStages.length}. Fix the collection, not this number.`,
+  );
+}
+corridorStages.forEach((stage, index) => {
+  if (stage.week !== index + 1) {
+    throw new Error(`backlot: expected week ${index + 1} at depth ${index} of the corridor, found ${stage.week}`);
+  }
+});
+
+const corridor: BacklotRoom = {
+  id: "corridor",
+  title: "The lectures corridor",
+  href: "/lectures/",
+  intro:
+    "Twelve teaching weeks, twelve doors. Odd weeks on the left, even weeks on the right, and the further " +
+    "in you walk the later in the course you are, until week 12 faces you on the end wall. A door with " +
+    "something recorded behind it shows it; a week that has not been shot yet keeps the same frame with " +
+    "nothing in it, which is the truth about that week. Push one and you are on that week's page.",
+  pieces: [],
+  stages: corridorStages,
+  interactives: [
+    ...corridorStages.map((stage) => ({
+      id: `stage-${stage.id}`,
+      stageId: stage.id,
+      kind: "open-page" as const,
+      // The same sentence the week's own page titles itself with.
+      label: `Week ${stage.week}: ${stage.title}`,
+      href: stage.href,
+    })),
+    {
+      id: "leave-corridor",
+      kind: "leave-room" as const,
+      label: "Back to the backlot",
+    },
+  ],
+};
+
 export const backlotManifest: BacklotManifest = {
   doors: backlotDoors,
-  rooms: [machineRoom],
+  rooms: [machineRoom, corridor],
 };

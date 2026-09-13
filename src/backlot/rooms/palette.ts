@@ -31,6 +31,39 @@ export const TOKENS = {
   frameEdge: "--at-divider",
   frameFill: "--at-bg-elevated",
 
+  // an unshot week's window down the corridor, and the light behind it. These
+  // two are the only surfaces in the backlot that are deliberately the same in
+  // both themes, and the reason is what the window is: a window is a picture
+  // plane, and a week that did shoot hangs a recorded frame that the footer
+  // toggle does not repaint. A week that did not shoot hangs an empty panel, and
+  // that panel has to be the same kind of thing — so it takes the two tokens the
+  // theme fixes (`--at-black` and `--at-white` are literal in tokens.css) plus
+  // the brand fill, which is a brand colour and does not flip either. A ground
+  // that followed the theme would make the empty slot the one thing in the row
+  // that repaints, which is the "reads as a mistake" the manifest rules out.
+  //
+  // `gate` is the opening's own ground as well, and for the same sentence rather
+  // than by coincidence: the part of the plane a fitted picture does not cover
+  // is still the picture plane. Painted `--at-bg` it was the brightest thing in
+  // two of the twelve windows in the light theme and invisible in the dark one.
+  gate: "--at-black",
+  gateLight: "--at-primary",
+
+  // a week's door down the Lectures corridor. The same tokens the ring's six
+  // doors take (engine/hub.ts), named for what they are here rather than
+  // re-derived: a corridor door and a hub door are one thing at two sizes, and
+  // two palettes for it would be two things that drift.
+  doorFrame: "--at-tertiary",
+  doorPlinth: "--at-border",
+  /** The leaf at rest, and the leaf of the door the figure is standing at. */
+  doorLeaf: "--at-bg-elevated",
+  doorAt: "--at-primary",
+  /** The step on the floor that marks where to stand, and the band of light
+   *  round the opening plus the pool it throws — which is what makes a window
+   *  read as lit from behind rather than as a hole. */
+  doorSill: "--at-divider",
+  doorLight: "--at-primary",
+
   // the fit-out
   deskTop: "--at-divider",
   deskFrame: "--at-tertiary",

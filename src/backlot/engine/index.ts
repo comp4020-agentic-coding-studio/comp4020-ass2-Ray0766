@@ -24,7 +24,15 @@ import { createLayers } from "./layers";
 import { createMotionPreference } from "./motion";
 import { createResizer } from "./resize";
 import { createStage, releaseSubtree } from "./scene";
-import type { BacklotEngine, BacklotOptions, BacklotRoom, Hotspot, HotspotSpec, RoomContext } from "./types";
+import type {
+  BacklotEngine,
+  BacklotOptions,
+  BacklotRoom,
+  Hotspot,
+  HotspotSpec,
+  RoomContext,
+  RoomDoor,
+} from "./types";
 // The engine's own stylesheet, carried by the engine's own chunk. It is here
 // rather than on the page because the buttons, the ring and the live region are
 // the engine's DOM: a page that forgot the import would ship a HUD with no
@@ -179,6 +187,42 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
 
   // ------------------------------------------------------------------ state
 
+  /**
+   * A door, as this file understands one: a standing mark, a leaf that swings,
+   * and a page or a room behind it. The ring has six and the Lectures corridor
+   * has twelve, and they are one shape here rather than two implementations.
+   *
+   * They were not, until the corridor. Everything a press is — the walk, the
+   * leaf, `rel="prefetch"` fired at the moment of the press, and Escape stopping
+   * the figure where it stands — lived in `use` keyed on `hub.find`, so a room
+   * that wanted a door could have the geometry and not the behaviour. Reusing it
+   * cost this record and the `scoped` flag on it; reimplementing it would have
+   * cost twelve doors that look like the ring's and answer Escape differently.
+   */
+  interface Pressable {
+    id: string;
+    /** What the live region calls it mid-sentence: "Lectures", "week 5". */
+    name: string;
+    standing: Vector3;
+    /** Already base-resolved by the page. */
+    href: string;
+    /** The room it opens into instead of leaving, when it opens one. */
+    roomId?: string;
+    /** True for a door a mounted room built. A door in the ring cannot be
+     *  pressed from inside a room, and a room's door does not outlive its room:
+     *  the same rule the hidden buttons already enforce, stated where the act
+     *  is rather than where the control is. */
+    scoped: boolean;
+    /** So the press can take the control out of service while it runs. */
+    handle?: Hotspot;
+    setOpen(open: boolean, instant: boolean): void;
+  }
+  const pressables = new Map<string, Pressable>();
+  /** The doors the mounted room handed over, kept as they were given so their
+   *  framing radius can be re-derived against a viewport that has changed and
+   *  their name boards can be kept out from under the buttons. */
+  const roomDoors: RoomDoor[] = [];
+
   let mounted: { room: BacklotRoom; group: Group; teardown: (() => void)[]; fromDoorId: string | null } | null = null;
   const roomFrames = new Set<(delta: number, elapsed: number) => void>();
   const doorHandles = new Map<string, Hotspot>();
@@ -227,7 +271,7 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
    * pulled the camera back and returned, and the walk it left behind went on
    * and navigated.
    */
-  let pressing: { id: string; label: string } | null = null;
+  let pressing: Pressable | null = null;
   /** The door the figure is standing at, which is what a window-level Enter
    *  goes through. Kept from the proximity crossings rather than searched for,
    *  so it is the same answer the announcement was made from. */
@@ -404,6 +448,13 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
       }
     }
     roomFrames.clear();
+    // The room's doors go with the room, and so does whatever the figure was
+    // standing at. Otherwise a press could reach a door that is no longer in the
+    // scene, and the ring would come back with the reader apparently at one.
+    for (const door of roomDoors) pressables.delete(door.hotspot.id);
+    roomDoors.length = 0;
+    atDoorId = null;
+    refreshClearances();
     // A room left while the camera was close on something does not get to keep
     // the framing either: the hub is only ever seen from the god view.
     cutFraming();
@@ -432,6 +483,9 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
     if (mounted) returnToHub();
     // The hub's camera does not cross the threshold. See `cutFraming`.
     cutFraming();
+    // Nor does the door the reader was standing at: a window-level Enter inside
+    // a room must reach one of the room's doors or nothing, never the ring's.
+    atDoorId = null;
 
     const pressed = keyboardInHud();
     const group = new Group();
@@ -482,6 +536,33 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
       onFrame(handler) {
         roomFrames.add(handler);
         return () => roomFrames.delete(handler);
+      },
+      door(entry) {
+        const id = entry.hotspot.id;
+        roomDoors.push(entry);
+        pressables.set(id, {
+          id,
+          name: entry.name,
+          standing: entry.standing,
+          href: entry.href,
+          scoped: true,
+          handle: entry.hotspot,
+          setOpen: entry.setOpen,
+        });
+        // The radius the window's pixel floor costs at the canvas as it is now.
+        // A room is built with the viewport already measured, so this is not
+        // waiting for a resize that may never come.
+        entry.focus.radius = focusRadiusFor(entry.windowMetres, WINDOW_FLOOR, {
+          width: sizer.width,
+          height: sizer.height,
+        });
+        refreshClearances();
+        return {
+          press: () => void use(id),
+          near(at: boolean) {
+            atDoorId = at ? id : atDoorId === id ? null : atDoorId;
+          },
+        };
       },
       leave: () => returnToHub(),
       onDispose(handler) {
@@ -657,48 +738,55 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
    */
   function stopPress(): boolean {
     const press = pressing;
-    // `mounted` means the press already got where it was going, and Esc there
-    // is the room's Esc, not this one.
-    if (!press || mounted) return false;
+    if (!press) return false;
     pressing = null;
     generation += 1;
     player.placeAt(player.position.clone());
-    hub.setOpen(press.id, false, motion.reduced);
+    press.setOpen(false, motion.reduced);
     releaseFraming(false);
-    announce(`Stopped. The ${press.label} door is closed again.`);
+    announce(`Stopped. The ${press.name} door is closed again.`);
     return true;
   }
 
   async function use(doorId: string): Promise<void> {
-    if (busy || mounted) return;
-    const entry = hub.find(doorId);
+    if (busy) return;
+    const entry = pressables.get(doorId);
     if (!entry) return;
+    // A door in the ring cannot be pressed from inside a room, and a room's door
+    // cannot be pressed from the ring. This replaces the bare `mounted` guard,
+    // which said the first and could not say the second.
+    if (entry.scoped !== Boolean(mounted)) return;
     const mine = ++generation;
-    const handle = doorHandles.get(doorId);
     busy = true;
-    pressing = { id: doorId, label: entry.door.label };
+    pressing = entry;
     // aria-disabled, never the `disabled` property: `disabled` blurs the
     // element it is set on, and the reader loses the ring on the control they
     // just pressed (CLAUDE.md §7). The guard that actually stops a second
     // press is `busy`.
-    handle?.setEnabled(false);
+    entry.handle?.setEnabled(false);
     // Where this press is going, decided **here** rather than after the walk,
     // because the point of asking now is to spend the walk on the fetch. It is
     // the same test the end of this function makes, and it is one expression so
     // the two cannot drift.
-    const roomId = entry.door.roomId;
-    const intoARoom = entry.door.kind === "room" && Boolean(roomId) && Boolean(roomId && rooms[roomId]);
-    if (!intoARoom) prefetchPage(entry.door.href);
+    const roomId = entry.roomId;
+    const intoARoom = Boolean(roomId && rooms[roomId]);
+    if (!intoARoom) prefetchPage(entry.href);
     try {
       if (player.position.distanceTo(entry.standing) > 0.3) await player.walkTo(entry.standing);
       if (disposed || generation !== mine) return;
 
-      hub.setOpen(doorId, true, motion.reduced);
-      announce(`Opening the ${entry.door.label} door.`);
+      entry.setOpen(true, motion.reduced);
+      announce(`Opening the ${entry.name} door.`);
       if (!motion.reduced) await wait(OPEN_MILLISECONDS);
       if (disposed || generation !== mine) return;
 
       if (intoARoom && roomId) {
+        // Cleared before the room rather than after it. `stopPress` used to
+        // refuse whenever a room was mounted, on the grounds that a press which
+        // had got that far was over — which stopped being a safe thing to say
+        // the moment a room had doors of its own. This is the same statement
+        // made where it is true: this press is finished, the room's are not it.
+        pressing = null;
         await enterRoom(roomId);
         return;
       }
@@ -706,11 +794,11 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
       // never writes a root-absolute URL (CLAUDE.md §4). A room door with no
       // builder registered lands here too, which is the honest fallback — the
       // Studio door still takes you to the Studio.
-      window.location.assign(entry.door.href);
+      window.location.assign(entry.href);
     } finally {
       busy = false;
       pressing = null;
-      handle?.setEnabled(true);
+      entry.handle?.setEnabled(true);
     }
   }
 
@@ -777,7 +865,18 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
       },
     };
     doorSpecs.set(entry.door.id, spec);
-    doorHandles.set(entry.door.id, hotspots.api.register(spec));
+    const handle = hotspots.api.register(spec);
+    doorHandles.set(entry.door.id, handle);
+    pressables.set(entry.door.id, {
+      id: entry.door.id,
+      name: entry.door.label,
+      standing: entry.standing,
+      href: entry.door.href,
+      ...(entry.door.roomId ? { roomId: entry.door.roomId } : {}),
+      scoped: false,
+      handle,
+      setOpen: (open, instant) => hub.setOpen(entry.door.id, open, instant),
+    });
     // What the door's button marks the surface of. A door hotspot is parked on
     // the leaf's middle, which is not the window, and the window is the only
     // part of a door that carries a colour worth measuring — a still, a
@@ -786,7 +885,21 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
   }
   // And the six name boards, which are not anybody's published surface but are
   // the one part of a door that has to stay readable without hovering.
-  hotspots.keepClear(hub.doors.map((entry) => entry.board).filter((board): board is NonNullable<typeof board> => board !== null));
+  //
+  // A room's doors have boards for the same reason and they go in the same list,
+  // which is why this is a function rather than a call: `keepClear` replaces the
+  // whole list, so a room that set its own would have taken the ring's out and
+  // never put them back.
+  const hubBoards = hub.doors
+    .map((entry) => entry.board)
+    .filter((board): board is NonNullable<typeof board> => board !== null);
+  function refreshClearances(): void {
+    hotspots.keepClear([
+      ...hubBoards,
+      ...roomDoors.map((door) => door.board).filter((board): board is NonNullable<typeof board> => Boolean(board)),
+    ]);
+  }
+  refreshClearances();
 
   // ------------------------------------------------------------------ input
 
@@ -845,14 +958,19 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
    * field the deck and any check actually read.
    */
   function refreshDoorFocus(): void {
+    const view = { width: sizer.width, height: sizer.height };
     for (const entry of hub.doors) {
       const focus = doorSpecs.get(entry.door.id)?.focus;
       if (!focus) continue;
-      focus.radius = focusRadiusFor(entry.windowMetres, WINDOW_FLOOR, {
-        width: sizer.width,
-        height: sizer.height,
-      });
+      focus.radius = focusRadiusFor(entry.windowMetres, WINDOW_FLOOR, view);
     }
+    // And the doors a room built, which are the same arithmetic on the same
+    // floor: "the window measures at least 120 x 200 px once the camera is
+    // there" is a statement about a rectangle in metres and a canvas, and the
+    // canvas is the engine's. A room writes its own radius once, at build time,
+    // and then this owns it — `RoomDoor.focus` is handed over by reference so
+    // that both halves are holding the same object.
+    for (const door of roomDoors) door.focus.radius = focusRadiusFor(door.windowMetres, WINDOW_FLOOR, view);
   }
 
   const sizer = createResizer(canvas, (box) => {

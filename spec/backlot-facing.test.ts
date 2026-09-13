@@ -383,6 +383,18 @@ function deltaE(one: Rgb, two: Rgb): number {
 /** One heading, read off the composite. */
 interface Look {
   heading: string;
+  /** A checksum of the very frame every number in this Look was read from.
+   *
+   *  Recorded every run, not only on failure, and it exists to settle one fork
+   *  that the failure message below currently asserts one side of. When two
+   *  headings come back with the same picture, either the arrow keys never
+   *  reached the engine — which is what the message claims — or the two captures
+   *  are the same bytes and the sweep compared one frame with itself. Those want
+   *  different fixes and nothing in here could tell them apart: `picture` is
+   *  keyed on the head, so it is deliberately blind to where the figure walked,
+   *  and two head-aligned pictures can coincide without the frames coinciding.
+   *  A raw frame checksum cannot. */
+  frame: string;
   /** The figure's own pixels, and its centroid and extent. */
   figure: { pixels: number; x: number; y: number; width: number; height: number } | null;
   /** The mark's pixels inside them, its centroid, and its share of the figure. */
@@ -536,6 +548,7 @@ async function sweep(): Promise<Reading[]> {
         for (const heading of HEADINGS) {
           const look: Look = {
             heading: heading.name,
+            frame: "",
             figure: null,
             mark: null,
             markPoints: [],
@@ -557,7 +570,59 @@ async function sweep(): Promise<Reading[]> {
             continue;
           }
           const clip = first.canvas;
+
+          // **Turned into this heading before anything is captured, and this
+          // line is the whole of the defect that was here.**
+          //
+          // The segmentation below finds the figure *in A* on purpose — the
+          // pixels that changed on the first step and have been still since are
+          // the ones it vacated, which is its silhouette at A. So A is the
+          // moment every number in this Look describes. A was taken before this
+          // heading's key had ever been held, which made it the figure as the
+          // *previous* heading's walk-back left it:
+          //
+          //   away   (1st)  the engine's initial placement
+          //   toward (2nd)  away's walk-back was ArrowDown, so: toward  (right by luck)
+          //   left   (3rd)  toward's walk-back was ArrowUp, so: AWAY    (wrong)
+          //   right  (4th)  left's walk-back was ArrowRight, so: right  (right by luck)
+          //
+          // So "the four headings produced four different pictures" was
+          // comparing two readings of *away* with each other, and a walk-back
+          // that returns the figure well is exactly what made them match. It is
+          // not intermittent: measured here before the fix, away-vs-left was the
+          // smallest of the six pairs in every cell — 2.738%, 0.615%, 2.500%,
+          // 16.410% against up to 93% for the rest — and whether it rounded to
+          // "0.0%" was the coin flip that made it look like one run in eight.
+          // Two of the mark assertions were reading the wrong heading too.
+          //
+          // One extra step of the heading's own key turns the figure and puts it
+          // there before A is taken; the walk-back below is three steps rather
+          // than two to match.
+          await tab.hold(heading.key, STEP_MILLISECONDS);
+          await pause(700);
+          const turned = await settle(tab);
+          if (!turned) {
+            look.why = "the scene never settled after turning into the heading";
+            reading.looks.push(look);
+            await tab.hold(HEADINGS.find((one) => one.name === heading.opposite)!.key, STEP_MILLISECONDS);
+            await pause(700);
+            continue;
+          }
+
           const a = await tab.raster(clip);
+          // Cheap on purpose — every ninth pixel, weighted per channel so a
+          // swapped channel does not cancel. It is not a hash, it is a witness
+          // that two captures were or were not the same picture.
+          look.frame = (() => {
+            let total = 0;
+            for (let y = 0; y < a.height; y += 3) {
+              for (let x = 0; x < a.width; x += 3) {
+                const pixel = a.at(x, y);
+                total += pixel[0] + pixel[1] * 3 + pixel[2] * 7;
+              }
+            }
+            return total.toFixed(4);
+          })();
           await tab.hold(heading.key, STEP_MILLISECONDS);
           await pause(700);
           const second = await settle(tab);
@@ -583,7 +648,7 @@ async function sweep(): Promise<Reading[]> {
             reading.looks.push(look);
             // Walk back anyway, so the next heading starts from where this one
             // did rather than from wherever this one gave up.
-            await tab.hold(HEADINGS.find((one) => one.name === heading.opposite)!.key, STEP_MILLISECONDS * 2);
+            await tab.hold(HEADINGS.find((one) => one.name === heading.opposite)!.key, STEP_MILLISECONDS * 3);
             await pause(700);
             continue;
           }
@@ -741,7 +806,9 @@ async function sweep(): Promise<Reading[]> {
 
           // Back to where this heading started, so every heading is read from
           // the same part of the ring and the offsets below are comparable.
-          await tab.hold(HEADINGS.find((one) => one.name === heading.opposite)!.key, STEP_MILLISECONDS * 2);
+          // Three, matching the three the heading now takes: one to turn into it
+          // before A, and two more to segment by motion.
+          await tab.hold(HEADINGS.find((one) => one.name === heading.opposite)!.key, STEP_MILLISECONDS * 3);
           await pause(700);
         }
 
@@ -1056,9 +1123,13 @@ describe("the four headings were four different pictures", () => {
         }
         expect(
           identical,
-          `two headings produced the same picture of the figure at ${viewport.name} in the ${theme} theme, ` +
-            `so the arrow keys are not reaching the engine and every reading in this file is of one frame. ` +
-            `All six pairs: ${pairs.join(", ")}.`,
+          `two headings produced the same picture of the figure at ${viewport.name} in the ${theme} theme. ` +
+            `All six pairs: ${pairs.join(", ")}. The frames each Look was read from: ` +
+            `${pictures.map((look) => `${look.heading} ${look.frame}`).join(", ")}. ` +
+            `**Read those two lines together.** If the frames differ and the pictures do not, the captures ` +
+            `are of different scenes and something about the segmentation is collapsing; if two frames are ` +
+            `equal, the sweep compared one capture with itself and the arrow keys never reached the engine, ` +
+            `which is the case this message used to assert without checking.`,
         ).toEqual([]);
       });
     }

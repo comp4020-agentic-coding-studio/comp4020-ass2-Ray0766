@@ -23,12 +23,19 @@ import { contrastRatio } from "astro-theme-university/contrast";
 import { backlotManifest } from "../src/backlot/rooms/manifest";
 import { gitOrigin, resolveDeployment } from "../scripts/pages-base.ts";
 import { formatHex, opaque, RESOLVE_COLOUR, serveBuild, Tab, type Resolved, type Rgb } from "./lib/chrome.ts";
+import { doorInto, roomNamed } from "./lib/backlot.ts";
 
 const { base } = resolveDeployment(process.env, gitOrigin);
 const prefix = base.endsWith("/") ? base : `${base}/`;
 
 const doors = backlotManifest.doors;
-const room = backlotManifest.rooms[0]!;
+// Named, not positional. `rooms[0]` was the machine room by the manifest's own
+// array order and nothing else, and the door was found with
+// `kind === "room"`, which returned the Lectures door the moment a corridor
+// existed — so this file drove a room with no builder while every message in it
+// said "the machine room" (spec/lib/backlot.ts).
+const room = roomNamed("machine-room");
+const roomDoor = doorInto(room);
 
 /** WCAG 2.2 SC 1.4.11: a focus indicator is a non-text contrast requirement,
  *  3:1 against the colours next to it. The theme's contrast module has no
@@ -374,7 +381,7 @@ async function sweep(): Promise<Sweep> {
     // A synthetic click would skip the browser's own activation behaviour and
     // would leave focus on the body, which is the state the engine's focus
     // hand-over refuses to act on.
-    const studioDoor = doors.find((door) => door.kind === "room")!;
+    const studioDoor = roomDoor;
     await tab.goto(url);
     await tab.evaluate<string | null>(`return (async () => { ${MOUNTED} })();`);
     await tabTo(tab, studioDoor.id);

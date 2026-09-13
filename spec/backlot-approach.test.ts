@@ -106,6 +106,7 @@ import { describe, expect, it } from "vitest";
 import { backlotManifest } from "../src/backlot/rooms/manifest.ts";
 import { gitOrigin, resolveDeployment } from "../scripts/pages-base.ts";
 import { serveBuild, Tab, type ColourScheme, type Raster } from "./lib/chrome.ts";
+import { doorInto, roomNamed } from "./lib/backlot.ts";
 
 const { base } = resolveDeployment(process.env, gitOrigin);
 const prefix = base.endsWith("/") ? base : `${base}/`;
@@ -782,7 +783,7 @@ async function walk(): Promise<{ approaches: Approach[]; rooms: RoomVisit[] }> {
       await tab.goto(`${site.origin}${prefix}backlot/`);
       await tab.evaluate<string>(READY);
       await pause(1200);
-      const roomDoor = DOORS.find((door) => door.kind === "room")!;
+      const roomDoor = doorInto(roomNamed("machine-room"));
       await tabTo(tab, roomDoor.id);
       await tab.press("Enter");
       await pause(4000);

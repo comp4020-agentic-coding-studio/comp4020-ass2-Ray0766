@@ -57,12 +57,17 @@ import {
   type Resolved,
   type Rgb,
 } from "./lib/chrome.ts";
+import { doorInto, roomNamed } from "./lib/backlot.ts";
 
 const { base } = resolveDeployment(process.env, gitOrigin);
 const prefix = base.endsWith("/") ? base : `${base}/`;
 
 const doors = backlotManifest.doors;
-const room = backlotManifest.rooms[0]!;
+// Named, not positional, and the door taken from the room rather than from
+// `kind === "room"` — which stopped meaning the Studio door the moment the
+// Lectures door started opening a corridor (spec/lib/backlot.ts).
+const room = roomNamed("machine-room");
+const roomDoor = doorInto(room);
 
 /** WCAG 2.2 SC 1.4.11. The dot is the whole of the control at 390px, so it is
  *  a part required to identify it, not decoration with an aria-hidden on it. */
@@ -540,7 +545,7 @@ async function sweep(): Promise<Reading[]> {
           if (place.name === "the machine room") {
             // Entered with the keyboard, so the engine's focus hand-over runs
             // the way it does for a reader.
-            const door = doors.find((candidate) => candidate.kind === "room")!;
+            const door = roomDoor;
             await tab.evaluate(
               `document.querySelector('[data-backlot-hotspot="${door.id}"]').focus(); return null;`,
             );

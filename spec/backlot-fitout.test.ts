@@ -77,12 +77,16 @@ import {
   type Resolved,
   type Rgb,
 } from "./lib/chrome.ts";
+import { doorInto, roomNamed } from "./lib/backlot.ts";
 
 const { base } = resolveDeployment(process.env, gitOrigin);
 const prefix = base.endsWith("/") ? base : `${base}/`;
 
 const doors = backlotManifest.doors;
-const room = backlotManifest.rooms[0]!;
+// Named, not positional: this file ranks the brightness of the machine
+// room's own five screens, and `rooms[0]` stopped meaning that room the day a
+// second one was added (spec/lib/backlot.ts).
+const room = roomNamed("machine-room");
 
 /** WCAG 2.2 SC 1.4.11. A focus ring is a part required to identify a control's
  *  state, so 3:1 against what it sits on is the floor, not a preference. */
@@ -706,7 +710,7 @@ async function sweep(): Promise<Case[]> {
             hubBeforeAt = figure.at;
           }
 
-          const doorway = doors.find((candidate) => candidate.kind === "room")!;
+          const doorway = doorInto(room);
           // ---- the plates, after a live theme flip -------------------------
           //
           // The same question N1 asked of the room, asked of the hub: what here

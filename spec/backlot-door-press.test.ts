@@ -162,6 +162,7 @@ import { describe, expect, it } from "vitest";
 import { backlotManifest } from "../src/backlot/rooms/manifest";
 import { gitOrigin, resolveDeployment } from "../scripts/pages-base.ts";
 import { formatHex, serveBuild, Tab, type ColourScheme, type Raster } from "./lib/chrome.ts";
+import { doorInto, roomNamed } from "./lib/backlot.ts";
 
 const { base } = resolveDeployment(process.env, gitOrigin);
 const prefix = base.endsWith("/") ? base : `${base}/`;
@@ -178,7 +179,10 @@ const THEME: ColourScheme = "dark";
  *  property that decides, and a door that changes kind should change what this
  *  walks. */
 const PAGE_DOOR = backlotManifest.doors.find((door) => door.kind === "page")!;
-const ROOM_DOOR = backlotManifest.doors.find((door) => door.kind === "room")!;
+// The door into the machine room by name. `kind === "room"` picked whichever
+// room door comes first in nav order, which stopped being this one when the
+// Lectures door started opening a corridor (spec/lib/backlot.ts).
+const ROOM_DOOR = doorInto(roomNamed("machine-room"));
 const roomHref = () => `${prefix}${ROOM_DOOR.id}/`;
 
 /** How long after the press a prefetch may arrive and still be "at the moment of

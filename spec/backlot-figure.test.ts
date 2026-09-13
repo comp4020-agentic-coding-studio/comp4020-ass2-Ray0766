@@ -189,15 +189,19 @@
 
 import { describe, expect, it } from "vitest";
 
-import { backlotManifest } from "../src/backlot/rooms/manifest";
 import { gitOrigin, resolveDeployment } from "../scripts/pages-base.ts";
 import { formatHex, serveBuild, Tab, type ColourScheme, type Key, type Raster } from "./lib/chrome.ts";
+import { doorInto, roomNamed } from "./lib/backlot.ts";
 
 const { base } = resolveDeployment(process.env, gitOrigin);
 const prefix = base.endsWith("/") ? base : `${base}/`;
 
-const room = backlotManifest.rooms[0]!;
-const doorway = backlotManifest.doors.find((door) => door.kind === "room")!;
+// This file is about the machine room in particular — its five screens, its
+// tower — so it names the room and takes the door from it. `rooms[0]` and
+// `kind === "room"` were both the machine room by accident and stopped being
+// it the day a second room landed (spec/lib/backlot.ts).
+const room = roomNamed("machine-room");
+const doorway = doorInto(room);
 const FRONT = room.interactives.filter((entry) => entry.id.startsWith("play-front-")).map((entry) => entry.id);
 
 const VIEWPORTS = [

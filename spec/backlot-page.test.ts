@@ -56,11 +56,23 @@ interface Wall {
   pieces: Piece[];
 }
 
+/** One teaching week, as the list renders it. */
+interface Week {
+  id: string;
+  label: string | null;
+  href: string | null;
+  where: string | null;
+  caption: string | null;
+  image: { src: string | null; width: string | null; height: string | null; alt: string | null } | null;
+  links: { href: string | null; text: string | null }[];
+}
+
 interface Room {
   id: string;
   title: string | null;
   intro: string | null;
   exitHrefs: (string | null)[];
+  weeks: Week[];
   walls: Wall[];
 }
 
@@ -90,6 +102,8 @@ interface Toggle {
 
 interface Reading {
   gallery: { id: string; tag: string; hidden: boolean; display: string } | null;
+  /** The JSON the island is handed, as text, straight off the script tag. */
+  payload: string | null;
   doors: Door[];
   rooms: Room[];
   stage: {
@@ -134,6 +148,31 @@ const PROBE = String.raw`
         title: text(section.querySelector("h2")),
         intro: text(section.querySelector("p.backlot-room__intro")),
         exitHrefs: [...section.querySelectorAll("p.backlot-room__exit a")].map((a) => a.getAttribute("href")),
+        weeks: [
+          ...section.querySelectorAll("section.backlot-weeks > ol.backlot-weeks__list > li.backlot-week"),
+        ].map((week) => {
+          const link = week.querySelector("h4.backlot-week__name > a");
+          const image = week.querySelector("figure.backlot-week__figure img.backlot-week__frame");
+          return {
+            id: week.id,
+            label: text(link),
+            href: link ? link.getAttribute("href") : null,
+            where: text(week.querySelector("p.backlot-week__where")),
+            caption: text(week.querySelector("figure.backlot-week__figure > figcaption.backlot-week__caption")),
+            image: image
+              ? {
+                  src: image.getAttribute("src"),
+                  width: image.getAttribute("width"),
+                  height: image.getAttribute("height"),
+                  alt: image.getAttribute("alt"),
+                }
+              : null,
+            links: [...week.querySelectorAll("p.backlot-week__links a")].map((a) => ({
+              href: a.getAttribute("href"),
+              text: text(a),
+            })),
+          };
+        }),
         walls: [...section.querySelectorAll("section.backlot-wall")].map((wall) => ({
           id: wall.id,
           heading: text(wall.querySelector("h3.backlot-wall__heading")),
@@ -160,10 +199,17 @@ const PROBE = String.raw`
       }))
     : [];
 
+  // The island's own copy of the manifest, read out of the document rather than
+  // rebuilt from the module: the point of the assertion it feeds is that the
+  // page resolved every href before serialising it, and resolving them again
+  // here would be checking the test's arithmetic instead of the page's.
+  const payloadTag = document.querySelector("script[data-backlot-payload]");
+
   return {
     gallery: gallery
       ? { id: gallery.id, tag: gallery.tagName, hidden: gallery.hidden, display: getComputedStyle(gallery).display }
       : null,
+    payload: payloadTag ? payloadTag.textContent : null,
     doors,
     rooms,
     stage: stage
@@ -256,6 +302,11 @@ const room = backlotManifest.rooms[0]!;
 const wallsInManifest = [...new Set(room.pieces.map((piece) => piece.wall))];
 const piecesOn = (wall: string) =>
   room.pieces.filter((piece) => piece.wall === wall).sort((a, b) => a.slot - b.slot);
+
+/** Every room the manifest gives a corridor to, found rather than named: a
+ *  second corridor gets the whole of the block below on the day it appears,
+ *  which a `rooms[1]` here would not (CLAUDE.md §7 on hand-kept scope). */
+const withStages = backlotManifest.rooms.filter((entry) => (entry.stages?.length ?? 0) > 0);
 
 // ---------------------------------------------------------------------------
 // 1. The page a reader with no JavaScript gets.
@@ -413,6 +464,9 @@ describe("with JavaScript off, the gallery is the page", () => {
     expect(phone.rooms[0]!.walls.flatMap((wall) => wall.pieces.map((piece) => piece.caption))).toEqual(
       desktop.rooms[0]!.walls.flatMap((wall) => wall.pieces.map((piece) => piece.caption)),
     );
+    expect(phone.rooms.flatMap((entry) => entry.weeks.map((week) => week.caption))).toEqual(
+      desktop.rooms.flatMap((entry) => entry.weeks.map((week) => week.caption)),
+    );
     expect(phone.stage!.boxed, "the stage is a fixed box on a phone with JS off").toBe(false);
     expect(phone.stage!.canvasDisplay, "the canvas is painted on a phone with JS off").toBe("none");
   });
@@ -435,6 +489,289 @@ describe("with JavaScript off, the gallery is the page", () => {
     for (const word of words) {
       expect(blob.includes(word.toLowerCase()), `the gallery says "${word}"`).toBe(false);
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 1b. The corridor, with JavaScript off: twelve teaching weeks as twelve cards.
+// ---------------------------------------------------------------------------
+//
+// The teaching point of the Lectures corridor is four things — twelve weeks in
+// order, which wall each door is on, what is behind each window, and that four
+// of the twelve recorded nothing — and it has to be complete with no JavaScript
+// at all, because that is what this page promises. None of it is 3D-only: a
+// reader who never gets the island gets the same four facts out of a list.
+//
+// Every assertion below is derived from `room.stages`, so a thirteenth week
+// added to `src/content/lectures/` is checked the moment the manifest builds it.
+//
+// Seen red three times, each bug put into src/pages/backlot/index.astro and then
+// reverted.
+//
+//   Rendering no cards at all (`room.stages && false && ...`):
+//     AssertionError: the corridor lists no weeks at all, so the teaching point
+//     is 3D-only: expected [] to deeply equal [ 'week-01', 'week-02', …(10) ]
+//     (9 failed | 55 passed)
+//
+//   Dropping the unshot branch, so the four weeks that recorded nothing got the
+//   shot sentence (`if (pane.kind === "unshot")` -> `if (false)`) — the build
+//   threw instead, from the `Add one` line at the bottom of `windowNote`, which
+//   is the failure landing one step earlier than this file and is the right
+//   place for it. With the throw removed as well and the shot sentence
+//   returned for all twelve:
+//     AssertionError: week-01 recorded nothing and its card does not say so. It
+//     says: "Behind the window: the still week 1 opens on."
+//     (4 failed | 60 passed)
+//
+//   Writing one week's name into the page by hand rather than reading it off the
+//   manifest (`{label}` -> `Week 5: Text to Video`):
+//     AssertionError: src/pages/backlot/index.astro writes "Text to Video" for
+//     itself. Everything a card says about a week is the manifest's, which reads
+//     the lecture's own frontmatter — a second copy here is a week that gets
+//     renamed in one place.: expected [ 'the title of week-05…' ] to deeply
+//     equal []
+describe("with JavaScript off, the corridor is twelve week cards", () => {
+  it("has a corridor to be about", () => {
+    // The floor. With no room carrying stages every assertion below is about an
+    // empty list and would pass on a page with nothing on it.
+    expect(
+      withStages.map((entry) => entry.id),
+      "no room in the manifest has stages, so this whole block is about nothing",
+    ).not.toEqual([]);
+  });
+
+  for (const entry of withStages) {
+    const stages = entry.stages!;
+    const rendered = () => desktop.rooms.find((candidate) => candidate.id === entry.id)!;
+
+    it(`${entry.id} lists every week, in the manifest's order`, () => {
+      expect(rendered().weeks.map((week) => week.id), "the corridor lists no weeks at all, so the teaching point is 3D-only")
+        .toEqual(stages.map((stage) => stage.id));
+    });
+
+    it(`${entry.id} names each week with the same sentence its own button carries`, () => {
+      // The card's link text and the hotspot's label are one string in the
+      // manifest. A page that wrote its own would be a week with two names, and
+      // the 3D and the list disagreeing is the failure this page is built to
+      // make impossible.
+      for (const stage of stages) {
+        const control = entry.interactives.find((one) => one.stageId === stage.id)!;
+        const card = rendered().weeks.find((week) => week.id === stage.id)!;
+        expect(card.label, `${stage.id}'s card does not carry its own button's label`).toBe(control.label);
+      }
+    });
+
+    it(`${entry.id} links every week to the page the site builds for it`, () => {
+      for (const stage of stages) {
+        const card = rendered().weeks.find((week) => week.id === stage.id)!;
+        expect(card.href, `${stage.id}'s card does not link to its own week`).toBe(deployed(stage.href));
+        expect(
+          existsSync(resolve(distPath(deployed(stage.href)), "index.html")),
+          `${stage.id} links ${deployed(stage.href)}, which is not a page in dist/`,
+        ).toBe(true);
+      }
+    });
+
+    it(`${entry.id} says where each week's door is, and says it differently per wall`, () => {
+      // Two halves, and the second is what stops the first being satisfied by a
+      // constant. Every card says its position; strip the position and what is
+      // left has to be one phrase per side the manifest uses, no more and no
+      // fewer — a page that says "on the left" for all twelve passes the first
+      // and fails this.
+      const phrases = new Map<string, Set<string>>();
+      for (const stage of stages) {
+        const card = rendered().weeks.find((week) => week.id === stage.id)!;
+        expect(card.where, `${stage.id}'s card does not say where it is in the corridor`).toBeTruthy();
+        expect(
+          card.where,
+          `${stage.id} is ${stage.depth + 1} of ${stages.length} down the corridor and its card does not say so`,
+        ).toContain(`${stage.depth + 1} of ${stages.length}`);
+        const rest = card.where!.replace(new RegExp(`^.*${stage.depth + 1} of ${stages.length}`), "").trim();
+        if (!phrases.has(stage.side)) phrases.set(stage.side, new Set());
+        phrases.get(stage.side)!.add(rest);
+      }
+      const sides = [...new Set(stages.map((stage) => stage.side))].sort();
+      expect([...phrases.keys()].sort(), "a side in the manifest has no card on it").toEqual(sides);
+      for (const [side, said] of phrases) {
+        expect([...said], `the ${side} wall is described in more than one way`).toHaveLength(1);
+      }
+      const all = [...phrases.values()].map((said) => [...said][0]!);
+      expect(
+        new Set(all).size,
+        `${sides.length} walls are described with ${new Set(all).size} phrase(s): ${all.join(" / ")}`,
+      ).toBe(sides.length);
+    });
+
+    it(`${entry.id} hangs the frame behind every door that has one`, () => {
+      for (const stage of stages.filter((one) => one.window.kind === "still")) {
+        const pane = stage.window as { kind: "still"; file: string; aspect: [number, number]; clip?: string };
+        const card = rendered().weeks.find((week) => week.id === stage.id)!;
+        expect(card.image?.src, `${stage.id} does not hang ${pane.file}, the frame the manifest gives it`).toBe(
+          `${prefix}studio/${pane.file}`,
+        );
+        expect(
+          existsSync(resolve("dist/studio", pane.file)),
+          `${stage.id} points at dist/studio/${pane.file}, which the build did not produce`,
+        ).toBe(true);
+        // Intrinsic size on the tag, so the space is the right shape before a
+        // lazy image lands and six thousand pixels of list do not reflow under
+        // somebody scrolling them.
+        expect([card.image?.width, card.image?.height]).toEqual([
+          String(pane.aspect[0]),
+          String(pane.aspect[1]),
+        ]);
+        const hrefs = card.links.map((link) => link.href);
+        expect(hrefs, `${stage.id} does not link the frame in its window`).toContain(
+          `${prefix}studio/${pane.file}`,
+        );
+        if (pane.clip) {
+          expect(hrefs, `${stage.id}'s window is a poster and the card does not offer the clip`).toContain(
+            `${prefix}studio/${pane.clip}`,
+          );
+          expect(
+            existsSync(resolve("dist/studio", pane.clip)),
+            `${stage.id} links dist/studio/${pane.clip}, which the build did not produce`,
+          ).toBe(true);
+        }
+      }
+    });
+
+    it(`${entry.id} says which weeks have not been shot, and hangs nothing for them`, () => {
+      const unshot = stages.filter((one) => one.window.kind === "unshot");
+      // Derived from the manifest, and it has to be non-empty or the branch
+      // below is a comment: four of the twelve recorded nothing today.
+      expect(
+        unshot.map((one) => one.id),
+        "no week in the manifest is unshot, so the sentence this checks is never rendered",
+      ).not.toEqual([]);
+      const shotCaptions = new Set(
+        stages
+          .filter((one) => one.window.kind === "still")
+          .map((one) => rendered().weeks.find((week) => week.id === one.id)!.caption),
+      );
+      for (const stage of unshot) {
+        const card = rendered().weeks.find((week) => week.id === stage.id)!;
+        expect(card.image, `${stage.id} recorded nothing and its card hangs a picture anyway`).toBeNull();
+        expect(
+          card.links,
+          `${stage.id} recorded nothing and its card offers a file to open`,
+        ).toEqual([]);
+        expect(
+          card.caption?.toLowerCase(),
+          `${stage.id} recorded nothing and its card does not say so. It says: "${card.caption}"`,
+        ).toContain("not been shot");
+        expect(
+          card.caption,
+          `${stage.id}'s card does not say which week it is talking about`,
+        ).toContain(String(stage.week));
+        expect(
+          shotCaptions.has(card.caption),
+          `${stage.id} recorded nothing and its card carries the same sentence as a week that did`,
+        ).toBe(false);
+      }
+    });
+  }
+
+  it("writes nothing about a week that the manifest already says", () => {
+    // The rule this block exists to keep: a week's number, its title, its route
+    // and the file behind its door are the lectures collection's and the
+    // Studio's, and the page interpolates all four. A second copy here is a week
+    // that gets renamed in one place and stays wrong in the other, which is the
+    // failure `doorKinds` and `WALL_HEADINGS` are both shaped to prevent.
+    //
+    // Against the source rather than the render, and that is the one place a
+    // substring match is the right instrument: the question is literally whether
+    // these characters are typed in this file.
+    const page = source("src/pages/backlot/index.astro");
+    const written: string[] = [];
+    for (const entry of withStages) {
+      for (const stage of entry.stages!) {
+        if (page.includes(stage.title)) written.push(`the title of ${stage.id}, "${stage.title}"`);
+        if (page.includes(stage.href)) written.push(`the route of ${stage.id}, "${stage.href}"`);
+        if (stage.window.kind === "still" && page.includes(stage.window.file)) {
+          written.push(`the file behind ${stage.id}, "${stage.window.file}"`);
+        }
+      }
+    }
+    expect(
+      written,
+      `src/pages/backlot/index.astro writes ${written[0] ?? "nothing"} for itself. Everything a card says ` +
+        `about a week is the manifest's, which reads the lecture's own frontmatter — a second copy here is a ` +
+        `week that gets renamed in one place.`,
+    ).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 1c. Every href the island is handed is already resolved for the sub-path.
+// ---------------------------------------------------------------------------
+//
+// The island never calls `withBase`, so a root-absolute href in the payload is a
+// link that works on localhost and 404s on Pages (CLAUDE.md §4). The stages were
+// the one place this had slipped: `BacklotStage.href` says in the manifest that
+// the page resolves it, and the page was resolving doors, rooms and interactives
+// and not stages.
+//
+// Walked over the whole payload rather than over the three keys that were known
+// to matter, because "the three keys that were known to matter" is how the
+// fourth one got missed.
+//
+// Seen red by taking the stage mapping back out of src/pages/backlot/index.astro
+// and rebuilding:
+//   AssertionError: 12 href(s) in the payload are not resolved for the
+//   sub-path, so they 404 on Pages: manifest.rooms[1].stages[0].href =
+//   /lectures/week-01/, manifest.rooms[1].stages[1].href = /lectures/week-02/,
+//   …: expected [ 'manifest.rooms[1].stages[0]…', …(11) ] to deeply equal []
+// then put back.
+describe("the payload the island is handed", () => {
+  const walk = (node: unknown, path: string, bad: string[]): void => {
+    if (Array.isArray(node)) {
+      node.forEach((item, index) => walk(item, `${path}[${index}]`, bad));
+      return;
+    }
+    if (node === null || typeof node !== "object") return;
+    for (const [key, value] of Object.entries(node as Record<string, unknown>)) {
+      if (key === "href" && typeof value === "string" && !value.startsWith(prefix)) {
+        bad.push(`${path}.${key} = ${value}`);
+      }
+      walk(value, `${path}.${key}`, bad);
+    }
+  };
+
+  it("is in the page at all", () => {
+    expect(desktop.payload, "no script[data-backlot-payload] is in the document").not.toBeNull();
+    expect(JSON.parse(desktop.payload!)).toHaveProperty("manifest");
+  });
+
+  it("resolves every href in it for the sub-path", () => {
+    const bad: string[] = [];
+    walk(JSON.parse(desktop.payload!), "payload", bad);
+    expect(
+      bad,
+      `${bad.length} href(s) in the payload are not resolved for the sub-path, so they 404 on Pages: ` +
+        bad.join(", "),
+    ).toEqual([]);
+  });
+
+  it("found hrefs to check", () => {
+    // The failure mode of the walk above is that it stops finding hrefs and
+    // reports a clean run.
+    const found: string[] = [];
+    const count = (node: unknown): void => {
+      if (Array.isArray(node)) return node.forEach(count);
+      if (node === null || typeof node !== "object") return;
+      for (const [key, value] of Object.entries(node as Record<string, unknown>)) {
+        if (key === "href" && typeof value === "string") found.push(value);
+        count(value);
+      }
+    };
+    count(JSON.parse(desktop.payload!));
+    const stages = backlotManifest.rooms.reduce((sum, entry) => sum + (entry.stages?.length ?? 0), 0);
+    expect(
+      found.length,
+      `the walk found ${found.length} hrefs in the payload, which is fewer than the doors and stages the ` +
+        `manifest alone has — it has stopped looking at the thing it is about`,
+    ).toBeGreaterThanOrEqual(backlotManifest.doors.length + stages);
   });
 });
 
@@ -482,9 +819,34 @@ describe("the ring is the nav", () => {
     }
   });
 
-  it("gives exactly one door a room, and the room is built", () => {
-    const withRooms = backlotManifest.doors.filter((door) => door.kind === "room");
-    expect(withRooms.map((door) => door.roomId)).toEqual(backlotManifest.rooms.map((entry) => entry.id));
+  // Widened when the corridor arrived, and widened rather than renumbered. This
+  // used to compare the two lists *in order*, which was true while there was one
+  // room and was never a fact: `doors` is in nav order and `rooms` is in the
+  // manifest's own, and nothing makes those the same sequence. With the corridor
+  // in, the nav opens the corridor first and the manifest lists the machine room
+  // first, and the equality failed on an ordering that means nothing. What the
+  // page actually needs is a bijection — every room reachable through exactly one
+  // door, and every door that claims a room opening one that exists.
+  //
+  // Seen red by pointing a door at a room the manifest does not have
+  // (`roomId: "green-room"` on the Dailies entry in doorKinds) and reverting:
+  //   AssertionError: the Dailies door opens "green-room", which is not a room
+  //   in the manifest: expected undefined to be defined
+  it("opens every room through exactly one door, and every room door opens a real one", () => {
+    const roomDoors = backlotManifest.doors.filter((door) => door.kind === "room");
+    for (const door of roomDoors) {
+      expect(
+        backlotManifest.rooms.find((entry) => entry.id === door.roomId),
+        `the ${door.label} door opens ${JSON.stringify(door.roomId)}, which is not a room in the manifest`,
+      ).toBeDefined();
+    }
+    for (const entry of backlotManifest.rooms) {
+      const opening = roomDoors.filter((door) => door.roomId === entry.id);
+      expect(
+        opening.map((door) => door.label),
+        `${entry.id} is opened by ${opening.length} door(s), and a room is reached through exactly one`,
+      ).toHaveLength(1);
+    }
   });
 });
 

@@ -272,10 +272,16 @@ const WATCH = String.raw`
         if (!gallery) continue;
         const doors = [...gallery.querySelectorAll("li.backlot-door")];
         const captions = [...gallery.querySelectorAll("figcaption.backlot-piece__caption")];
+        const weeks = [...gallery.querySelectorAll("li.backlot-week")];
         window.__backlotGallery = {
           at: Math.round(entry.startTime),
           doors: doors.length,
           captions: captions.length,
+          weeks: weeks.length,
+          everyWeekHasALink: weeks.length > 0 && weeks.every((w) => {
+            const link = w.querySelector("h4.backlot-week__name > a");
+            return !!link && link.textContent.trim() !== "" && !!link.getAttribute("href");
+          }),
           everyCaptionHasText: captions.length > 0 && captions.every((c) => c.textContent.trim().length > 10),
           everyDoorHasALink: doors.length > 0 && doors.every((d) => {
             const link = d.querySelector("h3.backlot-door__name > a");
@@ -398,6 +404,9 @@ interface Gallery {
   at: number;
   doors: number;
   captions: number;
+  /** The corridor's week cards, counted at the same moment as the doors. */
+  weeks: number;
+  everyWeekHasALink: boolean;
   everyCaptionHasText: boolean;
   everyDoorHasALink: boolean;
   firstDoorTop: number | null;
@@ -433,10 +442,16 @@ const GALLERY_WITHOUT_SCRIPTS = String.raw`
   if (!gallery) return null;
   const doors = [...gallery.querySelectorAll("li.backlot-door")];
   const captions = [...gallery.querySelectorAll("figcaption.backlot-piece__caption")];
+  const weeks = [...gallery.querySelectorAll("li.backlot-week")];
   return {
     at: paint ? Math.round(paint.startTime) : -1,
     doors: doors.length,
     captions: captions.length,
+    weeks: weeks.length,
+    everyWeekHasALink: weeks.length > 0 && weeks.every((w) => {
+      const link = w.querySelector("h4.backlot-week__name > a");
+      return !!link && link.textContent.trim() !== "" && !!link.getAttribute("href");
+    }),
     everyCaptionHasText: captions.length > 0 && captions.every((c) => c.textContent.trim().length > 10),
     everyDoorHasALink: doors.length > 0 && doors.every((d) => {
       const link = d.querySelector("h3.backlot-door__name > a");
@@ -595,6 +610,10 @@ const timings = await time();
  *  happen to be rendered". */
 const doors = backlotManifest.doors;
 const captionCount = backlotManifest.rooms.reduce((sum, room) => sum + room.pieces.length, 0);
+/** The corridor's cards, from the manifest for the same reason the captions are:
+ *  "every week" must not be allowed to become "the two that happen to be
+ *  rendered". */
+const weekCount = backlotManifest.rooms.reduce((sum, room) => sum + (room.stages?.length ?? 0), 0);
 
 // Seen red under a real delay **as a floor of nine**, which is what proves the
 // statistic did not buy its steadiness by going blind: a copy of the build with
@@ -673,6 +692,17 @@ describe.each(VIEWPORTS)("the static gallery at $name", ({ name }) => {
       `${gallery!.captions} of the machine room's ${captionCount} captions were in the document when the ` +
         `page first painted`,
     ).toBe(captionCount);
+    // The corridor, held to the same line as the ring and the walls. Twelve
+    // teaching weeks is the brief's own hard number and the list is where a
+    // reader with no island gets it, so "painted on time" has to mean the weeks
+    // were in the document too — otherwise this passes on a page that paints its
+    // six doors fast and has nothing to say about the course.
+    expect(
+      gallery!.weeks,
+      `${gallery!.weeks} of the corridor's ${weekCount} week cards were in the document when the page ` +
+        `first painted`,
+    ).toBe(weekCount);
+    expect(gallery!.everyWeekHasALink, "a week was in the document with no link to its own page").toBe(true);
     expect(gallery!.everyCaptionHasText, "a caption was in the document with no sentence in it").toBe(true);
     expect(gallery!.everyDoorHasALink, "a door was in the document with no link on it").toBe(true);
 
@@ -693,6 +723,10 @@ describe("the static gallery with no JavaScript at all", () => {
     expect(withoutScripts, "the gallery was not in the page with scripts disabled").not.toBeNull();
     expect(withoutScripts!.doors).toBe(doors.length);
     expect(withoutScripts!.captions).toBe(captionCount);
+    expect(withoutScripts!.weeks, "the corridor's weeks are not in the page with scripts disabled").toBe(
+      weekCount,
+    );
+    expect(withoutScripts!.everyWeekHasALink).toBe(true);
     expect(withoutScripts!.everyCaptionHasText).toBe(true);
     expect(
       withoutScripts!.at,

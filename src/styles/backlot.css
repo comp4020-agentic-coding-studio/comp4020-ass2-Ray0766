@@ -227,6 +227,104 @@
   font-size: var(--at-font-size-sm);
 }
 
+/* ----------------------------------------------------------- the corridor */
+
+/* The twelve weeks, as twelve cards. Same grammar as the ring above — a card
+   with an order line, a name that is a link, and a note — because they are the
+   same kind of thing to a reader: a door, where it is, and what is behind it.
+   Two columns rather than the ring's auto-fit, because a week's name is a whole
+   sentence and four of them across a 1920 screen sets a 12-word line in a 15rem
+   column. */
+.backlot-weeks {
+  margin-block-start: var(--at-spacing-xl);
+}
+
+.backlot-weeks__heading {
+  margin-block-end: var(--at-spacing-md);
+  padding-block-end: var(--at-spacing-xs);
+  border-block-end: 1px solid var(--at-divider);
+}
+
+/* `min(100%, 22rem)`, not a bare `22rem`, and the 100% is load-bearing: the
+   theme's root font is 18px, so 22rem is 396px and the gallery's column inside a
+   390px phone is 354px. A track minimum wider than its own container does not
+   collapse — it overflows, and it took the whole card with it, 414px of document
+   in a 390px viewport with nothing else on the page overflowing. The `min()`
+   makes the floor "22rem, or the column, whichever is smaller". */
+.backlot-weeks__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr));
+  gap: var(--at-spacing-md);
+}
+
+.backlot-week {
+  border: 1px solid var(--at-border);
+  border-radius: var(--at-border-radius);
+  padding: var(--at-spacing-md);
+  background: var(--at-bg-alt);
+}
+
+.backlot-week__where {
+  margin: 0;
+  font-size: var(--at-font-size-xs);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--at-text-secondary);
+}
+
+.backlot-week__name {
+  margin-block: var(--at-spacing-xs) var(--at-spacing-sm);
+  font-size: var(--at-font-size-h4);
+}
+
+/* The same catalogue entry as a wall's piece: a thumbnail, and the note beside
+   it gets the width a sentence needs. Narrower than the machine room's 7rem
+   because a 9:16 frame at 7rem is 200px tall next to two lines of text. */
+.backlot-week__figure {
+  margin: 0;
+  display: grid;
+  grid-template-columns: 4.5rem minmax(0, 1fr);
+  gap: var(--at-spacing-md);
+  align-items: start;
+}
+
+/* `margin-inline: 0` is the whole of the phone fix, and it is not tidying. Under
+   640px the theme's base.css bleeds `figure > img` out of the prose measure with
+   a negative inline margin — right for a picture in an article, wrong for a
+   thumbnail in a grid cell. The unlayered `inline-size` below already beat the
+   theme's `width`, so the frame measured a correct 81px and then sat at x=1 in a
+   card whose own left edge is x=18: a picture hanging off the side of the card
+   it belongs to, at the only viewport a marker opens a phone at. */
+.backlot-week__frame {
+  inline-size: 100%;
+  block-size: auto;
+  margin-inline: 0;
+  border-radius: var(--at-border-radius);
+  background: var(--at-bg);
+}
+
+/* A week that has not been shot has no frame to hang, so its sentence takes the
+   whole row rather than leaving an empty column where a picture would have
+   been. The empty frame is the 3D's answer to that week; in a list it would be
+   a rectangle of nothing claiming to be a picture. */
+.backlot-week__figure:not(:has(.backlot-week__frame)) {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.backlot-week__caption {
+  margin: 0;
+  font-size: var(--at-font-size-sm);
+}
+
+.backlot-week__links {
+  margin-block: var(--at-spacing-sm) 0;
+  font-size: var(--at-font-size-sm);
+  color: var(--at-text-secondary);
+}
+
 /* ------------------------------------------------------------- the walls */
 
 .backlot-room__intro,
@@ -263,14 +361,12 @@
   align-items: start;
 }
 
-/* `margin-inline: 0` is not tidying. Under 640px the theme's base.css bleeds
-   `figure > img` out of the prose measure with a -36px inline margin, which is
-   right for a picture in an article and wrong for a thumbnail in a catalogue.
-   Measured at 390: the frame sat at x=-18 against a list whose own gutter is 18,
-   hanging off the left edge of the screen with its caption correctly indented
-   beneath it. The unlayered `inline-size` below was already beating the theme's
-   `width`, so the frame was the right size in the wrong place, which is why a
-   screenshot of the desktop viewport said nothing about it. */
+/* `margin-inline: 0` for the reason the corridor's frames carry it: under 640px
+   the theme's base.css bleeds `figure > img` out of the prose measure with a
+   -36px inline margin, which is right for a picture in an article and wrong for
+   a thumbnail in a catalogue. Measured at 390: the frame sat at x=-18 against a
+   list whose own gutter is 18, hanging off the left edge of the screen with the
+   caption beneath it correctly indented. */
 .backlot-piece__frame {
   inline-size: 100%;
   block-size: auto;

@@ -14,7 +14,13 @@
 // mounts this site under a sub-path (CLAUDE.md §4).
 import { withBase } from "astro-theme-university/url";
 import StudioLayout from "../../layouts/StudioLayout.astro";
-import { backlotManifest, type BacklotPiece, type BacklotRoom } from "../../backlot/rooms/manifest";
+import {
+  backlotManifest,
+  type BacklotDoor,
+  type BacklotPiece,
+  type BacklotRoom,
+  type BacklotStage,
+} from "../../backlot/rooms/manifest";
 import "../../styles/backlot.css";
 
 // The Studio's page and the Studio's files are the same directory: every piece
@@ -24,11 +30,20 @@ const studioBase = withBase("/studio/");
 
 // Every href the client sees is already base-resolved: the island never calls
 // withBase, and a root-absolute link would 404 on Pages' sub-path.
+//
+// Stages were the one place that had slipped. `BacklotStage.href` says in the
+// manifest that the page resolves it, and doors, rooms and interactives were
+// being resolved while stages were not — so the island was being handed twelve
+// links that work on localhost and 404 live. It is also the same URL the stage's
+// own interactive carries, so the two now come out of one call rather than two.
 const manifest = {
   doors: backlotManifest.doors.map((door) => ({ ...door, href: withBase(door.href) })),
   rooms: backlotManifest.rooms.map((room) => ({
     ...room,
     href: withBase(room.href),
+    ...(room.stages
+      ? { stages: room.stages.map((stage) => ({ ...stage, href: withBase(stage.href) })) }
+      : {}),
     interactives: room.interactives.map((interactive) =>
       interactive.href ? { ...interactive, href: withBase(interactive.href) } : interactive,
     ),
@@ -109,6 +124,109 @@ function wallsOf(room: BacklotRoom) {
 function frameOf(piece: BacklotPiece): string | undefined {
   const file = piece.poster ?? piece.file;
   return /\.(avif|webp|png|jpe?g)$/.test(file) ? file : undefined;
+}
+
+/** The door that opens a room, so the way out of the room can be named with the
+ *  nav's own word rather than with a second one written here. */
+function doorFor(room: BacklotRoom): BacklotDoor {
+  const door = backlotManifest.doors.find((candidate) => candidate.roomId === room.id);
+  if (!door) {
+    throw new Error(
+      `backlot: no door opens ${room.id}, so the list has no name to send a reader out of it under.`,
+    );
+  }
+  return door;
+}
+
+/**
+ * The sentence that sends a reader out of a room to the page it stands in for.
+ * Keyed by the room's own id, and only the sentence lives here — the link's
+ * words are the door's label. A room with no line is a build error rather than
+ * a room whose way out says something about somebody else's page, which is what
+ * the corridor got when it inherited the machine room's.
+ */
+const ROOM_EXITS: Record<string, string> = {
+  "machine-room": "The same files, with the inputs that produced them and the whole rig around them, are on",
+  corridor: "Every week down here has a page of its own, and all of them are listed on",
+};
+
+function exitLine(room: BacklotRoom): string {
+  const line = ROOM_EXITS[room.id];
+  if (!line) {
+    throw new Error(
+      `backlot: ${room.id} has no way-out sentence in src/pages/backlot/index.astro, so it would be listed ` +
+        `with no way back to the page it stands in for. Add one.`,
+    );
+  }
+  return line;
+}
+
+/**
+ * Which wall a week's door is on, said the way somebody walking in would say
+ * it. Keyed by the manifest's own `side`, so a fourth value is a type error
+ * here rather than a card that quietly stops saying where it is.
+ */
+const SIDE_WORDS: Record<BacklotStage["side"], string> = {
+  left: "on the left as you walk in",
+  right: "on the right as you walk in",
+  end: "on the end wall, facing you down the corridor",
+};
+
+/**
+ * What the list says is behind a week's window.
+ *
+ * One sentence per kind of window, not one per week: no week number, no title,
+ * no route and no file name is typed in this file. Everything a card says about
+ * a week is interpolated from the manifest, which reads the week number and the
+ * title out of the lecture's own frontmatter and the file out of the Studio's
+ * manifests — so a week renamed in src/content/lectures/ is renamed here in the
+ * same commit, and there is no second place to forget.
+ *
+ * The unshot sentence is the half of the teaching point a reader with no
+ * JavaScript would otherwise lose. Four of the twelve recorded nothing, their
+ * doors are lit and framed like the other eight, and the list has to say which
+ * four and why — otherwise the only honest reading of an empty frame is that
+ * the page is broken.
+ */
+function windowNote(stage: BacklotStage): string {
+  const pane = stage.window;
+  if (pane.kind === "unshot") {
+    return (
+      `Week ${pane.week} has not been shot yet. Its door keeps the same frame every week that did shoot ` +
+      `hangs, with nothing in it — an empty slot in a row of full ones, rather than a door that is broken.`
+    );
+  }
+  if (pane.kind === "still") {
+    return pane.clip
+      ? `Behind the window: the frame week ${stage.week} opens on, and the clip it is a frame of.`
+      : `Behind the window: the still week ${stage.week} opens on.`;
+  }
+  throw new Error(
+    `backlot: a ${pane.kind} window has no sentence in src/pages/backlot/index.astro, so week ${stage.week} ` +
+      `would be listed with nothing said about what is behind its door. Add one.`,
+  );
+}
+
+/**
+ * The cards a room's corridor gets, one per stage, in the manifest's order —
+ * which is teaching order, and the Tab order the island registers.
+ *
+ * The card's link text is the stage's **own hotspot label**, read off the
+ * interactive the manifest gives it. The list and the 3D therefore say the same
+ * sentence about a week by construction, and a stage with no button is a build
+ * error rather than a card that names the week for a second time.
+ */
+function weeksOf(room: BacklotRoom) {
+  return (room.stages ?? []).map((stage) => {
+    const control = room.interactives.find((entry) => entry.stageId === stage.id);
+    if (!control) {
+      throw new Error(
+        `backlot: ${stage.id} is a stage with no interactive of its own in ` +
+          `src/backlot/rooms/manifest.ts, so the list would have to write its name a second time.`,
+      );
+    }
+    return { stage, label: control.label };
+  });
 }
 ---
 
@@ -226,9 +344,63 @@ function frameOf(piece: BacklotPiece): string | undefined {
           <h2 id={`${room.id}-heading`}>{room.title}</h2>
           <p class="backlot-room__intro">{room.intro}</p>
           <p class="backlot-room__exit">
-            The same files, with the inputs that produced them and the whole rig around them, are on{" "}
-            <a href={room.href}>the Studio page</a>.
+            {exitLine(room)}{" "}
+            <a href={room.href}>the {doorFor(room).label} page</a>.
           </p>
+
+          {room.stages && room.stages.length > 0 && (
+            <section class="backlot-weeks" aria-labelledby={`${room.id}-weeks-heading`}>
+              <h3 class="backlot-weeks__heading" id={`${room.id}-weeks-heading`}>
+                The doors, in teaching order
+              </h3>
+              <ol class="backlot-weeks__list">
+                {weeksOf(room).map(({ stage, label }) => {
+                  const shot = stage.window.kind === "still" ? stage.window : null;
+                  return (
+                    <li class="backlot-week" id={stage.id}>
+                      <p class="backlot-week__where">
+                        Door {stage.depth + 1} of {room.stages!.length} · {SIDE_WORDS[stage.side]}
+                      </p>
+                      <h4 class="backlot-week__name">
+                        <a class="backlot-week__link" href={stage.href}>
+                          {label}
+                        </a>
+                      </h4>
+                      <figure class="backlot-week__figure">
+                        {shot && (
+                          <img
+                            class="backlot-week__frame"
+                            src={`${studioBase}${shot.file}`}
+                            width={shot.aspect[0]}
+                            height={shot.aspect[1]}
+                            loading="lazy"
+                            decoding="async"
+                            alt=""
+                          />
+                        )}
+                        {/* The alt is empty for the same reason the machine
+                            room's frames have empty alts: the one sentence
+                            anybody here can honestly write about the picture is
+                            the caption already sitting beside it. */}
+                        <figcaption class="backlot-week__caption">{windowNote(stage)}</figcaption>
+                      </figure>
+                      {shot && (
+                        <p class="backlot-week__links">
+                          <a href={`${studioBase}${shot.file}`}>The frame in its window</a>
+                          {shot.clip && (
+                            <Fragment>
+                              {" · "}
+                              <a href={`${studioBase}${shot.clip}`}>The clip it is a frame of</a>
+                            </Fragment>
+                          )}
+                        </p>
+                      )}
+                    </li>
+                  );
+                })}
+              </ol>
+            </section>
+          )}
 
           {wallsOf(room).map((group) => (
             <section class="backlot-wall" id={`wall-${group.wall}`}>

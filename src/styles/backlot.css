@@ -263,9 +263,18 @@
   align-items: start;
 }
 
+/* `margin-inline: 0` is not tidying. Under 640px the theme's base.css bleeds
+   `figure > img` out of the prose measure with a -36px inline margin, which is
+   right for a picture in an article and wrong for a thumbnail in a catalogue.
+   Measured at 390: the frame sat at x=-18 against a list whose own gutter is 18,
+   hanging off the left edge of the screen with its caption correctly indented
+   beneath it. The unlayered `inline-size` below was already beating the theme's
+   `width`, so the frame was the right size in the wrong place, which is why a
+   screenshot of the desktop viewport said nothing about it. */
 .backlot-piece__frame {
   inline-size: 100%;
   block-size: auto;
+  margin-inline: 0;
   border-radius: var(--at-border-radius);
   background: var(--at-bg-alt);
 }

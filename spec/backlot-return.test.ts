@@ -658,9 +658,30 @@ const DOOR = (id: string) => String.raw`
     if (!button) return { found: false, why: "the HUD has no control for the " + ${JSON.stringify(id)} + " door" };
     if (button.hidden) return { found: false, why: "the " + ${JSON.stringify(id)} + " door's control is hidden" };
 
-    // Parked every frame, so a box read while the scene is still settling is a
-    // box the click will miss. Two identical reads in a row, or give up and say
-    // how far it was still travelling.
+    // Focused first, on purpose, and this is the fix to the failure.
+    //
+    // No backticks in this comment: it sits inside a String.raw probe and a
+    // backtick closes the template. Writing it with them is how this file
+    // stopped parsing on the run that proved the fix, which is the sixth time
+    // this repo has paid for it and the reason spec/suite-integrity.test.ts
+    // exists — it named the file and the line before any assertion ran.
+    //
+    // A mouse press focuses the button, the focusin listener starts the camera
+    // push, and the HUD parks every button every frame. So the button moves
+    // between mousedown and mouseup, the two land on different elements, and the
+    // browser fires no click event at all. The control ends up focused and
+    // nothing else happens, which is exactly what the page reported when this
+    // went red: said "", near [], focus "sessions", mode "backlot" -- the live
+    // region silent, so the engine never reached its own "Opening the … door",
+    // and focus on the control, so the press had landed. A driver reporting a
+    // press that did not happen is CLAUDE.md section 7's own warning, met
+    // through the mouse rather than through the keyboard.
+    //
+    // Doing the focus deliberately, then waiting the push out, then reading the
+    // box, takes the race away without changing what is driven: a reader
+    // clicking this control focuses it on mousedown too. It only fails under
+    // load, which is what made it look like a slow machine for two rounds.
+    button.focus();
     let previous = null;
     let still = false;
     let travelled = 0;

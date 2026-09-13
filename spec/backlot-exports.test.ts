@@ -187,9 +187,6 @@ const ALLOWED: Record<string, string> = {
   //
   // No count in this sentence on purpose. The count is ALLOWED_CEILING, which is
   // one number in one place that a test compares against the list itself.
-  "src/backlot/engine/types.ts#Hotspot.id":
-    "on the handle and read by nothing — the button carries its id as a data attribute and that is what " +
-    "everything actually reads. Owner: lane 1.",
   "src/backlot/engine/types.ts#VideoHandle.pause":
     "the clip handle's own controls, neither of them read; `element.pause()` elsewhere is HTMLMediaElement's " +
     "and a different symbol, which is exactly what the old name-matching check could not tell apart. " +
@@ -200,7 +197,6 @@ const ALLOWED: Record<string, string> = {
   "src/backlot/engine/player.ts#Figure.moving": "as PlayerApi.facing. Owner: lane 1.",
   "src/backlot/rooms/shell.ts#RoomShell.frames":
     "the shell's returned handles, neither read. Owner: lane 2.",
-  "src/backlot/rooms/shell.ts#RoomShell.hotspots": "as RoomShell.frames. Owner: lane 2.",
   "src/backlot/rooms/graph-texture.ts#GraphScreen.aspect":
     "returned by createGraphScreen and read by nothing. Owner: lane 2.",
   "src/backlot/rooms/graph-texture.ts#GraphScreen.redraw": "as GraphScreen.aspect. Owner: lane 2.",
@@ -221,7 +217,7 @@ const ALLOWED: Record<string, string> = {
  *  room, which is the thing the ceiling exists to stop.
  *
  *  Every raise keeps the number it came from, here, so the history reads without
- *  going to the log: **5 -> 2 -> 14 -> 13 -> 12 -> 10**. That is a number this
+ *  going to the log: **5 -> 2 -> 14 -> 13 -> 12 -> 10 -> 8**. That is a number this
  *  file carries and a test compares against the list, which is why it belongs in
  *  a comment; what took each entry off does not, and is not written down here.
  *
@@ -241,7 +237,7 @@ const ALLOWED: Record<string, string> = {
  *  If something new turns up here, the answer is to fix it, hand it to whoever
  *  owns that file, or argue that the check is wrong and change the check. It is
  *  not to make room. */
-const ALLOWED_CEILING = 10;
+const ALLOWED_CEILING = 8;
 
 // ---------------------------------------------------------------------------
 // The program, and why this is not a name search

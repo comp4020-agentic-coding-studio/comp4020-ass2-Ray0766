@@ -89,8 +89,17 @@ export interface StaticSite {
 /** Serve a built directory at the sub-path the build was made for. Astro bakes
  *  `base` into every asset URL, so mounting dist/ at the origin root 404s the
  *  stylesheet and the page renders unstyled --- which on a colour check would
- *  look like a palette bug. */
-export function serveBuild(root: string, base: string): Promise<StaticSite> {
+ *  look like a palette bug.
+ *
+ *  `cache` is the `cache-control` header, and `no-store` is right for almost
+ *  everything here: a budget measured with a warm cache is a measurement of this
+ *  machine. It is wrong for exactly one thing. A **prefetch** is a request whose
+ *  whole purpose is to be reused by the navigation that follows it, and a
+ *  response that says `no-store` can never be — so a prefetch served this way is
+ *  a request that happened and bought nothing, and a check that only counts the
+ *  request is measuring the harness. GitHub Pages serves assets with a
+ *  `max-age`; a check about prefetching has to as well. */
+export function serveBuild(root: string, base: string, cache = "no-store"): Promise<StaticSite> {
   const prefix = `/${base.replace(/^\/|\/$/g, "")}`;
   const dir = resolve(root);
 
@@ -147,7 +156,7 @@ export function serveBuild(root: string, base: string): Promise<StaticSite> {
     response.writeHead(200, {
       "content-type": type,
       "content-length": String((encoded ?? body).byteLength),
-      "cache-control": "no-store",
+      "cache-control": cache,
       ...(encoded ? { "content-encoding": "gzip", vary: "accept-encoding" } : {}),
     });
     response.end(encoded ?? body);
@@ -189,7 +198,10 @@ interface Waiter {
 class Connection {
   #socket: WebSocket;
   #nextId = 1;
-  #calls = new Map<number, { fulfil: (value: Record<string, unknown>) => void; fail: (error: Error) => void }>();
+  #calls = new Map<
+    number,
+    { method: string; fulfil: (value: Record<string, unknown>) => void; fail: (error: Error) => void }
+  >();
   #waiting: Waiter[] = [];
   #collecting: { method: string; seen: Record<string, unknown>[] }[] = [];
 
@@ -212,7 +224,12 @@ class Connection {
       const call = this.#calls.get(message.id);
       this.#calls.delete(message.id);
       if (!call) return;
-      if (message.error) call.fail(new Error(message.error.message));
+      // The method, in the message. The protocol's own errors are four words
+      // long — "Invalid parameters" — and a stack that points at this line says
+      // nothing about which of thirty calls produced it. Cost: one probe spent
+      // bisecting a sweep to find out that the four words came from
+      // `Page.captureScreenshot`.
+      if (message.error) call.fail(new Error(`${call.method}: ${message.error.message}`));
       else call.fulfil(message.result ?? {});
       return;
     }
@@ -232,7 +249,7 @@ class Connection {
   send(method: string, params: Record<string, unknown> = {}): Promise<Record<string, unknown>> {
     const id = this.#nextId++;
     return new Promise((fulfil, fail) => {
-      this.#calls.set(id, { fulfil, fail });
+      this.#calls.set(id, { method, fulfil, fail });
       this.#socket.send(JSON.stringify({ id, method, params }));
     });
   }
@@ -280,6 +297,24 @@ export const SLOW_4G: NetworkConditions = {
   upload: (750 * 1024) / 8,
   latency: 562.5,
 };
+
+/** The keys a driver in this repo sends, with the descriptor Chrome wants for
+ *  each. `engine/input.ts` reads `event.code` for the walk keys and `event.key`
+ *  for Enter and Escape, so both are sent for all of them. */
+const KEYS = {
+  Enter: { windowsVirtualKeyCode: 13, key: "Enter", code: "Enter", text: "\r" },
+  Tab: { windowsVirtualKeyCode: 9, key: "Tab", code: "Tab", text: "" },
+  Space: { windowsVirtualKeyCode: 32, key: " ", code: "Space", text: " " },
+  // No text, so it goes out as a rawKeyDown like Tab does. Escape with a
+  // text payload is a key press nobody's keyboard produces.
+  Escape: { windowsVirtualKeyCode: 27, key: "Escape", code: "Escape", text: "" },
+  ArrowUp: { windowsVirtualKeyCode: 38, key: "ArrowUp", code: "ArrowUp", text: "" },
+  ArrowDown: { windowsVirtualKeyCode: 40, key: "ArrowDown", code: "ArrowDown", text: "" },
+  ArrowLeft: { windowsVirtualKeyCode: 37, key: "ArrowLeft", code: "ArrowLeft", text: "" },
+  ArrowRight: { windowsVirtualKeyCode: 39, key: "ArrowRight", code: "ArrowRight", text: "" },
+} as const;
+
+export type Key = keyof typeof KEYS;
 
 export class Tab {
   #connection: Connection;
@@ -533,21 +568,31 @@ export class Tab {
    *  behaviour (so `click` fires the way it does for a person), and Tab moves
    *  the browser's sequential focus, which is the only way to ask where the
    *  keyboard actually goes next. */
-  async press(key: "Enter" | "Tab" | "Space" | "Escape"): Promise<void> {
-    const KEYS = {
-      Enter: { windowsVirtualKeyCode: 13, key: "Enter", code: "Enter", text: "\r" },
-      Tab: { windowsVirtualKeyCode: 9, key: "Tab", code: "Tab", text: "" },
-      Space: { windowsVirtualKeyCode: 32, key: " ", code: "Space", text: " " },
-      // No text, so it goes out as a rawKeyDown like Tab does. Escape with a
-      // text payload is a key press nobody's keyboard produces.
-      Escape: { windowsVirtualKeyCode: 27, key: "Escape", code: "Escape", text: "" },
-    } as const;
+  async press(key: Key): Promise<void> {
     const { text, ...descriptor } = KEYS[key];
     await this.#connection.send("Input.dispatchKeyEvent", {
       type: text ? "keyDown" : "rawKeyDown",
       ...descriptor,
       ...(text ? { text, unmodifiedText: text } : {}),
     });
+    await this.#connection.send("Input.dispatchKeyEvent", { type: "keyUp", ...descriptor });
+  }
+
+  /** A key held down for a while and then let go, which is what walking is.
+   *
+   *  `press` sends the down and the up in the same millisecond, and
+   *  `engine/input.ts` drives the figure for as long as the key is held — so a
+   *  `press("ArrowUp")` moves the figure by about a tenth of a pixel and reads
+   *  exactly like a walk that did not happen. Anything asking the figure to move
+   *  has to hold. */
+  async hold(key: Key, milliseconds: number): Promise<void> {
+    const { text, ...descriptor } = KEYS[key];
+    await this.#connection.send("Input.dispatchKeyEvent", {
+      type: text ? "keyDown" : "rawKeyDown",
+      ...descriptor,
+      ...(text ? { text, unmodifiedText: text } : {}),
+    });
+    await new Promise<void>((done) => setTimeout(done, milliseconds));
     await this.#connection.send("Input.dispatchKeyEvent", { type: "keyUp", ...descriptor });
   }
 

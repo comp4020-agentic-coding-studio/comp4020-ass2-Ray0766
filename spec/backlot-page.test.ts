@@ -310,7 +310,92 @@ async function read() {
   }
 }
 
+/**
+ * Every anchor the routing depends on, driven as a fragment with JS off.
+ *
+ * The engine writes `#corridor`, `#machine-room` and `#week-05` into the address
+ * bar, and with no JavaScript the only thing that can act on those is the
+ * browser's own fragment navigation. That needs an element whose id **is** the
+ * string — which makes these ids a contract between the island and this page,
+ * and nothing was checking it.
+ *
+ * Three things are asserted and only the first is visible from the spelling:
+ *
+ *   - the id resolves, and to exactly one element. Native scrolling takes the
+ *     first match silently, so a duplicated id is a fragment landing on the
+ *     wrong thing with nothing to see.
+ *   - the element is rendered. An id inside a `hidden` subtree scrolls nowhere
+ *     and looks identical to a fragment that matched nothing.
+ *   - the page actually moves to it. Measured rather than inferred: the two are
+ *     not the same question, and the whole scheme rests on the second.
+ *
+ * Reduced motion on purpose. The theme sets `scroll-behavior: smooth`
+ * (`base.css:27`) and `auto` under the preference (`:478`), so this reads a
+ * finished scroll rather than the first frame of an animation — which is how I
+ * first measured `#week-05` "not scrolling" when it scrolls 6,989 px.
+ *
+ * A differing query on every case, because two URLs that differ only by the
+ * fragment are a same-document navigation and `goto` waits for a load event that
+ * never comes.
+ */
+interface Anchor {
+  fragment: string;
+  matches: number;
+  rendered: boolean;
+  /** On screen after the fragment was applied. */
+  scrolledTo: boolean;
+  top: number;
+}
+
+async function anchors(): Promise<Anchor[]> {
+  const site = await serveBuild("dist", base);
+  const tab = await Tab.launch();
+  const read: Anchor[] = [];
+  const wanted = [
+    ...backlotManifest.rooms.map((room) => room.id),
+    ...backlotManifest.rooms.flatMap((room) => (room.stages ?? []).map((stage) => stage.id)),
+  ];
+  try {
+    await tab.viewport(1920, 1080);
+    await tab.media({ colourScheme: "dark", reducedMotion: true });
+    await tab.scripts(false);
+    for (const [index, fragment] of wanted.entries()) {
+      await tab.goto(`${site.origin}${prefix}backlot/?anchor=${index}#${fragment}`);
+      read.push(
+        await tab.evaluate<Anchor>(`
+          const fragment = ${JSON.stringify(fragment)};
+          const all = [...document.querySelectorAll("[id]")].filter((one) => one.id === fragment);
+          const target = all[0] ?? null;
+          const box = target ? target.getBoundingClientRect() : null;
+          return {
+            fragment,
+            matches: all.length,
+            rendered: !!target && target.getClientRects().length > 0,
+            // On screen, which is the question — not "at the top", which was
+            // the first version and is a threshold I could not have defended.
+            // The browser scrolls as far as it can and then stops: the last two
+            // week cards are near the end of an 8,963 px document, so they come
+            // to rest 774 px and 663 px down with the page fully scrolled, and
+            // asking for the top failed them for having nowhere left to go.
+            //
+            // It still has teeth. A fragment that matches nothing leaves the
+            // page at y=0 with these cards 7,000 to 8,000 px down, and week 12's
+            // card is off screen even at the very bottom of the unscrolled page.
+            scrolledTo: !!box && box.bottom > 0 && box.top < window.innerHeight,
+            top: box ? Math.round(box.top) : 0,
+          };
+        `),
+      );
+    }
+  } finally {
+    await tab.close();
+    await site.close();
+  }
+  return read;
+}
+
 const { desktop, phone, toggle } = await read();
+const anchored = await anchors();
 
 const room = backlotManifest.rooms[0]!;
 const wallsInManifest = [...new Set(room.pieces.map((piece) => piece.wall))];
@@ -799,6 +884,62 @@ describe("with JavaScript off, the corridor is twelve week cards", () => {
         `week that gets renamed in one place.`,
     ).toEqual([]);
   });
+});
+
+// ---------------------------------------------------------------------------
+// 1b-ii. The anchors the routing writes into the address bar.
+// ---------------------------------------------------------------------------
+//
+// The engine writes `#corridor`, `#machine-room` and `#week-05`, and with no
+// JavaScript the browser's own fragment navigation is the only thing that can
+// act on them. So these ids are a contract between the island and this page, and
+// until the routing existed nothing checked them.
+//
+// Seen red three ways, each injection matched once and reverted:
+//
+//   the id taken off the week card (`id={stage.id}` -> `id={`card-${stage.id}`}`):
+//     AssertionError: #week-01 matches 0 elements in the page. The engine writes
+//     this fragment into the address bar and with no JavaScript the browser's
+//     own scrolling is the only thing that acts on it.
+//   the same id on two cards (`id={stage.id}` -> `id="week-01"`):
+//     AssertionError: #week-01 matches 12 elements. Native scrolling silently
+//     takes the first, so a duplicate is a fragment landing on the wrong thing.
+//   the corridor section shipped `hidden`:
+//     AssertionError: #corridor names an element that is not rendered, so the
+//     fragment scrolls nowhere and looks exactly like one that matched nothing.
+describe("the fragments the routing writes reach something, with JavaScript off", () => {
+  it("has anchors to be about", () => {
+    const wanted =
+      backlotManifest.rooms.length +
+      backlotManifest.rooms.reduce((sum, room) => sum + (room.stages?.length ?? 0), 0);
+    expect(anchored.map((one) => one.fragment)).toHaveLength(wanted);
+  });
+
+  for (const anchor of [
+    ...backlotManifest.rooms.map((room) => room.id),
+    ...backlotManifest.rooms.flatMap((room) => (room.stages ?? []).map((stage) => stage.id)),
+  ]) {
+    it(`#${anchor} names one rendered element, and the page goes to it`, () => {
+      const read = anchored.find((one) => one.fragment === anchor)!;
+      expect(
+        read.matches,
+        `#${anchor} matches ${read.matches} element(s) in the page. The engine writes this fragment into ` +
+          `the address bar and with no JavaScript the browser's own scrolling is the only thing that acts ` +
+          `on it; native scrolling silently takes the first match, so a duplicate lands on the wrong thing.`,
+      ).toBe(1);
+      expect(
+        read.rendered,
+        `#${anchor} names an element that is not rendered, so the fragment scrolls nowhere and looks ` +
+          `exactly like one that matched nothing.`,
+      ).toBe(true);
+      expect(
+        read.scrolledTo,
+        `#${anchor} left the element ${read.top} px from the top of a ${1080} px viewport, so it is off ` +
+          `screen and the page did not go to it. Matching an id and being scrolled to are different ` +
+          `questions and this is the second.`,
+      ).toBe(true);
+    });
+  }
 });
 
 // ---------------------------------------------------------------------------

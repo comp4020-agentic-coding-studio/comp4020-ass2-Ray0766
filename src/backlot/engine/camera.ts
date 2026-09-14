@@ -123,7 +123,13 @@ export interface GodCamera {
 
   /** Come in until `radius` fills the frame. Resolves when the camera is there;
    *  under `instant` it is there on the next `apply`, not after a journey. */
-  focusOn(target: Vector3, radius: number, normal: Vector3 | undefined, instant: boolean): Promise<void>;
+  focusOn(
+    target: Vector3,
+    radius: number,
+    normal: Vector3 | undefined,
+    instant: boolean,
+    clearance?: number,
+  ): Promise<void>;
   /** Back to the fixed god view. Settles any promise `focusOn` left open. */
   release(instant: boolean): void;
   /** Advance a framing in progress. Cheap when nothing is moving. */
@@ -168,7 +174,7 @@ export function createGodCamera(): GodCamera {
   /** 0 is the god view, 1 is fully framed. Everything else is the blend. */
   let travel = 0;
   let wanted = 0;
-  let framing: { target: Vector3; radius: number; normal: Vector3 | null } | null = null;
+  let framing: { target: Vector3; radius: number; normal: Vector3 | null; clearance: number | null } | null = null;
   let arrival: (() => void) | null = null;
 
   const raycaster = new Raycaster();
@@ -348,7 +354,13 @@ export function createGodCamera(): GodCamera {
       // and the thing being read. An orthographic near plane is a flat cut at a
       // fixed distance, so moving it just in front of the target removes
       // everything in the way and nothing behind it.
-      const clearance = framing.radius * 3 + 0.3;
+      //
+      // The default is a multiple of the radius, which is a guess that holds
+      // wherever the only thing in the way is a wall. A framing that knows what
+      // it has to see past says so (`FocusRequest.clearance`) — down a corridor
+      // the obstruction is another door 5.0 m along the camera's own line, and
+      // `radius * 3 + 0.3` is 6.7 m at 1920x1080, so the cut landed behind it.
+      const clearance = framing.clearance ?? framing.radius * 3 + 0.3;
       near = MathUtils.lerp(0.1, Math.max(0.1, DOLLY - clearance), blend);
     } else {
       halfHeight = godHalf;
@@ -422,12 +434,17 @@ export function createGodCamera(): GodCamera {
       return groundForward(out).cross(UP).normalize();
     },
 
-    focusOn(target, radius, normal, instant) {
+    focusOn(target, radius, normal, instant, clearance) {
       // A second request while one is in flight replaces it, and the first one's
       // promise settles rather than being left hanging on a camera that is now
       // going somewhere else.
       settle();
-      framing = { target: target.clone(), radius: Math.max(radius, 0.02), normal: normal ? normal.clone() : null };
+      framing = {
+        target: target.clone(),
+        radius: Math.max(radius, 0.02),
+        normal: normal ? normal.clone() : null,
+        clearance: clearance === undefined ? null : Math.max(clearance, 0.05),
+      };
       wanted = 1;
       if (instant) {
         // The state change still happens; it just does not travel.

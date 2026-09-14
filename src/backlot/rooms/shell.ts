@@ -380,7 +380,7 @@ export interface RoomFixture {
    *  knows the canvas. The engine writes `radius` on this object every resize;
    *  a copy here would leave the spec holding the number the room guessed at
    *  build time, which is right for exactly one viewport. */
-  focus?: { radius: number; normal?: Vector3 };
+  focus?: { radius: number; normal?: Vector3; clearance?: number };
   /** What the live region says on arrival. */
   arrival?: string;
   /**

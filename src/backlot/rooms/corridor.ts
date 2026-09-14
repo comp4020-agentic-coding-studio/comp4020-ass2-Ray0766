@@ -139,6 +139,28 @@ const WINDOW_WIDE = WINDOW.tall * WINDOW_ASPECT;
 const STAND_OFF = 1.05;
 const REACH = 1.3;
 
+/**
+ * How much of the corridor the push keeps in front of the door it has come in
+ * on. Everything nearer the camera than this is cut away by the near plane.
+ *
+ * It has to clear the door itself and cut the next thing along, and both ends
+ * are on the plan rather than picked. A side door is raked about 40 degrees out
+ * of its wall, so the camera comes in along a line that crosses the **opposite**
+ * wall 5.0 m out — through the door three depths nearer the entrance, which is
+ * why the pattern is N-3 and why weeks 1, 2, 3 and 12 were never affected. The
+ * door's own parts reach 0.98 m toward the camera at the furthest: the name
+ * board, which is the widest thing on it and sits 1.12 m above the window.
+ *
+ * So the band is 0.98 to 5.0 m and this sits in the middle of it. Without it the
+ * engine's default is `radius * 3 + 0.3`, which is **6.7 m** at 1920x1080 and
+ * 3.0 m at 390x844 — the whole of why the defect was at one marking viewport and
+ * not the other, since the default is a multiple of a radius that is itself a
+ * function of the canvas. Measured with the theme flip as an occlusion detector:
+ * 43% of eight of the twelve windows, against 0% for the four with nothing three
+ * depths behind them.
+ */
+const PUSH_CLEARANCE = 1.8;
+
 /** The step in front of a door. It marks where to stand; it is not a diagram of
  *  the trigger radius, which is why it is smaller than one. */
 const THRESHOLD_RADIUS = 0.55;
@@ -464,7 +486,7 @@ export async function buildCorridor(context: RoomContext): Promise<void> {
   /** The framing each door's hotspot is holding, by stage id. Kept rather than
    *  rebuilt, because the engine writes the radius onto these objects and a copy
    *  would be the number this file guessed at build time. */
-  const focusOf = new Map<string, { radius: number; normal?: Vector3 }>();
+  const focusOf = new Map<string, { radius: number; normal?: Vector3; clearance?: number }>();
   /** The stage the figure is at, which is one or none. It is what frames the
    *  camera, what paints the leaf, and what decides which window is allowed a
    *  decoder — one answer, asked once. See `setLive` below. */
@@ -528,7 +550,11 @@ export async function buildCorridor(context: RoomContext): Promise<void> {
         // window's pixel floor depends on the canvas, and the canvas is the
         // engine's. Handed to the hotspot by reference, so both halves hold one
         // object (`RoomFixture.focus`).
-        const focus = { radius: Math.max(WINDOW_WIDE, WINDOW.tall) / 2, normal: door.normal.clone() };
+        const focus = {
+          radius: Math.max(WINDOW_WIDE, WINDOW.tall) / 2,
+          normal: door.normal.clone(),
+          clearance: PUSH_CLEARANCE,
+        };
         focusOf.set(stage.id, focus);
 
         made[interactive.id] = {
@@ -606,7 +632,26 @@ export async function buildCorridor(context: RoomContext): Promise<void> {
     const interactive = openPage.get(door.stage.id);
     const hotspot = shell.hotspots.get(interactive?.id ?? "");
     const focus = focusOf.get(door.stage.id);
-    if (!interactive?.href || !hotspot || !focus) continue;
+    // Loud rather than quiet, and it is about the radius as much as the press.
+    //
+    // A stage that does not reach `context.door` keeps the **seed** radius this
+    // file guessed at build time — half the opening — where every other door
+    // gets the one the engine derives from the canvas. That is a door that opens
+    // four times too close and does not walk, in a row of eleven that do, and
+    // skipping it silently is how that ships. It cannot happen: the manifest
+    // fails the build unless there are twelve stages and twelve interactives to
+    // match them. So this costs nothing and says the invariant out loud.
+    //
+    // The seed is never seen either way. `context.door` overwrites it in the
+    // same synchronous build the fixture was made in, before the room is
+    // visible and before a frame is drawn with it — `enterRoom` awaits the
+    // builder before it shows the room at all.
+    if (!interactive?.href || !hotspot || !focus) {
+      throw new Error(
+        `backlot: ${door.stage.id} has no interactive, hotspot or framing to make a door of, so its ` +
+          `press and its push would both be somebody else's.`,
+      );
+    }
     const entry: RoomDoor = {
       hotspot,
       name: `week ${door.stage.week}`,

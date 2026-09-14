@@ -81,6 +81,24 @@ export interface FocusRequest {
   radius: number;
   /** The face's outward normal, so the camera arrives in front of it rather than edge-on. */
   normal?: Vector3;
+  /**
+   * How much world in front of the target to keep, in metres. Anything nearer
+   * the camera than this is cut away by the near plane.
+   *
+   * It defaults to a multiple of `radius`, which is right wherever the only
+   * thing in the way is the room's own near wall — the case camera.ts was
+   * written for. It is **not** right down a corridor: the twelve doors are
+   * raked about 40 degrees out of their walls, so the camera for week N comes
+   * in along a line that crosses the opposite wall 5.0 m out and passes through
+   * the door three depths nearer the entrance. Measured with the theme flip as
+   * an occlusion detector: **43% of eight of the twelve windows** at 1920x1080
+   * was another door's jamb and lintel board. The default clearance is 6.7 m
+   * there — the obstruction is inside it, so the near plane sat behind it.
+   *
+   * A door knows what it has to see past and the camera cannot, which is why
+   * this is on the request rather than tuned in the frustum.
+   */
+  clearance?: number;
 }
 
 /**
@@ -275,7 +293,7 @@ export interface RoomDoor {
   /** The framing this door's hotspot carries, **by reference**. The engine
    *  writes `radius` onto this object on every resize, which is the same field
    *  `HotspotSpec.focus` carries and the field any check reads. */
-  focus: { radius: number; normal?: Vector3 };
+  focus: { radius: number; normal?: Vector3; clearance?: number };
   /** Swing the leaf, or put it back. Under `instant` it is simply open. */
   setOpen(open: boolean, instant: boolean): void;
   /** The name board over its lintel, if it has one. Not the door's published

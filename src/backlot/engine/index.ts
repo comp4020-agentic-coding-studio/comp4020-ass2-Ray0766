@@ -313,13 +313,23 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
    * the backlot marks the thing it is about, so everything else frames its own
    * position, which is what the contract says `focus` means.
    */
-  function framingFor(spec: HotspotSpec): { target: Vector3; radius: number; normal: Vector3 | undefined } {
+  function framingFor(spec: HotspotSpec): {
+    target: Vector3;
+    radius: number;
+    normal: Vector3 | undefined;
+    clearance: number | undefined;
+  } {
     const radius = spec.focus?.radius ?? 1;
     const door = hub.find(spec.id);
     // The direction comes off the spec either way. A door only overrides where
     // the camera looks, not which way it faces — two sources for the normal is
     // how the negate below ended up written on a field nothing read.
-    return { target: door ? door.windowCentre : spec.position, radius, normal: spec.focus?.normal };
+    return {
+      target: door ? door.windowCentre : spec.position,
+      radius,
+      normal: spec.focus?.normal,
+      clearance: spec.focus?.clearance,
+    };
   }
 
   /**
@@ -339,7 +349,7 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
     framedLabel = spec.label;
     closeUp = true;
     describeCanvas();
-    await camera.focusOn(here.target, here.radius, here.normal, motion.reduced);
+    await camera.focusOn(here.target, here.radius, here.normal, motion.reduced, here.clearance);
     if (disposed || framedId !== spec.id) return;
     framingArmed = false;
     // Only now. The still is what hangs in the window, and the clip decodes once
@@ -551,7 +561,7 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
         // Backed out of a moment ago and not left since: the reader's Esc wins
         // over a proximity that is only now catching up with it.
         if (refused && request.target.distanceTo(refused.at) < 0.5) return;
-        await camera.focusOn(request.target, request.radius, request.normal, motion.reduced);
+        await camera.focusOn(request.target, request.radius, request.normal, motion.reduced, request.clearance);
         framingArmed = false;
         closeUp = true;
         describeCanvas();
@@ -669,10 +679,21 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
 
     hotspots.setBaseHidden(true);
     // Hiding the hub's buttons blurs whichever one was pressed, so the keyboard
-    // is handed to the way out rather than dropped on <body>. And a reader who
-    // came in on a window-level Enter never had one to blur — see
-    // `keyboardAdrift` — so they get the same hand-over.
-    if (pressed || adrift) handFocusTo(roomExit ?? leave.button);
+    // is handed somewhere rather than dropped on <body>. And a reader who came
+    // in on a window-level Enter never had one to blur — see `keyboardAdrift` —
+    // so they get the same hand-over.
+    //
+    // **The room's first control, not its way out.** The manifest puts
+    // `leave-room` last, which is where a way out belongs, so handing the
+    // keyboard to it puts a reader who has just arrived at the end of the room:
+    // in the corridor that is thirteen Tab presses back to week 1, out through
+    // the status bar, the skip link, the logo and six nav links. A reader who
+    // has just arrived somewhere should be at its beginning. The hub's buttons
+    // are hidden by now and the engine's own way out has been disposed if the
+    // room brought one, so the first unhidden button in the HUD is the room's
+    // first control — the same idiom `page/boot.ts` uses for the same reason.
+    const firstControl = hud.querySelector<HTMLButtonElement>("button:not([hidden])");
+    if (pressed || adrift) handFocusTo(firstControl ?? roomExit ?? leave.button);
     describeCanvas();
     // Record every new hotspot's near/far state without firing anything. The
     // figure is put down where the engine chose, not where the reader walked,
@@ -725,7 +746,18 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
     if (target && ((pressed && !pressed.isConnected) || adrift)) handFocusTo(target);
 
     describeCanvas();
-    announce(door ? `Back on the backlot, at the ${door.door.label} door.` : "Back on the backlot.");
+    // Only when there is no door to arrive at.
+    //
+    // Putting the figure down at the door it came out of is a proximity
+    // crossing, so the door's own `arrival` — "At the Lectures door. Press Enter
+    // to open it." — is announced on the very next tracked frame and replaces
+    // this one before anybody hears it. Measured across four trips at both
+    // viewports in both themes: the live region only ever held the door's
+    // sentence. Both are true and the door's is the more useful of the two, so
+    // this one goes rather than being sequenced behind it; a live region holds
+    // one message, and code that says something nobody can hear is worse than
+    // code that says nothing.
+    if (!door) announce("Back on the backlot.");
   }
 
   // ------------------------------------------------------------------ doors

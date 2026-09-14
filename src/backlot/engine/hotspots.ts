@@ -329,12 +329,27 @@ export function createHotspots(hud: HTMLElement, camera: OrthographicCamera, hoo
     let top = Infinity;
     let right = -Infinity;
     let bottom = -Infinity;
+    // Whether any corner is actually between the near and far planes. A framing
+    // moves the near plane up to just in front of what it is framing
+    // (camera.ts), so a surface the camera has **cut away** projects to a
+    // perfectly sensible rectangle that is not on screen at all.
+    //
+    // It is not a tidiness: the rect is what `alone` in `park` counts to decide
+    // whether the camera is close on one thing or on a group of them, and a
+    // clipped neighbour counting as a second thing is what left eight of the
+    // corridor's twelve dots sitting on the middle of their own picture at
+    // 390x844 — 16% of the window, a 50 px disc on the figure's chest. The rule
+    // it defeated is the one three lines of comment in `clearOf` exist to state.
+    // And `setRect` promises "where the thing this hotspot marks actually is on
+    // screen", which a cut-away surface has no answer to.
+    let onScreen = false;
     for (const x of [bounds.min.x, bounds.max.x]) {
       for (const y of [bounds.min.y, bounds.max.y]) {
         for (const z of [bounds.min.z, bounds.max.z]) {
           corner.set(x, y, z);
           if (local) corner.applyMatrix4(object.matrixWorld);
           corner.project(camera);
+          if (corner.z >= -1 && corner.z <= 1) onScreen = true;
           const px = (corner.x * 0.5 + 0.5) * width;
           const py = (-corner.y * 0.5 + 0.5) * height;
           left = Math.min(left, px);
@@ -344,6 +359,7 @@ export function createHotspots(hud: HTMLElement, camera: OrthographicCamera, hoo
         }
       }
     }
+    if (!onScreen) return null;
     // Clamped to the canvas, because a door on the far side of a framing can
     // project outside it and a rectangle nobody can sample is worse than none.
     const x = Math.max(0, Math.min(left, width));

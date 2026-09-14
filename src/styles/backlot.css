@@ -383,6 +383,27 @@
    280px is what one measures. It does not change which frames are fetched (320px
    reads the same five), only whether the scroller's length is honest.
 
+   **And 280px is wrong, on purpose, with the numbers written down.** A wall's
+   entries are not one height: measured by overriding them to
+   `content-visibility: visible` and reading each entry's own box, a piece is
+   65–254px at 1920x1080 (ten at 254, two at 251, three at 219, and the desk's
+   graph at 65 because it is the one with no frame) and 90–421px at 390x844. So
+   this page's scroller is honest to about ±190px per skipped entry, in whichever
+   direction the viewport decides, and the document keeps changing height as a
+   reader travels down it. No single number fixes that, and per-viewport numbers
+   only shrink it: framed pieces alone still spread 219–254 and 351–421.
+
+   It stays wrong because the alternative is worse for the reader. Taking
+   `content-visibility` off the walls puts the gallery's first poster back on the
+   critical path and `spec/backlot-budget.test.ts` has the red for it — first
+   frame at 3076 ms against a 2950 ms line at the time. That is a number a reader
+   feels; the scroller's length is a number a probe reads. What this costs is
+   bounded by the block below, which is why the week cards left the rule and why
+   the fragment scroll is not animated: neither the landing nor anything a reader
+   arrives at depends on the guess being right. Re-take the spread the same way
+   before trusting any of it — the caption lengths are what set it, so it moves
+   when the Studio's notes do.
+
    **The week cards are not in this rule and must not be put back in it.** Every
    `#week-NN` is a fragment the 3D writes into the address bar, so with no
    JavaScript the browser's own fragment scroll is the whole of the routing —

@@ -1,4 +1,4 @@
-import { globSync, readdirSync } from "node:fs";
+import { globSync, readdirSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 // This repo lives under ~/Desktop, which iCloud Drive syncs. When two devices
@@ -40,6 +40,26 @@ const files = SEARCHED.flatMap((dir) => globSync(`${dir}/**/*`, { withFileTypes:
  * `.injected 4` together with no `.injected` at all, and once more during a gate
  * run. Nothing in `pnpm check` saw any of it --- the root is not in `SEARCHED`
  * and a bare `.injected 3` matches neither pattern above.
+ *
+ * **And the bare `.injected` is not an exception, which is a correction.** This
+ * check shipped exempting it --- "the legitimate `.injected` on its own stays
+ * green, so this only ever names strays" --- under a commit subject saying
+ * `pnpm check` now sees the marker that says the build is a lie. It did not: a
+ * reviewer ran the whole suite against a deliberately broken build and got 48
+ * files, 1,930 passed, 10 skipped, identical to the clean baseline, and that
+ * number was then quoted back at me as evidence of a clean tree while an
+ * injection was live.
+ *
+ * There is no such thing as a legitimate marker. The marker exists *because*
+ * the build is a lie; it says so in its own first line. A suite that passes over
+ * one has measured a build nobody should trust and reported on it in the same
+ * words it uses for the real tree, and those are the words that get pasted into
+ * a commit message. So: any `.injected*` in the root is red, the live one
+ * included, and the message says which kind it found. The cost is that a full
+ * `pnpm check` cannot be green while an injection is live --- which is the
+ * intended reading of that run, not a side effect of it. A red run under an
+ * injection is still perfectly usable as the red you went looking for: the
+ * failure names itself and sits beside the one you were after.
  */
 // `readdirSync` rather than a glob, and that is not a style choice: a `*` glob
 // does not match a name beginning with a full stop, and `.injected` is the only
@@ -49,8 +69,24 @@ const rootEntries = readdirSync(".", { withFileTypes: true })
   .filter((entry) => entry.isFile())
   .map((entry) => entry.name);
 
-/** Any spelling of the marker, not the exact name. A guard that knows one
- *  spelling of "stop" is not a guard. */
+/** Any spelling of the marker, not the exact name and not only the copies. A
+ *  guard that knows one spelling of "stop" is not a guard, and one that knows
+ *  every spelling but the one the tool actually writes is not either.
+ *
+ *  Seen red three ways, each reverted:
+ *
+ *    a live injection, applied by the tool itself against the built stylesheet
+ *    (`.backlot-piece{` -> `.backlot-piece,.backlot-week{`, matched 1 time):
+ *      AssertionError: .injected --- receipts/rig-3d/inject.py's injection
+ *      marker. An injection is live. **Nothing in this run is evidence about
+ *      this tree** [...] index.DeCt-lYM.css as of 2026-09-15T05:49:37
+ *    a stranded bare copy, `.injected 3` in the root with no `.injected`:
+ *      AssertionError: .injected 3 --- [...] No plain .injected, only
+ *      .injected 3 --- an iCloud copy of the marker outliving the original.
+ *    and the control, the root with neither: 3 passed.
+ *
+ *  The first of those is the one that was green before this, and it is the one
+ *  the whole thing exists for. */
 const MARKER = /^\.injected/;
 
 describe("iCloud conflict copies", () => {
@@ -59,18 +95,39 @@ describe("iCloud conflict copies", () => {
     expect(copies, `iCloud conflict copies --- delete them, keep the original:\n${copies.join("\n")}`).toEqual([]);
   });
 
-  it("finds no stranded injection marker in the repo root", () => {
-    const strays = rootEntries
-      .filter((name) => MARKER.test(name))
-      .filter((name) => CONFLICT_COPY.test(name) || CONFLICT_COPY_BARE.test(name))
-      .sort();
+  it("finds no injection marker in the repo root, of any spelling", () => {
+    const markers = rootEntries.filter((name) => MARKER.test(name)).sort();
+    const live = markers.includes(".injected");
+    const copies = markers.filter((name) => CONFLICT_COPY.test(name) || CONFLICT_COPY_BARE.test(name));
+    // The marker names what is patched. Print it: whoever reads this red needs
+    // to know which file to revert, and the file is four lines long.
+    let said = "";
+    if (live) {
+      // A revert landing between the listing and this read is a real race ---
+      // one lane reverting while another runs the suite --- and the answer to
+      // it is the sweep line below, not a stack trace where the message goes.
+      try {
+        said = readFileSync(".injected", "utf8").trim();
+      } catch {
+        said = "(the marker went away while this was reading it, which means a revert landed mid-run)";
+      }
+    }
+
     expect(
-      strays,
-      `${strays.join(", ")} --- an iCloud copy of receipts/rig-3d/inject.py's injection marker. If an ` +
-        `injection is live, revert it; if one is not, this is a stranded copy and the build may or may not ` +
-        `be the one you think. Either way run\n` +
+      markers,
+      `${markers.join(", ")} --- receipts/rig-3d/inject.py's injection marker.\n\n` +
+        (live
+          ? `An injection is live. **Nothing in this run is evidence about this tree**: it is a ` +
+            `measurement of a build that was broken on purpose, and it reports in the same words a ` +
+            `clean run does. The marker says:\n\n${said}\n\n` +
+            `Revert it when the red you went looking for has been read, and take the numbers again.`
+          : `No plain .injected, only ${copies.join(" and ")} --- an iCloud copy of the marker outliving ` +
+            `the original. Which direction that happened in decides whether the build is the one you ` +
+            `think it is, and from here the two look identical.`) +
+        `\n\nEither way:\n` +
         `  python3 /Users/ray/Desktop/Study/ANU-Master/8020/receipts/rig-3d/inject.py sweep\n` +
-        `which rebuilds the marker from the vault and deletes it when nothing is injected.`,
+        `rebuilds the marker from the vault, which is the honest record of what is patched, and deletes ` +
+        `it when nothing is.`,
     ).toEqual([]);
   });
 

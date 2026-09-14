@@ -335,10 +335,34 @@ async function read() {
  *   - the page actually moves to it. Measured rather than inferred: the two are
  *     not the same question, and the whole scheme rests on the second.
  *
- * Reduced motion on purpose. The theme sets `scroll-behavior: smooth`
- * (`base.css:27`) and `auto` under the preference (`:478`), so this reads a
- * finished scroll rather than the first frame of an animation — which is how I
- * first measured `#week-05` "not scrolling" when it scrolls 6,989 px.
+ * And a fourth, which is the one a reader would have noticed first: the landing
+ * is clear of the nav. The nav is sticky and 117 px tall, the theme's
+ * `scroll-padding-top` is derived from it, and a fragment that comes to rest
+ * anywhere above that puts the reader on a card whose own heading is behind the
+ * bar — the picture and the note are on screen and which week you are looking at
+ * is not. `#week-05` did exactly that, at both viewports, and every check here
+ * was green: "on screen" cannot see it.
+ *
+ * **No reduced-motion preference, and that is now the whole point.** The theme
+ * sets `scroll-behavior: smooth` (`base.css:27`) and drops it to `auto` under
+ * the preference (`:478`), so asking for reduced motion used to be how this read
+ * a finished scroll instead of the first frame of an animation. It was also how
+ * it read a *different page from the marker's*: this page turns the animation
+ * off for itself (`backlot.css`, `:root:has(.backlot-stage)`), because a smooth
+ * scroll across eight thousand pixels of `content-visibility` lands where the
+ * document used to end. Under the preference that rule is invisible — delete it
+ * and a reduced-motion run stays green while a marker's browser lands 106 px
+ * past the end of the document. So the readings are taken the way a marker
+ * takes them, and the two-readings-apart shape below is what covers the
+ * animation worry instead.
+ *
+ * **Two readings, and the first one is the evidence.** The rest position alone
+ * says the page ended up somewhere; it does not say whether it got there or
+ * merely drifted there. So each fragment is read as soon as the navigation
+ * returns and again 1.2 s later, with the document's own height recorded at
+ * both — the bug was a scroll computed against a layout that then shrank 638 px,
+ * and a check holding only the final number cannot tell a landing that was right
+ * from one that was corrected on the way.
  *
  * A differing query on every case, because two URLs that differ only by the
  * fragment are a same-document navigation and `goto` waits for a load event that
@@ -351,47 +375,109 @@ interface Anchor {
   /** On screen after the fragment was applied. */
   scrolledTo: boolean;
   top: number;
+  /** The same box, read as soon as the navigation returned. */
+  topAtLanding: number;
+  /** The card's own heading, which is the thing the nav hides. */
+  headingTop: number;
+  headingTopAtLanding: number;
+  /** What is painted over the middle of that heading. */
+  hitsOwnHeading: boolean;
+  hit: string | null;
+  navBottom: number;
+  /** `scroll-padding-top`, resolved — the landing the theme asks for. */
+  padding: number;
+  /** The page has nowhere left to scroll, so the target rests below the fold
+   *  through no fault of the anchor. */
+  atEnd: boolean;
+  docAtLanding: number;
+  docAtRest: number;
 }
 
-async function anchors(): Promise<Anchor[]> {
+const ANCHOR_READ = `
+  const fragment = FRAGMENT;
+  const all = [...document.querySelectorAll("[id]")].filter((one) => one.id === fragment);
+  const target = all[0] ?? null;
+  const box = target ? target.getBoundingClientRect() : null;
+  // Every one of these sections leads with its own heading, and it is the
+  // heading the sticky nav eats. Room sections head with an h2, week cards with
+  // an h4; asking for either keeps this about "the name of the thing you landed
+  // on" rather than about a tag.
+  const heading = target ? target.querySelector("h2, h3, h4") : null;
+  const hbox = heading ? heading.getBoundingClientRect() : null;
+  const nav = document.querySelector("nav.at-nav");
+  // elementFromPoint in the middle of the heading, which is the reader's own
+  // question --- is the word covered --- rather than an arithmetic stand-in for
+  // it. It answered div.at-nav-inner on the run that started all this.
+  const hit =
+    hbox && hbox.width > 0
+      ? document.elementFromPoint(Math.round(hbox.left + hbox.width / 2), Math.round(hbox.top + hbox.height / 2))
+      : null;
+  const scroller = document.documentElement;
+  return {
+    fragment,
+    matches: all.length,
+    rendered: !!target && target.getClientRects().length > 0,
+    // On screen, which is the question — not "at the top", which was
+    // the first version and is a threshold I could not have defended.
+    // The browser scrolls as far as it can and then stops: the last two
+    // week cards are near the end of an 8,963 px document, so they come
+    // to rest 774 px and 663 px down with the page fully scrolled, and
+    // asking for the top failed them for having nowhere left to go.
+    //
+    // It still has teeth. A fragment that matches nothing leaves the
+    // page at y=0 with these cards 7,000 to 8,000 px down, and week 12's
+    // card is off screen even at the very bottom of the unscrolled page.
+    scrolledTo: !!box && box.bottom > 0 && box.top < window.innerHeight,
+    top: box ? Math.round(box.top) : 0,
+    headingTop: hbox ? Math.round(hbox.top) : 0,
+    hitsOwnHeading: !!target && !!hit && target.contains(hit),
+    hit: hit ? hit.tagName.toLowerCase() + (typeof hit.className === "string" && hit.className ? "." + hit.className.trim().split(/\\s+/).join(".") : "") : null,
+    navBottom: nav ? Math.round(nav.getBoundingClientRect().bottom) : 0,
+    padding: Math.round(parseFloat(getComputedStyle(scroller).scrollPaddingTop) || 0),
+    atEnd: Math.round(window.scrollY) >= scroller.scrollHeight - window.innerHeight - 1,
+    doc: scroller.scrollHeight,
+  };
+`;
+
+/** The two viewports a marker opens, because this landed wrong at both and the
+ *  phone one is not a narrower copy of the desktop one: the cards are taller,
+ *  the document is 12,000 px rather than 8,500, and the entries the scroll
+ *  passes over guess their height in the other direction. */
+const ANCHOR_VIEWPORTS = [
+  { name: "desktop", width: 1920, height: 1080 },
+  { name: "phone", width: 390, height: 844 },
+] as const;
+
+type AnchorViewport = (typeof ANCHOR_VIEWPORTS)[number]["name"];
+
+async function anchors(): Promise<Record<AnchorViewport, Anchor[]>> {
   const site = await serveBuild("dist", base);
   const tab = await Tab.launch();
-  const read: Anchor[] = [];
+  const read = { desktop: [] as Anchor[], phone: [] as Anchor[] };
   const wanted = [
     ...backlotManifest.rooms.map((room) => room.id),
     ...backlotManifest.rooms.flatMap((room) => (room.stages ?? []).map((stage) => stage.id)),
   ];
   try {
-    await tab.viewport(1920, 1080);
-    await tab.media({ colourScheme: "dark", reducedMotion: true });
+    await tab.media({ colourScheme: "dark" });
     await tab.scripts(false);
-    for (const [index, fragment] of wanted.entries()) {
-      await tab.goto(`${site.origin}${prefix}backlot/?anchor=${index}#${fragment}`);
-      read.push(
-        await tab.evaluate<Anchor>(`
-          const fragment = ${JSON.stringify(fragment)};
-          const all = [...document.querySelectorAll("[id]")].filter((one) => one.id === fragment);
-          const target = all[0] ?? null;
-          const box = target ? target.getBoundingClientRect() : null;
-          return {
-            fragment,
-            matches: all.length,
-            rendered: !!target && target.getClientRects().length > 0,
-            // On screen, which is the question — not "at the top", which was
-            // the first version and is a threshold I could not have defended.
-            // The browser scrolls as far as it can and then stops: the last two
-            // week cards are near the end of an 8,963 px document, so they come
-            // to rest 774 px and 663 px down with the page fully scrolled, and
-            // asking for the top failed them for having nowhere left to go.
-            //
-            // It still has teeth. A fragment that matches nothing leaves the
-            // page at y=0 with these cards 7,000 to 8,000 px down, and week 12's
-            // card is off screen even at the very bottom of the unscrolled page.
-            scrolledTo: !!box && box.bottom > 0 && box.top < window.innerHeight,
-            top: box ? Math.round(box.top) : 0,
-          };
-        `),
-      );
+    for (const viewport of ANCHOR_VIEWPORTS) {
+      await tab.viewport(viewport.width, viewport.height);
+      for (const [index, fragment] of wanted.entries()) {
+        const query = `${viewport.name}-${index}`;
+        await tab.goto(`${site.origin}${prefix}backlot/?anchor=${query}#${fragment}`);
+        const source = ANCHOR_READ.replace("FRAGMENT", JSON.stringify(fragment));
+        const landing = await tab.evaluate<Anchor & { doc: number }>(source);
+        await new Promise((done) => setTimeout(done, 1200));
+        const rest = await tab.evaluate<Anchor & { doc: number }>(source);
+        read[viewport.name].push({
+          ...rest,
+          topAtLanding: landing.top,
+          headingTopAtLanding: landing.headingTop,
+          docAtLanding: landing.doc,
+          docAtRest: rest.doc,
+        });
+      }
     }
   } finally {
     await tab.close();
@@ -968,38 +1054,150 @@ describe("the sentence a search result shows keeps up with the manifest", () => 
 //   the corridor section shipped `hidden`:
 //     AssertionError: #corridor names an element that is not rendered, so the
 //     fragment scrolls nowhere and looks exactly like one that matched nothing.
+//
+// And the landing half twice more, both patched into the built stylesheet so no
+// rebuild could land mid-run and wipe the injection, each matched once and
+// reverted. Putting the theme's smooth scroll back on this page
+// (`:root:has(.backlot-stage){scroll-behavior:auto}` -> `smooth`), 39 failures:
+//     AssertionError: #week-05 put its own heading -61 px down, behind a nav
+//     whose bottom edge is at 117. The reader can see the picture and the note
+//     and not which week they landed on.
+//       landed at top=7473 with the document 8658 px tall, came to rest at
+//       top=-106 with it 8069 px tall [...] elementFromPoint in the middle of it
+//       answers nothing.
+// and putting the week cards back behind `content-visibility`
+// (`.backlot-piece{` -> `.backlot-piece,.backlot-week{`), 6 failures:
+//     AssertionError: #week-06 sat 33 px from the top of the viewport at the
+//     moment the navigation returned, and the theme asks for 135
+//       [...] The heading was 100 px down on landing and 100 at rest, and
+//       elementFromPoint in the middle of it answers div.at-nav-inner.
+//
+// All six of those are the **phone**. On desktop the same injection came out
+// green in that run: the bug is a race, and there scroll anchoring happened to
+// win it. It does not always — the probe at
+// receipts/rig-3d/a2-anchor-landing.ts reads the pre-fix build at 1920x1080
+// landing #week-05 at top=47 with div.at-nav-inner over its heading. Which is
+// the argument for both viewports rather than one, and for reading the landing
+// as well as the rest: neither on its own is red every time this is broken.
 describe("the fragments the routing writes reach something, with JavaScript off", () => {
   it("has anchors to be about", () => {
     const wanted =
       backlotManifest.rooms.length +
       backlotManifest.rooms.reduce((sum, room) => sum + (room.stages?.length ?? 0), 0);
-    expect(anchored.map((one) => one.fragment)).toHaveLength(wanted);
+    // Both viewports, separately: a run that lost one of them would otherwise
+    // assert half as much under the same green line.
+    for (const viewport of ANCHOR_VIEWPORTS) {
+      expect(anchored[viewport.name].map((one) => one.fragment)).toHaveLength(wanted);
+      // The landing assertions compare against `scroll-padding-top`, read off
+      // the page rather than typed in here. If that read ever comes back as
+      // `auto` it parses to zero, and every one of them would quietly become
+      // "the card is at the very top of the viewport" — a different check,
+      // passing or failing for a different reason. So the number itself is a
+      // thing this has to prove it got.
+      for (const one of anchored[viewport.name]) {
+        expect(
+          one.padding,
+          `scroll-padding-top read back as ${one.padding} at ${viewport.name}, so there is no landing for ` +
+            `the anchors to be measured against`,
+        ).toBeGreaterThan(0);
+        expect(
+          one.navBottom,
+          `the nav's bottom edge read back as ${one.navBottom} at ${viewport.name}, so the clearance ` +
+            `assertions are about nothing`,
+        ).toBeGreaterThan(0);
+      }
+    }
   });
 
   for (const anchor of [
     ...backlotManifest.rooms.map((room) => room.id),
     ...backlotManifest.rooms.flatMap((room) => (room.stages ?? []).map((stage) => stage.id)),
   ]) {
-    it(`#${anchor} names one rendered element, and the page goes to it`, () => {
-      const read = anchored.find((one) => one.fragment === anchor)!;
-      expect(
-        read.matches,
-        `#${anchor} matches ${read.matches} element(s) in the page. The engine writes this fragment into ` +
-          `the address bar and with no JavaScript the browser's own scrolling is the only thing that acts ` +
-          `on it; native scrolling silently takes the first match, so a duplicate lands on the wrong thing.`,
-      ).toBe(1);
-      expect(
-        read.rendered,
-        `#${anchor} names an element that is not rendered, so the fragment scrolls nowhere and looks ` +
-          `exactly like one that matched nothing.`,
-      ).toBe(true);
-      expect(
-        read.scrolledTo,
-        `#${anchor} left the element ${read.top} px from the top of a ${1080} px viewport, so it is off ` +
-          `screen and the page did not go to it. Matching an id and being scrolled to are different ` +
-          `questions and this is the second.`,
-      ).toBe(true);
-    });
+    for (const viewport of ANCHOR_VIEWPORTS) {
+      it(`#${anchor} names one rendered element, and the page goes to it at ${viewport.name}`, () => {
+        const read = anchored[viewport.name].find((one) => one.fragment === anchor)!;
+        expect(
+          read.matches,
+          `#${anchor} matches ${read.matches} element(s) in the page. The engine writes this fragment into ` +
+            `the address bar and with no JavaScript the browser's own scrolling is the only thing that acts ` +
+            `on it; native scrolling silently takes the first match, so a duplicate lands on the wrong thing.`,
+        ).toBe(1);
+        expect(
+          read.rendered,
+          `#${anchor} names an element that is not rendered, so the fragment scrolls nowhere and looks ` +
+            `exactly like one that matched nothing.`,
+        ).toBe(true);
+        expect(
+          read.scrolledTo,
+          `#${anchor} left the element ${read.top} px from the top of a ${viewport.height} px viewport, ` +
+            `so it is off screen and the page did not go to it. Matching an id and being scrolled to are ` +
+            `different questions and this is the second.`,
+        ).toBe(true);
+      });
+
+      it(`#${anchor} lands with its own heading clear of the nav at ${viewport.name}`, () => {
+        const read = anchored[viewport.name].find((one) => one.fragment === anchor)!;
+        const where =
+          `\n  landed at top=${read.topAtLanding} with the document ${read.docAtLanding} px tall, ` +
+          `came to rest at top=${read.top} with it ${read.docAtRest} px tall; the nav's bottom edge is ` +
+          `${read.navBottom} and scroll-padding-top is ${read.padding}. The heading was ` +
+          `${read.headingTopAtLanding} px down on landing and ${read.headingTop} at rest, and ` +
+          `elementFromPoint in the middle of it answers ${read.hit ?? "nothing"}.`;
+
+        // The landing itself, and the same reading 1.2 s later. Both, because a
+        // fragment scroll computed against a layout that then changes height
+        // gets one of them right and not the other: #week-05 landed at 210 and
+        // drifted to 47 while the document lost 638 px underneath it.
+        // Week 12 sits inside the last viewport of the document, so the browser
+        // scrolls to the end and stops. Nothing is wrong with that landing and
+        // there is no padding for it to meet; it still has to be readable,
+        // which the clearance assertions below cover either way.
+        if (!read.atEnd) {
+          for (const [when, top, why] of [
+            [
+              "the moment the navigation returned",
+              read.topAtLanding,
+              "Either the fragment scroll is being animated — this page turns scroll-behavior off for " +
+                "itself, because a smooth scroll across eight thousand pixels of content-visibility lands " +
+                "where the document used to end — or the layout moved under it before it got there.",
+            ],
+            [
+              "1.2 s later",
+              read.top,
+              "The scroll was computed once, against a layout that then changed height, and the browser " +
+                "does not recompute it.",
+            ],
+          ] as const) {
+            expect(
+              top,
+              `#${anchor} sat ${top} px from the top of the viewport at ${when}, and the theme asks for ` +
+                `${read.padding} — the scroll-padding it derives from the sticky nav. ${why}${where}`,
+            ).toBe(read.padding);
+          }
+        }
+
+        expect(
+          read.headingTop,
+          `#${anchor} put its own heading ${read.headingTop} px down, behind a nav whose bottom edge is ` +
+            `at ${read.navBottom}. The reader can see the picture and the note and not which week they ` +
+            `landed on.${where}`,
+        ).toBeGreaterThanOrEqual(read.navBottom);
+        expect(
+          read.headingTopAtLanding,
+          `#${anchor} put its own heading ${read.headingTopAtLanding} px down on landing, behind a nav ` +
+            `whose bottom edge is at ${read.navBottom}.${where}`,
+        ).toBeGreaterThanOrEqual(read.navBottom);
+
+        // The arithmetic above says the heading is below the bar. This says
+        // nothing is painted over it, which is the question the arithmetic is a
+        // stand-in for, and it is the reading that named the bug.
+        expect(
+          read.hitsOwnHeading,
+          `#${anchor}: the middle of its heading is painted by ${read.hit ?? "nothing"}, which is not ` +
+            `inside the card. Being below a number and being visible are different questions.${where}`,
+        ).toBe(true);
+      });
+    }
   }
 });
 

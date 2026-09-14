@@ -11,6 +11,35 @@
    pages the layout serves, and the bar's own stylesheet belongs to somebody
    else this round. Noted in the receipt as a rule that wants to move. */
 
+/* --------------------------------------------------- how a fragment lands */
+
+/* This one page does not animate its fragment scroll, and that is the
+   difference between landing on week 5 and landing 106px past the end of the
+   document.
+
+   `astro-theme-university`'s base.css sets `scroll-behavior: smooth` on `html`
+   (`:27`) and drops it to `auto` under `prefers-reduced-motion` (`:478`). A
+   smooth scroll animates to an offset the browser computes once, at the start;
+   this page is eight thousand pixels of catalogue behind `content-visibility`,
+   so the animation renders every entry it travels over and each one swaps its
+   280px placeholder for its real height while the animation is still running.
+   Measured with scripts off at 1920x1080, nothing observing the page: the
+   document went 8,684px to 8,069px during the scroll and `#week-01` came to
+   rest at top=-454, `#corridor` at -454 and `#week-05` at -106 with the page
+   scrolled to its very end. Scroll anchoring, which is what corrects a layout
+   that settles after the fact, does not run while a scroll animation does.
+   Instant, the same page lands every anchor at exactly 135 — the scroll-padding
+   the theme derives from the nav — because anchoring is live and corrects the
+   settle as it happens.
+
+   Scoped by `:has()` rather than written as a bare `html` rule: StudioLayout
+   imports this file for both the pages it serves, and /studio/ is not this
+   page and keeps the site's own scrolling. Unlayered, so it beats the theme's
+   layered rule regardless of specificity (CLAUDE.md §4). */
+:root:has(.backlot-stage) {
+  scroll-behavior: auto;
+}
+
 /* ------------------------------------------------------------------- stage */
 
 /* The stage is one box, and there is always something in it. With no
@@ -352,9 +381,25 @@
 
    `contain-intrinsic-size` is the placeholder a skipped entry stands in with —
    280px is what one measures. It does not change which frames are fetched (320px
-   reads the same five), only whether the scroller's length is honest. */
-.backlot-piece,
-.backlot-week {
+   reads the same five), only whether the scroller's length is honest.
+
+   **The week cards are not in this rule and must not be put back in it.** Every
+   `#week-NN` is a fragment the 3D writes into the address bar, so with no
+   JavaScript the browser's own fragment scroll is the whole of the routing —
+   and a skipped card is a card whose height is 280px of guess until the moment
+   somebody lands on it. Measured at 1920x1080 with scripts off: `#week-05`
+   landed at top=210, its own card then relaid from 369px to 275px under the
+   reader while the four cards above it did the same, and it came to rest at
+   top=47 with its heading behind the nav — `elementFromPoint` on the middle of
+   "Week 5: Text to Video" answered `div.at-nav-inner`. Scroll anchoring is what
+   normally absorbs a layout that settles after a jump, and it cannot here,
+   because the element it would anchor to is the one changing size. A week card
+   is a 4.5rem thumbnail 6,900px down the page; `loading="lazy"` already holds
+   its frame back at that distance (Chrome's threshold is about 3000px), so
+   rendering the twelve of them eagerly buys the landing its stability for no
+   bytes. The walls keep the rule: their posters are 7rem, they sit on the first
+   screen, and they are what the 273 ms above was measured on. */
+.backlot-piece {
   content-visibility: auto;
   contain-intrinsic-size: auto 280px;
 }

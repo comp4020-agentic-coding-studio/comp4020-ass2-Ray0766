@@ -139,6 +139,10 @@ interface Probe {
   /** The hotspot that owns the pixel at this control's own centre, when it is
    *  not this control — which is a control a reader cannot tap. */
   coveredBy: string | null;
+  /** Whatever hotspot owns the centre, same or not — the floor under the
+   *  assertion, because a centre that answers `null` makes `coveredBy` null too
+   *  and the check passes having looked at nothing. */
+  middleOwner: string | null;
   /** The point that was asked, so a failure can be reproduced by hand. */
   middle: { x: number; y: number };
   /** The engine collapsed this control to its dot. */
@@ -311,9 +315,10 @@ const PROBE = String.raw`
     const middleY = Math.round((box.top + box.bottom) / 2);
     const atMiddle = document.elementFromPoint(middleX, middleY);
     const ownerOfMiddle = atMiddle ? atMiddle.closest("[data-backlot-hotspot]") : null;
+    const middleOwner = ownerOfMiddle ? ownerOfMiddle.dataset.backlotHotspot : null;
     const coveredBy =
-      ownerOfMiddle && ownerOfMiddle.dataset.backlotHotspot !== button.dataset.backlotHotspot
-        ? ownerOfMiddle.dataset.backlotHotspot +
+      ownerOfMiddle && middleOwner !== button.dataset.backlotHotspot
+        ? middleOwner +
           " (" + atMiddle.tagName.toLowerCase() + "." + String(atMiddle.className) +
           ", " + JSON.stringify(atMiddle.textContent.trim().slice(0, 32)) + ")"
         : null;
@@ -368,6 +373,7 @@ const PROBE = String.raw`
       point,
       why,
       coveredBy,
+      middleOwner,
       middle: { x: middleX, y: middleY },
       // What the control was made of when it was read, so "no dot" says which
       // part was missing and how big it was rather than only that it was gone.
@@ -970,6 +976,24 @@ describe("the sweep measured something", () => {
         `belongs to a different control is one a finger cannot reach, and nothing else in this file can ` +
         `see it: the boxes need not overlap for it to happen, because what covers the point is a child of ` +
         `the other control rather than its box.`,
+    ).toEqual([]);
+  });
+
+  // The floor under the assertion above, and it is not decoration: `coveredBy`
+  // is null both when the centre belongs to the control and when
+  // `elementFromPoint` answers nothing at all — a control scrolled out of view,
+  // a point off-screen, a probe that stopped finding the HUD. Those two are the
+  // same value and opposite facts, so without this the tap check passes loudest
+  // exactly when it has stopped looking.
+  it("asked every control's centre and got an answer", () => {
+    const unanswered = readings
+      .filter((one) => one.middleOwner === null)
+      .map((one) => `${one.id} at ${one.viewport} in the ${one.theme} theme (${one.middle.x},${one.middle.y})`);
+    expect(
+      unanswered,
+      `${unanswered.length} control(s) had nothing at their own centre, so the tap check above said nothing ` +
+        `about them. A centre that answers null and a centre that answers the control itself are the same ` +
+        `value in that check and opposite facts.`,
     ).toEqual([]);
   });
 

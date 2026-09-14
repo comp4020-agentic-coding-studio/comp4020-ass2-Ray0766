@@ -565,14 +565,41 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
     if (!route.doorRoute) return;
     const door = roomDoors.find((one) => one.route === route.doorRoute);
     if (!door) return;
-    // Stood at the door, facing it, and the keyboard on it — which is where a
-    // reader who walked here would be. Focusing the button is what brings the
-    // camera in: `focusin` is one of the three ways of arriving and the only one
-    // available to something that is restoring rather than walking.
+    // Stood at the door, facing it, with the camera in and the keyboard on it —
+    // which is where a reader who walked here would be.
+    //
+    // The camera is brought in **explicitly** rather than by focusing the button
+    // and letting `focusin` do it. That was the first version and it does not
+    // work: a document that has never had a user gesture does not take
+    // programmatic focus the way one that has does, so a cold load of
+    // `/backlot/#week-05` opened the corridor, stood the figure at week 5's door
+    // — `data-backlot-near` said so — and then left `activeElement` on `<body>`,
+    // the camera at rest and the URL back at `#corridor`. Watched, four samples
+    // over eight seconds, every one identical. A restore is not an arrival by
+    // somebody; it is the engine putting the scene where the URL says it was, so
+    // it says so directly.
     const facing = door.focus.normal ? door.focus.normal.clone().multiplyScalar(-1) : undefined;
     player.placeAt(door.standing.clone(), facing);
     hotspots.track(player.position, true);
-    hotspots.buttonFor(door.hotspot.id)?.focus();
+    const at = hotspots.locate(door.hotspot.id);
+    if (at) {
+      framedId = door.hotspot.id;
+      framedLabel = `week ${door.name.replace(/^week\s*/i, "")}`;
+      closeUp = true;
+      describeCanvas();
+      await camera.focusOn(
+        at.clone(),
+        door.focus.radius,
+        door.focus.normal,
+        motion.reduced,
+        door.focus.clearance,
+      );
+    }
+    // And the keyboard, which is a separate question from the camera and is
+    // handed over rather than counted as an arrival.
+    const button = hotspots.buttonFor(door.hotspot.id);
+    if (button) handFocusTo(button);
+    writeRoute();
   }
 
   /** Which room a door's route name belongs to, by asking the rooms that are

@@ -455,11 +455,26 @@ async function sweep(): Promise<Sweep> {
       // honest reading is the starting point plus what the walk saw — and when
       // the walk has already wrapped round to it, it is in `seen` and must not
       // be counted twice.
+      // **A rotation, not a prefix, and the difference is a check that could not
+      // fail.** This used to be `focusAfterEnter && !seen.includes(focusAfterEnter)
+      // ? [focusAfterEnter, ...seen] : seen`, and `tabTo` walks to the *last*
+      // control — so with focus starting on the last one, Tab wraps, the last
+      // reappears in `seen`, the `!includes` guard drops the seed, and what is
+      // left equals the manifest exactly. Focus landing on the first control and
+      // focus landing on the last produced the same passing answer, which is
+      // precisely the handoff this check was written to guard. An independent
+      // review broke the handoff to send the keyboard to the exit and the whole
+      // suite stayed at 1,908.
+      //
+      // The honest statement does not depend on where the walk began: the cycle
+      // is the seed followed by everything after it, and that has to be a
+      // **rotation** of the manifest's order. A rotation pins the sequence and
+      // says nothing about the starting point — which is a separate assertion,
+      // below, because it is a separate fact.
       const walk = await tabTo(tab, entry.interactives[entry.interactives.length - 1]!.id);
-      const order =
-        focusAfterEnter && !walk.seen.includes(focusAfterEnter)
-          ? [focusAfterEnter, ...walk.seen]
-          : walk.seen;
+      const order = focusAfterEnter
+        ? [focusAfterEnter, ...walk.seen.filter((id) => id !== focusAfterEnter)]
+        : walk.seen;
       const rings: Measured[] = [];
       for (const interactive of entry.interactives) {
         const measured = await measureRing(tab, interactive.id);
@@ -841,7 +856,34 @@ describe.each(roomsWithDoors)("$room.title is its interactives", ({ room: entry,
   });
 
   it("is reached by Tab in document order", () => {
-    expect(named(inRoom(entry.id).tabOrder)).toEqual(controls);
+    // A rotation of the manifest's order, because the walk starts wherever the
+    // room put the reader and that is a different fact — asserted on its own
+    // below. Equality here would be an assertion about two things at once, and
+    // the version that was is the reason this comment exists.
+    const seen = named(inRoom(entry.id).tabOrder);
+    const rotations = controls.map((_, at) => [...controls.slice(at), ...controls.slice(0, at)]);
+    expect(
+      rotations.some((one) => one.length === seen.length && one.every((id, at) => id === seen[at])),
+      `Tab reached ${seen.join(", ")}, which is not ${entry.title}'s controls in the manifest's order ` +
+        `from any starting point. The manifest has ${controls.join(", ")}.`,
+    ).toBe(true);
+  });
+
+  // Seen red by sending the handoff to the room's exit instead of its first
+  // control, which is the injection the review landed and which every other
+  // assertion in this suite survived:
+  //   AssertionError: entering The machine room put the keyboard on
+  //   leave-machine-room, and a reader who walks in should arrive on the room
+  //   rather than thirteen Tabs behind it.
+  it("puts the keyboard on the room's first control, not its way out", () => {
+    // Ray's ruling, and the thing the rotation above deliberately cannot see.
+    // A reader who walks in arrives on the room; landing them on the exit means
+    // everything in front of them is behind them.
+    expect(
+      inRoom(entry.id).focusAfterEnter,
+      `entering ${entry.title} put the keyboard on ${inRoom(entry.id).focusAfterEnter}, and a reader who ` +
+        `walks in should arrive on the room rather than ${controls.length - 1} Tabs behind it`,
+    ).toBe(controls[0]);
   });
 
   // The live region is the whole of what a reader walking with the arrow keys

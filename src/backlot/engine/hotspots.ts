@@ -817,6 +817,39 @@ export function createHotspots(hud: HTMLElement, camera: OrthographicCamera, hoo
           y = clash.y + (clash.height + boxHeight) / 2 + GAP;
           // Being nudged down must not nudge it back over the thing it was
           // just moved off.
+          //
+          // **This line has a known defect and the one-line fix for it is
+          // worse.** `clearOf` knows about surfaces and nothing about `placed`,
+          // and its answer is taken unconditionally — so it can put a control
+          // straight back on top of the button the nudge above has just
+          // separated it from, eight times, and whichever of the two ran last
+          // wins. That is why it is `leave-machine-room` that does it: it is
+          // placed last, so its second `clearOf` call gets the final word over
+          // a button already put down. `look-machine`'s centre ends up inside
+          // it at 1920x1080 in both themes, at (1071,752), and a tap on the
+          // machine answers for the way out.
+          //
+          // It is **marginal**, which is the worst part: present at `d38a190`,
+          // absent at `a664786`, present at `a9d0c73` and at `706d693`, with
+          // nothing in this loop changing — two placements near enough in cost
+          // that anything decides between them, which is what HYSTERESIS above
+          // exists for. A clean run is therefore not evidence it is fixed.
+          // Whoever takes it should see it red before they start.
+          //
+          // The obvious fix is to give the de-collision the last word — take
+          // this answer only when it does not re-clash with something already
+          // placed. Measured: that takes `spec/backlot-contrast.test.ts` from
+          // **3 failures to 17**, and the tap assertion is one `it`, so the
+          // other fourteen are its fill and dot readings across both viewports
+          // and both themes. That is a layout that moved a great many controls,
+          // not one that is nearly right. The keep-out and the de-collision are
+          // not independent constraints and neither can be made authoritative
+          // over the other; it wants both solved together, which is a rewrite
+          // of this loop rather than an edit to it.
+          //
+          // Not the clamp below, which was the first explanation and is wrong:
+          // the clamp range here is x in [92, 1828] and y in [26, 897], and
+          // (1071,752) is nowhere near an edge.
           const again = clearOf(entry, x, y, boxWidth, boxHeight, dense);
           x = again.x;
           y = again.y;

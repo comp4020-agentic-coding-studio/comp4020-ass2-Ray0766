@@ -398,7 +398,16 @@
    its frame back at that distance (Chrome's threshold is about 3000px), so
    rendering the twelve of them eagerly buys the landing its stability for no
    bytes. The walls keep the rule: their posters are 7rem, they sit on the first
-   screen, and they are what the 273 ms above was measured on. */
+   screen, and they are what the 273 ms above was measured on.
+
+   "For no bytes" is a claim, so here is the other number (CLAUDE.md §7). The
+   3D's first frame on Slow 4G, fastest of nine loads each way, read by dropping
+   `spec/backlot-budget.test.ts`'s own budget to 1 ms so it prints what it
+   measured: 3214 ms desktop and 3118 ms phone as this ships, against 3213 ms and
+   3096 ms with the week cards put back behind `content-visibility`. Both
+   differences sit inside the run-to-run spread of the same nine loads
+   (3214–3263 desktop, 3118–3137 phone), so the cost is not something this
+   harness can see; the budget check stays the thing that would say otherwise. */
 .backlot-piece {
   content-visibility: auto;
   contain-intrinsic-size: auto 280px;

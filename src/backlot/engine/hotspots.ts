@@ -860,38 +860,35 @@ export function createHotspots(hud: HTMLElement, camera: OrthographicCamera, hoo
           // Being nudged down must not nudge it back over the thing it was
           // just moved off.
           //
-          // **This line has a known defect and the one-line fix for it is
-          // worse.** `clearOf` knows about surfaces and nothing about `placed`,
-          // and its answer is taken unconditionally — so it can put a control
-          // straight back on top of the button the nudge above has just
-          // separated it from, eight times, and whichever of the two ran last
-          // wins. That is why it is `leave-machine-room` that does it: it is
-          // placed last, so its second `clearOf` call gets the final word over
-          // a button already put down. `look-machine`'s centre ends up inside
-          // it at 1920x1080 in both themes, at (1071,752), and a tap on the
-          // machine answers for the way out.
+          // **This is the line the defect was on, and it is fixed — the record
+          // is kept because the way it was fixed is the useful part.**
           //
-          // It is **marginal**, which is the worst part: present at `d38a190`,
-          // absent at `a664786`, present at `a9d0c73` and at `706d693`, with
-          // nothing in this loop changing — two placements near enough in cost
-          // that anything decides between them, which is what HYSTERESIS above
-          // exists for. A clean run is therefore not evidence it is fixed.
-          // Whoever takes it should see it red before they start.
+          // `clearOf` answered from faces and was adopted unconditionally by a
+          // loop that knew about controls, so it could put a control back on top
+          // of the button the nudge had just separated it from. Eight times,
+          // whichever ran last winning. `look-machine`'s centre landed inside
+          // "Back to the backlot" at 1920x1080 in both themes, so a tap on the
+          // machine the room is named for answered for the way out — and it was
+          // **marginal**: present, absent, present, present across four trees
+          // with nothing in this loop changing.
           //
-          // The obvious fix is to give the de-collision the last word — take
-          // this answer only when it does not re-clash with something already
-          // placed. Measured: that takes `spec/backlot-contrast.test.ts` from
-          // **3 failures to 17**, and the tap assertion is one `it`, so the
-          // other fourteen are its fill and dot readings across both viewports
-          // and both themes. That is a layout that moved a great many controls,
-          // not one that is nearly right. The keep-out and the de-collision are
-          // not independent constraints and neither can be made authoritative
-          // over the other; it wants both solved together, which is a rewrite
-          // of this loop rather than an edit to it.
+          // Two fixes were tried. Giving the de-collision the last word — take
+          // this answer only when it does not re-clash — took
+          // `spec/backlot-contrast.test.ts` from 3 failures to 17, because the
+          // two constraints are coupled and neither may win alone. What worked
+          // was solving them together: `clearOf` builds its candidates from the
+          // faces **and** from `placed`, and tests against both, which is the
+          // `blocked` list above. The checks lane's injection removes exactly
+          // that coupling and reproduces the old defect precisely in both
+          // themes, so the fix is load-bearing rather than incidental.
           //
-          // Not the clamp below, which was the first explanation and is wrong:
-          // the clamp range here is x in [92, 1828] and y in [26, 897], and
-          // (1071,752) is nowhere near an edge.
+          // Two things worth keeping from getting there. The first explanation
+          // — that the clamp below pushed a separated control back — was wrong
+          // for this defect: (1071,752) sits in a clamp range of x in [92,1828]
+          // and y in [26,897], nowhere near an edge. It fitted the toggling only
+          // because we wanted it to. And it was not wrong about the *clamp*:
+          // the clamp really can undo a de-collision, which is a second defect
+          // found later at 390x844 and guarded where the clamp actually is.
           const again = clearOf(entry, x, y, boxWidth, boxHeight, dense);
           x = again.x;
           y = again.y;
@@ -900,8 +897,55 @@ export function createHotspots(hud: HTMLElement, camera: OrthographicCamera, hoo
         // — a control wider than the canvas has room for — centres instead.
         const reachX = boxWidth / 2 + EDGE_INSET;
         const reachY = boxHeight / 2 + EDGE_INSET;
-        x = reachX * 2 > width ? width / 2 : Math.min(Math.max(x, reachX), width - reachX);
-        y = reachY * 2 > height ? height / 2 : Math.min(Math.max(y, reachY), height - reachY);
+        const clampX = (value: number) =>
+          reachX * 2 > width ? width / 2 : Math.min(Math.max(value, reachX), width - reachX);
+        const clampY = (value: number) =>
+          reachY * 2 > height ? height / 2 : Math.min(Math.max(value, reachY), height - reachY);
+        x = clampX(x);
+        y = clampY(y);
+
+        // **And after the clamp, because the clamp can undo the de-collision.**
+        //
+        // Everything above keeps controls apart at the position they were
+        // chosen at; this line then moves them, and nothing looked again. Pushed
+        // deep into the corridor at 390x844 every control but the focused one is
+        // clamped to an edge, so several arrive at the same edge point and come
+        // to rest on **pixel-identical 50x50 boxes** — measured: `stage-week-01`
+        // and `leave-corridor` both at (328,754,50,50), thirteen controls
+        // showing twelve dots, and a tap on week 1 leaving the corridor. It
+        // happens while walking too, with nothing focused, which is the reader a
+        // phone actually has.
+        //
+        // So the pile is broken up along whichever axis the clamp has not
+        // pinned: down the edge first, and across it when the bottom is where
+        // the clamp already is.
+        for (let attempt = 0; attempt < 8; attempt++) {
+          const clash = placed.find(
+            (other) =>
+              Math.abs(other.x - x) < (other.width + boxWidth) / 2 + GAP &&
+              Math.abs(other.y - y) < (other.height + boxHeight) / 2 + GAP,
+          );
+          if (!clash) break;
+          // Away from it, in whichever direction the clamp has left room — and
+          // **both** directions are tried, because a control clamped into a
+          // corner is pinned against the far edge on one axis and the far edge
+          // on the other, and a rule that only ever moves down and right gives
+          // up exactly there. (328,754) at 390x844 is that corner, and it is
+          // where the pile was.
+          const stepY = (clash.height + boxHeight) / 2 + GAP;
+          const stepX = (clash.width + boxWidth) / 2 + GAP;
+          const options = [
+            clampY(clash.y + stepY),
+            clampY(clash.y - stepY),
+          ].filter((value) => value !== y);
+          if (options.length > 0) {
+            y = options[0]!;
+            continue;
+          }
+          const across = [clampX(clash.x + stepX), clampX(clash.x - stepX)].filter((value) => value !== x);
+          if (across.length === 0) break;
+          x = across[0]!;
+        }
         placed.push({ x, y, width: boxWidth, height: boxHeight });
 
         const roundedX = Math.round(x);
@@ -950,8 +994,19 @@ export function createHotspots(hud: HTMLElement, camera: OrthographicCamera, hoo
           delete entry.button.dataset.backlotSide;
           continue;
         }
-        const labelWidth = entry.width || DOT_BOX;
-        const labelHeight = entry.height || DOT_BOX;
+        // The name's **own** width, not the button's.
+        //
+        // `entry.width` is the button measured with its label showing, which is
+        // the right number at 1920 and the wrong one at 390: there the
+        // stylesheet keeps every label visually hidden at 1 px, so the button
+        // measures the dot and every side looked like it fitted. The names that
+        // then ran off the canvas were 200 px being planned for as 50 —
+        // "open the Studio door" showing 29.7% of itself. A clipped element
+        // still reports its content width through `scrollWidth`, which is the
+        // one reading available before the label is painted at all.
+        const nameplate = entry.button.querySelector<HTMLElement>(".backlot-hotspot__label");
+        const labelWidth = Math.max(nameplate?.scrollWidth ?? 0, entry.width || DOT_BOX);
+        const labelHeight = Math.max(nameplate?.scrollHeight ?? 0, entry.height || DOT_BOX);
         const dotWidth = entry.dotWidth || DOT_BOX;
         const dotHeight = entry.dotHeight || DOT_BOX;
         // Everything the name must not land on: every other control where it
@@ -982,6 +1037,12 @@ export function createHotspots(hud: HTMLElement, camera: OrthographicCamera, hoo
           top: entry.y - labelHeight / 2,
           bottom: entry.y + labelHeight / 2,
         };
+        const before: Rect = {
+          left: entry.x - dotWidth / 2 - labelWidth,
+          right: entry.x - dotWidth / 2,
+          top: entry.y - labelHeight / 2,
+          bottom: entry.y + labelHeight / 2,
+        };
         const below: Rect = {
           left: entry.x - labelWidth / 2,
           right: entry.x + labelWidth / 2,
@@ -995,16 +1056,50 @@ export function createHotspots(hud: HTMLElement, camera: OrthographicCamera, hoo
           bottom: entry.y - dotHeight / 2,
         };
         // Beside first, because that is where a name reads best and where it
-        // has always been; then under, then over. The last is a fallback rather
-        // than a choice: somewhere it is going to cover something, and it says
-        // so by keeping the side it was asked for.
-        entry.button.dataset.backlotSide = clearOfOthers(beside)
-          ? "beside"
-          : clearOfOthers(below)
-            ? "below"
-            : clearOfOthers(above)
-              ? "above"
-              : "beside";
+        // has always been; then under, then over, then back along the other
+        // side.
+        const sides: { name: string; box: Rect }[] = [
+          { name: "beside", box: beside },
+          { name: "below", box: below },
+          { name: "above", box: above },
+          { name: "before", box: before },
+        ];
+        const free = sides.find((side) => clearOfOthers(side.box));
+        if (free) {
+          entry.button.dataset.backlotSide = free.name;
+        } else {
+          // **Nowhere is clear, so the question becomes how much of the name a
+          // reader can actually read** — which is not what this did before. It
+          // fell back to `beside` and said so in a comment about having to cover
+          // something; at 390 that ran names off the edge of the canvas instead.
+          // Measured by the reviewer: 26 of 112 expanded names incomplete, "open
+          // the Studio door" showing **29.7%** of itself and "Read the workflow
+          // graph on the monitor" 61.5%. A name half off the screen is not a
+          // name covering something, it is a name nobody can read.
+          //
+          // So the fallback takes the side that keeps the most of the name on
+          // the canvas, and breaks a tie on how little it covers. Covering
+          // something is a cost; being off the screen is not a cost, it is the
+          // text not being there.
+          const onCanvasArea = (box: Rect) =>
+            Math.max(0, Math.min(box.right, width) - Math.max(box.left, 0)) *
+            Math.max(0, Math.min(box.bottom, height) - Math.max(box.top, 0));
+          const covered = (box: Rect) =>
+            others.reduce(
+              (sum, rect) =>
+                sum +
+                Math.max(0, Math.min(box.right, rect.right) - Math.max(box.left, rect.left)) *
+                  Math.max(0, Math.min(box.bottom, rect.bottom) - Math.max(box.top, rect.top)),
+              0,
+            );
+          const best = sides.reduce((most, side) => {
+            const here = onCanvasArea(side.box);
+            const there = onCanvasArea(most.box);
+            if (here !== there) return here > there ? side : most;
+            return covered(side.box) < covered(most.box) ? side : most;
+          });
+          entry.button.dataset.backlotSide = best.name;
+        }
       }
     },
 

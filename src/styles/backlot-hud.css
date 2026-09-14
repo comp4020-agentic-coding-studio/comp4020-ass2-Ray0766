@@ -338,6 +338,18 @@
   translate: -50% var(--at-spacing-xs);
 }
 
+/* Back along the other side, for a control near the right edge: the name reads
+   the same way round, it just starts on the left of its dot instead of the
+   right. This is the side that keeps a name on a 390 px canvas when `beside`
+   would run it off — 29.7% of "open the Studio door" was on screen before there
+   was anywhere else for it to go. */
+.backlot-hotspot[data-backlot-dense="true"][data-backlot-side="before"]:hover .backlot-hotspot__label,
+.backlot-hotspot[data-backlot-dense="true"][data-backlot-side="before"]:focus-visible .backlot-hotspot__label {
+  inset-inline-start: auto;
+  inset-inline-end: 100%;
+  margin: 0 var(--at-spacing-xs) 0 0;
+}
+
 .backlot-hotspot[data-backlot-dense="true"][data-backlot-side="above"]:hover .backlot-hotspot__label,
 .backlot-hotspot[data-backlot-dense="true"][data-backlot-side="above"]:focus-visible .backlot-hotspot__label {
   inset-block-start: auto;

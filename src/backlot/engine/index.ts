@@ -129,9 +129,13 @@ const wait = (milliseconds: number) => new Promise<void>((settle) => window.setT
  *   work. A room is named when a reader is in one and not at any door; a door's
  *   own name is enough on its own, because a door belongs to exactly one room.
  *
- *   **Parsed permissively, written one way.** `room@door`, `room` and `door` are
- *   all understood on the way in, because a URL is something a person can type
- *   and something an earlier build may have written.
+ *   **One spelling, read and written.** There is no compound form. A `room@door`
+ *   hash was the first sketch and it cannot do the second rule: no element has
+ *   an id with an `@` in it, so with JavaScript off the browser matches nothing
+ *   and scrolls nowhere — measured, `#corridor@week-05` leaves the page at y=0
+ *   where `#week-05` reaches y=6989. A door already says which room it is in,
+ *   so the compound bought a spelling and cost the half of this a reader with
+ *   no JavaScript gets. The parser understands exactly what the writer writes.
  */
 interface Route {
   roomId: string | null;
@@ -515,18 +519,14 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
 
   // ----------------------------------------------------------------- route
 
-  /** Read the hash, if it names anything this backlot knows about. */
+  /** Read the hash, if it names anything this backlot knows about. A room, or a
+   *  door — and a door belongs to exactly one room, so its name is enough to
+   *  say which. */
   function readRoute(): Route {
     const raw = decodeURIComponent(window.location.hash.replace(/^#/, "")).trim();
     if (!raw) return { roomId: null, doorRoute: null };
-    const [head, tail] = raw.split("@");
-    const known = (id: string | undefined) =>
-      id && manifest.rooms.some((room) => room.id === id) ? id : null;
-    // `room@door`, `room`, or a door on its own — a door belongs to exactly one
-    // room, so its name is enough to say which.
-    if (tail !== undefined) return { roomId: known(head), doorRoute: tail || null };
-    const room = known(head);
-    return room ? { roomId: room, doorRoute: null } : { roomId: null, doorRoute: head || null };
+    const room = manifest.rooms.some((one) => one.id === raw) ? raw : null;
+    return room ? { roomId: room, doorRoute: null } : { roomId: null, doorRoute: raw };
   }
 
   /** And write it, from where the reader actually is. */

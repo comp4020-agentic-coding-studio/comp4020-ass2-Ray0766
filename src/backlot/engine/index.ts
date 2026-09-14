@@ -643,6 +643,25 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
     // always honoured this and a direct call would have quietly dropped it.
     if (refused && at.distanceTo(refused.at) < 0.5) return;
     framedId = door.hotspot.id;
+    // **And the keyboard, because Enter has to mean this door.**
+    //
+    // Entering a room hands focus to the room's first control, which is right —
+    // it stopped the keyboard landing on the way out. But a window-level Enter
+    // yields whenever the HUD holds focus (`input.ts`), so `onActivate`'s "open
+    // the door the figure is standing at" was unreachable for anybody who had
+    // entered a room: the reader walked to week 5, the live region said "Press
+    // Enter to open it", and Enter turned the figure round and opened week 1.
+    // Four of four, both viewports, both themes.
+    //
+    // The sentence is the contract, so the state follows it rather than the
+    // other way round. `applyRoute` has always said this is what a walk looks
+    // like — "stood at the door, facing it, with the camera in and the keyboard
+    // on it, which is where a reader who walked here would be" — and restored
+    // it that way; the walk itself was the one arrival that left the keyboard
+    // somewhere else. Now all three ways of arriving agree, which is what
+    // `arriveAt` says an arrival is.
+    const button = hotspots.buttonFor(door.hotspot.id);
+    if (button && document.activeElement !== button) handFocusTo(button);
     // The control's own accessible name, which is what `arriveAt` uses for every
     // other arrival. `RoomDoor.name` is the short form the live region speaks
     // mid-sentence — "Opening the week 5 door" — and using it here made the

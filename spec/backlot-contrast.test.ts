@@ -150,7 +150,14 @@ interface Probe {
   /** And the browser has the reader on it, which reveals a dense label. */
   focused: boolean;
   /** The label, if the layout is painting one at this width. */
-  label: { text: string; alpha: number; ink: Resolved } | null;
+  label: {
+    text: string;
+    alpha: number;
+    ink: Resolved;
+    box: { left: number; right: number; top: number; bottom: number };
+    /** Share of its own width that is inside the viewport. */
+    onScreen: number;
+  } | null;
   /** The dot, and a point at the middle of it. */
   dot: { fill: Resolved; alpha: number; point: { x: number; y: number } | null } | null;
   opacity: number;
@@ -389,11 +396,29 @@ const PROBE = String.raw`
       }),
       opacity: Number(style.opacity),
       label: labelNode
-        ? {
-            text: labelNode.textContent.replace(/\s+/g, " ").trim(),
-            alpha: alphaUpTo(labelNode, button),
-            ink: resolveColour(getComputedStyle(labelNode).color),
-          }
+        ? (() => {
+            // The label's **own box**, not the sample point. The point is
+            // clamped to the viewport by the sampler above, which is why a name
+            // running off the edge of a 390 px screen was invisible to every
+            // reading in this file: the pixel it read was always on screen even
+            // when the word it belonged to was not.
+            const bounds = labelNode.getBoundingClientRect();
+            return {
+              text: labelNode.textContent.replace(/\s+/g, " ").trim(),
+              alpha: alphaUpTo(labelNode, button),
+              ink: resolveColour(getComputedStyle(labelNode).color),
+              box: {
+                left: Math.round(bounds.left),
+                right: Math.round(bounds.right),
+                top: Math.round(bounds.top),
+                bottom: Math.round(bounds.bottom),
+              },
+              // How much of it is on screen, as a share of its own width.
+              onScreen:
+                Math.max(0, Math.min(bounds.right, innerWidth) - Math.max(bounds.left, 0)) /
+                Math.max(1, bounds.width),
+            };
+          })()
         : null,
       dot: dotNode
         ? {
@@ -468,6 +493,17 @@ const REVEAL = (id: string) => String.raw`
       afterWidth: Math.round(after.width),
       afterHeight: Math.round(after.height),
       afterVisibility: getComputedStyle(label).visibility,
+      // Revealed names are the ones that run off a 390 px screen, and they are
+      // not in the main reading at all: at that width every control is a dot and
+      // its label is a 1x1 box until the reader lands on it. So the share on
+      // screen is taken here, of the label as it is actually painted once the
+      // keyboard brings it back.
+      afterLeft: Math.round(after.left),
+      afterRight: Math.round(after.right),
+      onScreen:
+        Math.max(0, Math.min(after.right, innerWidth) - Math.max(after.left, 0)) /
+        Math.max(1, after.width),
+      text: label.textContent.replace(/\s+/g, " ").trim(),
     };
   })();
 `;
@@ -540,6 +576,11 @@ interface Reveal {
   afterWidth: number;
   afterHeight: number;
   afterVisibility: string;
+  afterLeft: number;
+  afterRight: number;
+  /** Share of the revealed label's width inside the viewport. */
+  onScreen: number;
+  text: string;
 }
 
 const reveals: Record<string, Reveal | null> = {};
@@ -629,8 +670,17 @@ async function sweep(): Promise<Reading[]> {
 
           // Every control that is not painting a label, focused, to see whether
           // the keyboard brings it back.
+          //
+          // **At both viewports now, and the `!viewport.labelled` that used to
+          // be here is why 26 clipped names were invisible.** The reveal is the
+          // only state in which a 390 px control has a name at all — every one
+          // of them is a dot with a 1x1 label until the reader lands on it — so
+          // skipping the phone meant the one viewport where the name is the
+          // whole channel was the one viewport where no name was ever measured.
+          // The assertions below branch on `labelled` where they need to; this
+          // loop is about collecting, and it should collect everywhere.
           for (const probe of sampled) {
-            if (probe.label !== null || !viewport.labelled) continue;
+            if (probe.label !== null) continue;
             reveals[`${place.name}|${viewport.name}|${theme}|${probe.id}`] = await tab.evaluate<Reveal | null>(
               REVEAL(probe.id),
             );
@@ -985,6 +1035,65 @@ describe("the sweep measured something", () => {
   // a point off-screen, a probe that stopped finding the HUD. Those two are the
   // same value and opposite facts, so without this the tap check passes loudest
   // exactly when it has stopped looking.
+  // Seen red against e96bfb5, the commit before the side-picker learned to plan
+  // against the label's real width: 26 of 112 expanded names ran off the screen,
+  // the worst at 29.7% of itself visible.
+  //
+  // **The sample point was never the question.** Everything else in this file
+  // reads a pixel, and the sampler clamps its point to the viewport — so a name
+  // running off the edge of a 390 px screen was invisible to every reading here,
+  // because the pixel it read was always on screen even when the word it
+  // belonged to was not. At 390 the dot is the whole visible identity of a
+  // control and the name is the only channel it has to say what it is, so a
+  // clipped name is the control going anonymous at the viewport where it can
+  // least afford to.
+  //
+  // Only labels the layout is actually painting: a dense one collapses to a 1x1
+  // box and never reaches `label` at all, which is the design rather than a
+  // clip.
+  it("keeps every name it paints on the screen", () => {
+    const clipped = readings
+      .filter((one) => one.label && one.label.onScreen < 0.999)
+      .map(
+        (one) =>
+          `${one.id} at ${one.viewport} in the ${one.theme} theme — ` +
+          `${(one.label!.onScreen * 100).toFixed(1)}% of "${one.label!.text}" on screen, box ` +
+          `[${one.label!.box.left}..${one.label!.box.right}]`,
+      );
+    expect(
+      clipped,
+      `${clipped.length} name(s) run off the screen. The sample point is clamped to the viewport, so every ` +
+        `other reading in this file is happy about a control whose name a reader cannot finish.`,
+    ).toEqual([]);
+  });
+
+  it("keeps every name the keyboard brings back on the screen", () => {
+    // The 390 case, which the reading above cannot see: at that width every
+    // control is a dot and its label is a 1x1 box until the reader lands on it,
+    // so a name that runs off the edge only exists while it is revealed. This is
+    // where the review counted 26 of them.
+    const clipped = Object.entries(reveals)
+      .filter(([, reveal]) => reveal && reveal.onScreen < 0.999)
+      .map(
+        ([where, reveal]) =>
+          `${where} — ${(reveal!.onScreen * 100).toFixed(1)}% of "${reveal!.text}" on screen, ` +
+          `[${reveal!.afterLeft}..${reveal!.afterRight}]`,
+      );
+    expect(
+      clipped,
+      `${clipped.length} revealed name(s) run off the screen. At 390 the dot is the whole visible identity ` +
+        `of a control and the name is the only channel it has to say what it is, so a clipped one is the ` +
+        `control going anonymous exactly where it can least afford to.`,
+    ).toEqual([]);
+  });
+
+  it("painted some names to have an opinion about", () => {
+    // The floor: `label` is null for a collapsed control, so the assertion above
+    // is vacuous on a layout that paints none at all.
+    const painted = readings.filter((one) => one.label).length;
+    expect(painted, "no control painted a label anywhere, so the clipping check is about nothing").toBeGreaterThan(0);
+  });
+
   it("asked every control's centre and got an answer", () => {
     const unanswered = readings
       .filter((one) => one.middleOwner === null)

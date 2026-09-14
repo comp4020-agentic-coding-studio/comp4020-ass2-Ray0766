@@ -285,7 +285,34 @@ async function readWindow(tab: Tab, stage: string): Promise<Window> {
 
   const [x, y, width, height] = rect.split(",").map(Number);
   if (!width || !height) throw new Error(`${stage}: published no usable rect ("${rect}")`);
-  const raster = await tab.raster({ x: x!, y: y!, width: width!, height: height! });
+
+  // **The canvas's own client rect, added.** `data-backlot-rect` is published in
+  // the canvas's coordinates — `hotspots.ts`'s `setRect` says so in as many
+  // words, "a reader of this attribute adds the canvas's own client rect exactly
+  // as they already do for a button's box" — and `tab.raster` takes viewport
+  // coordinates. This file was handing one straight to the other.
+  //
+  // The canvas sits at y=117 at both marking viewports, so every crop was 117 px
+  // too high. Of a 209-row window, **92 rows were the window and 117 were the
+  // door's upper half and two HUD label capsules**; the numeral sits in the
+  // panel's vertical centre and was almost entirely outside what was sampled.
+  // Measured on one window: the panel's ground was 9,393 of 25,080 px by the
+  // published rect and 21,790 of 25,080 with the offset added — 37% against 87%.
+  //
+  // Every assertion below reached the right conclusion anyway, which is the
+  // uncomfortable part: a check can be right about the page and wrong about
+  // where it looked, and the only thing that catches that is somebody reading
+  // the attribute's own contract.
+  const canvas = await tab.evaluate<{ x: number; y: number }>(
+    `const box = document.querySelector("[data-backlot-stage] canvas").getBoundingClientRect();
+     return { x: Math.round(box.left), y: Math.round(box.top) };`,
+  );
+  const raster = await tab.raster({
+    x: x! + canvas.x,
+    y: y! + canvas.y,
+    width: width!,
+    height: height!,
+  });
   const tally = new Map<string, number>();
   for (let row = 0; row < raster.height; row++) {
     for (let column = 0; column < raster.width; column++) {

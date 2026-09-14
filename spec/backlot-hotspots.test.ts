@@ -581,7 +581,101 @@ async function sweep(): Promise<Sweep> {
   }
 }
 
+/**
+ * Every stage door, pressed for real, and where the press landed.
+ *
+ * **Nothing in this suite pressed a corridor door until now**, and an
+ * independent review proved what that cost: replacing the corridor's
+ * door-behaviour loop with `doors.slice(0, 11)` makes week 12's door — the one
+ * on the end wall, the last thing a reader sees — a dead control with a button,
+ * a label, a place in the Tab order and a window, and the whole suite stayed at
+ * 1,864 passed. Pointing all twelve at week 1 in the manifest's interactives did
+ * the same: the static cards still went to the right weeks and the 3D did not,
+ * and nothing noticed.
+ *
+ * So this drives all twelve rather than a sample. A press is the one thing that
+ * cannot be inferred from the href in the DOM — the door press that turned out
+ * never to have fired is the whole lesson — and "one of them works" would not
+ * have caught either injection: the first only shows on the twelfth, and the
+ * second only shows on a week that is not week 1.
+ *
+ * Entered fresh each time, because a press leaves the backlot for a real page.
+ */
+async function pressStages(): Promise<Landing[]> {
+  const site = await serveBuild("dist", base);
+  const tab = await Tab.launch();
+  const url = `${site.origin}${prefix}backlot/`;
+  const landings: Landing[] = [];
+
+  /** Polled rather than slept: under reduced motion the walk to the door is a
+   *  cut, so most presses arrive in well under a second, and a fixed wait long
+   *  enough for the worst case is that wait twelve times over. */
+  const arriveAt = async (want: string): Promise<string> => {
+    const deadline = Date.now() + 30_000;
+    let here = "";
+    while (Date.now() < deadline) {
+      here = await tab.evaluate<string>("return location.pathname;").catch(() => here);
+      if (here === want) return here;
+      await pause(100);
+    }
+    return here;
+  };
+
+  try {
+    await tab.viewport(1920, 1080);
+    await tab.media({ colourScheme: "dark", reducedMotion: true });
+    for (const { room: entry, door } of roomsWithDoors) {
+      for (const stage of entry.stages ?? []) {
+        const control = entry.interactives.find((one) => one.stageId === stage.id);
+        const want = `${prefix}${stage.href.replace(/^\//, "")}`;
+        if (!control) {
+          landings.push({ stage: stage.id, want, landedOn: "", why: "no interactive in the manifest" });
+          continue;
+        }
+        await tab.goto(url);
+        const mounted = await tab.evaluate<string | null>(`return (async () => { ${MOUNTED} })();`);
+        if (!mounted) {
+          landings.push({ stage: stage.id, want, landedOn: "", why: "the island never mounted" });
+          continue;
+        }
+        await tabTo(tab, door.id);
+        await tab.press("Enter");
+        await tab.evaluate(`return new Promise((done) => setTimeout(done, 2500));`);
+        const walk = await tabTo(tab, control.id, 40);
+        const at = await tab.evaluate<string | null>(
+          `return document.activeElement?.dataset?.backlotHotspot ?? null;`,
+        );
+        if (at !== control.id) {
+          landings.push({
+            stage: stage.id,
+            want,
+            landedOn: "",
+            why: `Tab never reached ${control.id} in ${walk.presses} presses inside ${entry.title}`,
+          });
+          continue;
+        }
+        await tab.press("Enter");
+        landings.push({ stage: stage.id, want, landedOn: await arriveAt(want), why: "" });
+      }
+    }
+  } finally {
+    await tab.close();
+    await site.close();
+  }
+  return landings;
+}
+
+interface Landing {
+  stage: string;
+  /** The deployed path this week's own page is built at. */
+  want: string;
+  landedOn: string;
+  /** Why there is no landing to report, when there is none. */
+  why: string;
+}
+
 const driven = await sweep();
+const landings = await pressStages();
 
 // ---------------------------------------------------------------------------
 // One button per door, one per interactive.
@@ -889,6 +983,78 @@ describe.each(roomsWithDoors)("Enter opens $room.title, Escape goes back", ({ ro
     ).not.toBe("");
   });
 });
+
+// ---------------------------------------------------------------------------
+// A stage door is a door: pressing it leaves for that week's page.
+// ---------------------------------------------------------------------------
+//
+// Both halves matter and they fail differently. The manifest half is free and
+// catches a week pointed at another week's page; the driven half costs twelve
+// navigations and is the only thing that can tell a control that opens a page
+// from a control that looks exactly like one and does nothing.
+describe.each(roomsWithDoors.filter(({ room }) => (room.stages?.length ?? 0) > 0))(
+  "$room.title's doors go where they say",
+  ({ room: entry }) => {
+    const stages = entry.stages!;
+
+    // Seen red by pointing every stage's interactive at week 1 in
+    // src/backlot/rooms/manifest.ts (`href: stage.href` -> the literal), which
+    // is invisible in the static list because the cards read `stage.href`
+    // directly:
+    //   AssertionError: week-02's button opens /lectures/week-01/ and week-02
+    //   is at /lectures/week-02/. The list reads the stage and the island reads
+    //   the interactive, so this is the gallery and the room disagreeing about
+    //   the same door.
+    it("gives every week's button that week's own route", () => {
+      for (const stage of stages) {
+        const control = entry.interactives.find((one) => one.stageId === stage.id);
+        expect(control, `${stage.id} has no interactive of its own`).toBeDefined();
+        expect(
+          control!.href,
+          `${stage.id}'s button opens ${control!.href} and ${stage.id} is at ${stage.href}. The list reads ` +
+            `the stage and the island reads the interactive, so this is the gallery and the room ` +
+            `disagreeing about the same door.`,
+        ).toBe(stage.href);
+      }
+      const routes = stages.map((stage) => stage.href);
+      expect(
+        new Set(routes).size,
+        `${stages.length} doors share ${new Set(routes).size} route(s): ${routes.join(", ")}`,
+      ).toBe(stages.length);
+    });
+
+    // Seen red by replacing the corridor's door-behaviour loop with
+    // `doors.slice(0, 11)` — week 12 keeps its button, its label, its place in
+    // the Tab order and its window, and the press does nothing:
+    //   AssertionError: pressing week-12's button left the reader on
+    //   /comp4020-ass2-Ray0766/backlot/ and week-12 is at
+    //   /comp4020-ass2-Ray0766/lectures/week-12/
+    // Every other assertion in this suite passed under that injection, which is
+    // why this one is driven rather than read off the href.
+    for (const stage of stages) {
+      it(`pressing ${stage.id} leaves for that week's page`, () => {
+        const landing = landings.find((one) => one.stage === stage.id);
+        expect(landing, `${stage.id} was never pressed`).toBeDefined();
+        expect(landing!.why, `${stage.id} could not be pressed: ${landing!.why}`).toBe("");
+        expect(
+          landing!.landedOn,
+          `pressing ${stage.id}'s button left the reader on ${landing!.landedOn} and ${stage.id} is at ` +
+            `${landing!.want}. A button that carries the right href and does not go there is the failure ` +
+            `no assertion about the DOM can see.`,
+        ).toBe(landing!.want);
+      });
+    }
+
+    it("pressed every one of them, rather than a sample", () => {
+      // The floor. "One of them works" would not have caught either injection
+      // the review landed: one only shows on the twelfth door, the other only
+      // on a week that is not week 1.
+      expect(landings.filter((one) => stages.some((stage) => stage.id === one.stage))).toHaveLength(
+        stages.length,
+      );
+    });
+  },
+);
 
 describe("a door that is a door", () => {
   it("Enter on a door that is a page leaves the backlot for that page", () => {

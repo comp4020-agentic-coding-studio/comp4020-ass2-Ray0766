@@ -111,6 +111,9 @@ interface Toggle {
 }
 
 interface Reading {
+  /** What a search result says this page is — the one line on the page that no
+   *  reader of the page ever sees, which is why it went stale unnoticed. */
+  description: string | null;
   gallery: { id: string; tag: string; hidden: boolean; display: string } | null;
   /** The JSON the island is handed, as text, straight off the script tag. */
   payload: string | null;
@@ -219,7 +222,10 @@ const PROBE = String.raw`
   // here would be checking the test's arithmetic instead of the page's.
   const payloadTag = document.querySelector("script[data-backlot-payload]");
 
+  const described = document.querySelector('meta[name="description"]');
+
   return {
+    description: described ? described.getAttribute("content") : null,
     gallery: gallery
       ? { id: gallery.id, tag: gallery.tagName, hidden: gallery.hidden, display: getComputedStyle(gallery).display }
       : null,
@@ -883,6 +889,61 @@ describe("with JavaScript off, the corridor is twelve week cards", () => {
         `about a week is the manifest's, which reads the lecture's own frontmatter — a second copy here is a ` +
         `week that gets renamed in one place.`,
     ).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 1a-ii. The sentence a search result shows.
+// ---------------------------------------------------------------------------
+//
+// It said "the six doors … and the machine room behind the Studio one" for a
+// whole round after the corridor landed, because a meta description is the one
+// line on a page that nobody reading the page ever sees. So the counts in it are
+// the manifest's, and this checks they are still the manifest's rather than
+// checking the wording, which is mine to change.
+//
+// Seen red by pinning the count in src/pages/backlot/index.astro
+// (`${backlotManifest.doors.length}` -> `six`):
+//   AssertionError: the page describes itself with "six" doors and the manifest
+//   has 6. A description is the one line on this page a reader of it never sees,
+//   which is why it went a whole round describing a backlot with one room in it.
+describe("the sentence a search result shows keeps up with the manifest", () => {
+  it("counts the doors and the weeks the manifest has", () => {
+    const said = desktop.description ?? "";
+    expect(said, "the page has no meta description at all").not.toBe("");
+    const doors = backlotManifest.doors.length;
+    const weeks = backlotManifest.rooms.reduce((sum, room) => sum + (room.stages?.length ?? 0), 0);
+    expect(
+      said,
+      `the page describes itself as "${said}" and the manifest has ${doors} doors. A description is the ` +
+        `one line on this page a reader of it never sees, which is why it went a whole round describing a ` +
+        `backlot with one room in it.`,
+    ).toContain(String(doors));
+    expect(
+      said,
+      `the page describes itself as "${said}" and the manifest has ${weeks} teaching weeks`,
+    ).toContain(String(weeks));
+  });
+
+  it("names every room the manifest builds", () => {
+    // Keyed on the room's **id**, not its title, and not on the wording.
+    //
+    // The failure this guards is a room arriving and the sentence not moving,
+    // which is a fact about the manifest. Requiring the title verbatim would be
+    // a straitjacket on prose — my first version demanded "lectures corridor"
+    // and failed a description that says "corridor of doors behind the Lectures
+    // one", which is the sentence I would defend. The id's own words are the
+    // distinctive nouns and they come from the manifest either way.
+    const said = (desktop.description ?? "").toLowerCase();
+    for (const room of backlotManifest.rooms) {
+      for (const word of room.id.split("-")) {
+        expect(
+          said,
+          `the description never says "${word}", so it does not mention ${room.id}: ` +
+            `"${desktop.description}"`,
+        ).toContain(word);
+      }
+    }
   });
 });
 

@@ -66,6 +66,22 @@ const doorCards = backlotManifest.doors.map((door) => ({
   href: withBase(door.href),
 }));
 
+/**
+ * What a search result says this page is.
+ *
+ * Counted off the manifest rather than written out, because the sentence went
+ * stale the moment a second room arrived: it said "the six doors … and the
+ * machine room behind the Studio one" for a whole round after the corridor
+ * landed, and nothing noticed because a meta description is the one line on a
+ * page that no reader of the page ever sees. A number in it that the manifest
+ * also knows is a number that cannot drift.
+ */
+const PAGE_DESCRIPTION =
+  `The course as a place: the ${backlotManifest.doors.length} doors from the top of every page stood up ` +
+  `in a ring, the machine room behind the Studio one, and the ` +
+  `${backlotManifest.rooms.find((room) => (room.stages?.length ?? 0) > 0)?.stages?.length ?? 0} teaching ` +
+  `weeks as a corridor of doors behind the Lectures one.`;
+
 // True whether the page is a canvas or a list, which is the only kind of credit
 // this page can carry: it is in the status bar on every visit, and the list
 // closes its own opening paragraph with it.
@@ -303,7 +319,7 @@ function weeksOf(room: BacklotRoom) {
 
 <StudioLayout
   title="The backlot"
-  description="The course as a place: the six doors from the top of every page stood up in a ring, and the machine room behind the Studio one."
+  description={PAGE_DESCRIPTION}
   credit={CREDIT_LINE}
   place="backlot"
 >

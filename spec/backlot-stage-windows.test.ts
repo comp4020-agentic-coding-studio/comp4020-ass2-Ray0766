@@ -141,10 +141,17 @@ interface Step {
 
 interface Window {
   stage: string;
-  /** The opening, as the engine projects it. */
+  /** The opening, as the engine projects it — in the **canvas's** coordinates,
+   *  which is why `readWindow` adds the canvas's own client rect before it
+   *  samples. `hotspots.ts`'s `setRect` says so; this file did not, and every
+   *  crop was 117 rows too high. */
   rect: string;
   /** Every distinct pixel value in that rectangle, with its count. */
   tally: Map<string, number>;
+  /** First and last row each value appears on, so a leak can say where it is. */
+  span: Map<string, [number, number]>;
+  /** The rectangle's height, so a row range reads against something. */
+  rows: number;
 }
 
 async function enterCorridor(tab: Tab, site: StaticSite, scheme: ColourScheme): Promise<void> {
@@ -314,6 +321,11 @@ async function readWindow(tab: Tab, stage: string): Promise<Window> {
     height: height!,
   });
   const tally = new Map<string, number>();
+  // And which rows each colour occupies, because "72 px of the panel's ground
+  // is somewhere in this window" and "72 px of it are the bottom thirteen rows"
+  // are different findings and only the second is actionable. Cheap: the same
+  // loop, two numbers per colour.
+  const span = new Map<string, [number, number]>();
   for (let row = 0; row < raster.height; row++) {
     for (let column = 0; column < raster.width; column++) {
       const key = raster
@@ -321,9 +333,11 @@ async function readWindow(tab: Tab, stage: string): Promise<Window> {
         .map((channel) => Math.round(channel * 255))
         .join(",");
       tally.set(key, (tally.get(key) ?? 0) + 1);
+      const seen = span.get(key);
+      span.set(key, seen ? [Math.min(seen[0], row), Math.max(seen[1], row)] : [row, row]);
     }
   }
-  return { stage, rect, tally };
+  return { stage, rect, tally, span, rows: raster.height };
 }
 
 const commonest = (window: Window): string =>
@@ -497,10 +511,13 @@ describe("a week that has not been shot yet says so", () => {
       const read = windows.get(scheme)!;
       const ground = commonest(read.get(unshot[0]!)!);
       const leaked = shot
-        .map((stage) => ({ stage, count: read.get(stage)!.tally.get(ground) ?? 0 }))
+        .map((stage) => ({ stage, window: read.get(stage)!, count: read.get(stage)!.tally.get(ground) ?? 0 }))
         .filter((entry) => entry.count > 0);
       expect(
-        leaked.map((entry) => `${entry.stage} carries ${entry.count} px of it`),
+        leaked.map((entry) => {
+          const [first, last] = entry.window.span.get(ground)!;
+          return `${entry.stage} carries ${entry.count} px of it, rows ${first}..${last} of ${entry.window.rows}`;
+        }),
         "The panel is a claim about the course — that this week recorded nothing — so it may not appear in a " +
           "window that has a picture, and a dropped request must never be dressed as a week that did not shoot.",
       ).toEqual([]);

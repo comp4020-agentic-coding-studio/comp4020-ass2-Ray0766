@@ -209,6 +209,9 @@ interface RoomSweep {
   /** Every sentence the live region said while the figure was walked through
    *  the room, in the order it said them. Empty for a room with no stages. */
   announcements: string[];
+  /** `history.length` and the hash once the room is open, against the length
+   *  recorded on the hub before the door was pressed. */
+  history: { length: number; hash: string; onTheHub: number };
 }
 
 /** What comes back when there is no 3D to drive. Every field is present and
@@ -430,6 +433,7 @@ async function sweep(): Promise<Sweep> {
     for (const { room: entry, door } of roomsWithDoors) {
       await tab.goto(url);
       await tab.evaluate<string | null>(`return (async () => { ${MOUNTED} })();`);
+      const historyOnTheHub = await tab.evaluate<number>(`return window.history.length;`);
       await tabTo(tab, door.id);
       await tab.press("Enter");
       await tab.evaluate(`return new Promise((done) => setTimeout(done, 2500));`);
@@ -576,10 +580,22 @@ async function sweep(): Promise<Sweep> {
         };`,
       );
 
+      // History, read after the room has been entered and the route written.
+      // `writeRoute` is expected to *replace* rather than push: a room is a
+      // place in the backlot, not a page, and Ray's rule is that a room change
+      // is never a history entry. If it pushes, Back stops being "leave the
+      // backlot" and becomes a step-by-step rewind of the reader's own walk —
+      // and the engine's own comment calls that load-bearing while nothing
+      // checked it.
+      const history = await tab.evaluate<{ length: number; hash: string }>(
+        `return { length: window.history.length, hash: window.location.hash };`,
+      );
+
       rooms.push({
         id: entry.id,
         buttons,
         tabOrder: order,
+        history: { ...history, onTheHub: historyOnTheHub },
         rings,
         enteredBy: door.id,
         focusAfterEnter,
@@ -793,6 +809,9 @@ const inRoom = (id: string): RoomSweep =>
     afterEscape: { buttons: [], focus: null, announced: "" },
     escapes: [],
     announcements: [],
+    // Deliberately unequal, so a room the sweep never reached fails the history
+    // assertion by name rather than passing on two zeroes.
+    history: { length: 0, hash: "", onTheHub: -1 },
   };
 
 describe.each(roomsWithDoors)("$room.title is its interactives", ({ room: entry, door }) => {
@@ -875,6 +894,24 @@ describe.each(roomsWithDoors)("$room.title is its interactives", ({ room: entry,
   //   AssertionError: entering The machine room put the keyboard on
   //   leave-machine-room, and a reader who walks in should arrive on the room
   //   rather than thirteen Tabs behind it.
+  // Seen red by turning `writeRoute`'s `replaceState` into `pushState` at
+  // engine/index.ts:542, which an independent review landed and the whole suite
+  // survived at 1,908 passed:
+  //   AssertionError: entering The machine room added 1 entry to the session
+  //   history (2 on the hub, 3 inside). A room is a place in the backlot, not a
+  //   page, so Back has to leave the backlot rather than rewind the reader's own
+  //   walk one door at a time.
+  it("opening it does not put an entry in the session history", () => {
+    const read = inRoom(entry.id).history;
+    expect(
+      read.length,
+      `entering ${entry.title} added ${read.length - read.onTheHub} entr(y/ies) to the session history ` +
+        `(${read.onTheHub} on the hub, ${read.length} inside). A room is a place in the backlot, not a ` +
+        `page, so Back has to leave the backlot rather than rewind the reader's own walk one door at a ` +
+        `time. The engine writes the route with replaceState for exactly this reason.`,
+    ).toBe(read.onTheHub);
+  });
+
   it("puts the keyboard on the room's first control, not its way out", () => {
     // Ray's ruling, and the thing the rotation above deliberately cannot see.
     // A reader who walks in arrives on the room; landing them on the exit means

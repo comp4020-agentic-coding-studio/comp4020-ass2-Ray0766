@@ -573,6 +573,11 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
       get reducedMotion() {
         return motion.reduced;
       },
+      // A getter for the same reason `reducedMotion` is one: it is read at the
+      // moment it matters, not captured when the room was built.
+      get handingFocus() {
+        return handingFocus;
+      },
       onFrame(handler) {
         roomFrames.add(handler);
         return () => roomFrames.delete(handler);

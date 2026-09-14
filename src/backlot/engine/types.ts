@@ -341,6 +341,20 @@ export interface RoomContext {
   unfocus(): void;
   /** True when the reader asked for less motion: no idle animation, no drifting light. */
   reducedMotion: boolean;
+  /**
+   * True while the **engine** is moving the keyboard rather than the reader.
+   *
+   * Entering a room hands the keyboard to the room's first control, because a
+   * control must not drop a reader on `<body>` — and `focusin` fires
+   * synchronously, measured, so anything listening for it runs during the
+   * hand-over and cannot tell it from somebody arriving. A room that frames the
+   * camera on focus has to know the difference, or a reader who pressed a door
+   * arrives nose-first at the first thing in the room having never seen the
+   * room. That is the failure `HotspotDeck.track`'s `seed` argument already
+   * exists to prevent on the proximity path; this is the same rule on the focus
+   * path.
+   */
+  handingFocus: boolean;
   /** Per-frame work. Returns an unsubscribe. Keep it cheap. */
   onFrame(handler: (delta: number, elapsed: number) => void): () => void;
   /**

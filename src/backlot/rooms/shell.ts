@@ -746,8 +746,23 @@ export function buildRoomShell(context: RoomContext, options: ShellOptions = {})
     // to deliver at all (CLAUDE.md §7).
     if (frame && focus?.target) {
       const framed = frame;
-      const onIn = () => frameFor(framed);
-      const onOut = () => unframeFor(framed);
+      // Not when the engine is the one moving the keyboard. `focusin` fires
+      // synchronously — measured, not assumed — so this listener runs *during*
+      // a hand-over and cannot otherwise tell it from a reader arriving. The
+      // engine hands the keyboard to a room's first control on entry, and
+      // without this the front wall framed itself before the reader had seen
+      // the room: five labels already expanded, the push with nothing left to
+      // do, and every rectangle in the room read while the projection was still
+      // travelling. Sixteen checks said so in four different ways, which is what
+      // it looks like when one thing is wrong underneath all of them.
+      const onIn = () => {
+        if (context.handingFocus) return;
+        frameFor(framed);
+      };
+      const onOut = () => {
+        if (context.handingFocus) return;
+        unframeFor(framed);
+      };
       hotspot.button.addEventListener("focusin", onIn);
       hotspot.button.addEventListener("focusout", onOut);
       context.onDispose(() => {

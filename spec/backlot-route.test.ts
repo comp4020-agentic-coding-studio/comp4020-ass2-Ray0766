@@ -55,8 +55,22 @@ const READY = String.raw`
   })();
 `;
 
-/** Everything this file asserts on, read in one go so the four cannot be of
- *  four different moments. */
+/**
+ * Everything this file asserts on, read in one go so the four cannot be of four
+ * different moments.
+ *
+ * `closeOn` is what the canvas says the camera is close **on**, and it is read
+ * instead of `data-backlot-framed` because that attribute answers a different
+ * question: whether the camera has left its resting view at all. In the walked
+ * state the reviewer drove, it was true while the URL still said the room — a
+ * proxy answering the question next to the one being asked. The engine names
+ * the thing on purpose in the canvas's own description, so that is what is read.
+ *
+ * **No backticks below.** This is a String.raw template and one closes it early,
+ * which collects zero tests under a summary that says the file passed — the
+ * failure CLAUDE.md section 7 records, walked into again while writing the
+ * comment that replaced a proxy.
+ */
 const STATE = String.raw`
   const hud = document.querySelector("[data-backlot-hud]");
   const active = document.activeElement;
@@ -70,6 +84,11 @@ const STATE = String.raw`
       ? "hotspot:" + active.dataset.backlotHotspot
       : active.tagName.toLowerCase(),
     framed: hud ? hud.dataset.backlotFramed ?? "" : "",
+    closeOn: (() => {
+      const said = document.querySelector("[data-backlot-canvas]")?.getAttribute("aria-label") ?? "";
+      const at = /The camera is close on: ([^.]+)\./.exec(said);
+      return at ? at[1] : "";
+    })(),
     near: at ? at.dataset.backlotHotspot : null,
     rect: (() => {
       const one = document.querySelector('[data-backlot-hotspot="stage-week-05"]');
@@ -87,6 +106,7 @@ interface State {
   controls: (string | undefined)[];
   keyboard: string;
   framed: string;
+  closeOn: string;
   near: string | null;
   rect: string | null;
   depth: number;
@@ -216,7 +236,10 @@ describe("the backlot says where you are in the URL", () => {
       `at week 5's door the URL says "${seen.atTheDoor.hash}". It has to name the door, or Back has ` +
         `nothing to put the reader back at.`,
     ).toBe(`#${STAGE!.id}`);
-    expect(seen.atTheDoor.framed, "the camera is not close on the door the hash names").toBe("true");
+    expect(
+      seen.atTheDoor.closeOn,
+      `the camera is close on "${seen.atTheDoor.closeOn}" rather than the door the hash names`,
+    ).toBe(`Week ${STAGE!.week}: ${STAGE!.title}`);
   });
 
   it("steps through to that week's own page", () => {
@@ -254,7 +277,12 @@ describe("Back lands where the reader left", () => {
         `the figure is at ${state.near ?? "no door"} rather than week 5's, so Back put it in the room ` +
           `but not where it was.`,
       ).toBe("stage-week-05");
-      expect(state.framed, "the camera is not close on the door the reader left from").toBe("true");
+      expect(
+        state.closeOn,
+        `the camera is close on "${state.closeOn}" rather than the door the reader left from. ` +
+          `"Framed" on its own only says the camera has left its resting view, which it had also ` +
+          `done in the state where the URL still said the room.`,
+      ).toBe(`Week ${STAGE!.week}: ${STAGE!.title}`);
     });
   }
 

@@ -209,6 +209,13 @@ interface RoomSweep {
   /** Every sentence the live region said while the figure was walked through
    *  the room, in the order it said them. Empty for a room with no stages. */
   announcements: string[];
+  /** The URL the moment the room opened. */
+  hashOnEntering: string;
+  /** The URL as each control was arrived at by keyboard. */
+  hashOnFocus: { id: string; hash: string }[];
+  /** Which door the figure was at, and what the URL said, at each step of the
+   *  walk — the same moment, read in one evaluate. */
+  walkedTo: { near: string; hash: string }[];
   /** `history.length` and the hash once the room is open, against the length
    *  recorded on the hub before the door was pressed. */
   history: { length: number; hash: string; onTheHub: number };
@@ -442,6 +449,7 @@ async function sweep(): Promise<Sweep> {
       const focusAfterEnter = await tab.evaluate<string | null>(
         `return document.activeElement?.dataset?.backlotHotspot ?? null;`,
       );
+      const hashOnEntering = await tab.evaluate<string>(`return window.location.hash;`);
 
       // The walk starts wherever the room put the reader, so where that is has
       // to be part of the reading.
@@ -480,9 +488,17 @@ async function sweep(): Promise<Sweep> {
         ? [focusAfterEnter, ...walk.seen.filter((id) => id !== focusAfterEnter)]
         : walk.seen;
       const rings: Measured[] = [];
+      // The URL as each control is arrived at by keyboard. `measureRing` focuses
+      // the control and waits out the push, so by the time it returns the
+      // arrival has happened and the route is whatever the engine wrote.
+      const hashOnFocus: { id: string; hash: string }[] = [];
       for (const interactive of entry.interactives) {
         const measured = await measureRing(tab, interactive.id);
         if (measured) rings.push(measured);
+        hashOnFocus.push({
+          id: interactive.id,
+          hash: await tab.evaluate<string>(`return window.location.hash;`),
+        });
       }
 
       // Then the figure is walked, and every sentence the live region says on
@@ -507,6 +523,7 @@ async function sweep(): Promise<Sweep> {
       // only at the end wall, which is one arrival and cannot show that two
       // doors say different things.
       const announcements: string[] = [];
+      const walkedTo: { near: string; hash: string }[] = [];
       if ((entry.stages?.length ?? 0) > 0) {
         await tab.evaluate(`
           window.__backlotSaid = [];
@@ -528,6 +545,19 @@ async function sweep(): Promise<Sweep> {
         for (const [key, milliseconds] of CORRIDOR_WALK) {
           await tab.hold(key, milliseconds);
           await pause(500);
+          // Which door the figure is standing at, and what the URL says, read in
+          // the same evaluate so they are the same moment.
+          walkedTo.push(
+            await tab.evaluate<{ near: string; hash: string }>(`
+              return {
+                near: [...document.querySelectorAll("[data-backlot-hud] button")]
+                  .filter((one) => one.dataset.backlotNear === "true")
+                  .map((one) => one.dataset.backlotHotspot)
+                  .join(","),
+                hash: window.location.hash,
+              };
+            `),
+          );
         }
         announcements.push(...(await tab.evaluate<string[]>(`return window.__backlotSaid ?? [];`)));
         // And the reader is put back on a control before Escape is driven.
@@ -595,6 +625,9 @@ async function sweep(): Promise<Sweep> {
         id: entry.id,
         buttons,
         tabOrder: order,
+        hashOnEntering,
+        hashOnFocus,
+        walkedTo,
         history: { ...history, onTheHub: historyOnTheHub },
         rings,
         enteredBy: door.id,
@@ -809,6 +842,9 @@ const inRoom = (id: string): RoomSweep =>
     afterEscape: { buttons: [], focus: null, announced: "" },
     escapes: [],
     announcements: [],
+    hashOnEntering: "",
+    hashOnFocus: [],
+    walkedTo: [],
     // Deliberately unequal, so a room the sweep never reached fails the history
     // assertion by name rather than passing on two zeroes.
     history: { length: 0, hash: "", onTheHub: -1 },
@@ -901,6 +937,82 @@ describe.each(roomsWithDoors)("$room.title is its interactives", ({ room: entry,
   //   history (2 on the hub, 3 inside). A room is a place in the backlot, not a
   //   page, so Back has to leave the backlot rather than rewind the reader's own
   //   walk one door at a time.
+  // ---------------------------------------------------------------------------
+  // Where you are, in the URL, however you got there
+  // ---------------------------------------------------------------------------
+  //
+  // A second review found that `spec/` read `location.hash` in exactly one file,
+  // which drove one week by one arrival path — so "walking to a door never
+  // writes the hash at all, only focus does" was a live defect that nothing
+  // could see. The guard is therefore **every way of arriving**, not the one
+  // that happened to work.
+  //
+  // Derived rather than picked: the walk goes wherever the walk goes, and the
+  // assertion is that at every step where the engine says the figure is at a
+  // door, the URL says the same door. No week is named here.
+  //
+  // Seen red against e96bfb5, the last commit where walking never wrote the
+  // hash: "the figure is at stage-week-03 and the URL says "#corridor" —
+  // 5 step(s) of the walk arrived at a door and the URL followed at none of
+  // them." Green after 0d1dff3.
+  // The route a hotspot's door writes, from the manifest: a stage's control is
+  // `stage-week-05` and the fragment it writes is `#week-05`, so the two are not
+  // the same string and the check has to map rather than concatenate. My first
+  // version compared the hash against `#` plus the *hotspot* id and failed a
+  // working page four ways, which is the check being wrong about the page.
+  const routeOf = new Map(
+    (entry.stages ?? []).map((stage) => [
+      entry.interactives.find((one) => one.stageId === stage.id)!.id,
+      stage.id,
+    ]),
+  );
+
+  if ((entry.stages?.length ?? 0) > 0) {
+    it("says which door the figure has walked to, in the URL", () => {
+      const walked = inRoom(entry.id).walkedTo.filter((step) => step.near !== "");
+      expect(
+        walked.length,
+        `the walk never arrived at a door in ${entry.title}, so this says nothing about the URL`,
+      ).toBeGreaterThan(1);
+      const wrong = walked
+        .filter((step) => {
+          // A door's reach can overlap its neighbour's, so the figure is
+          // sometimes at two at once. The engine picks one; the URL has to name
+          // one of the ones it is actually at.
+          const at = step.near.split(",").map((id) => routeOf.get(id));
+          return !at.some((route) => route && step.hash === `#${route}`);
+        })
+        .map((step) => `the figure is at ${step.near} and the URL says ${JSON.stringify(step.hash)}`);
+      expect(
+        wrong,
+        `${wrong.length} of ${walked.length} step(s) of the walk arrived at a door and the URL did not ` +
+          `follow. Walking up to a door is an arrival like any other, and a reader who walks somewhere ` +
+          `and presses Back should come back to where they walked to.`,
+      ).toEqual([]);
+    });
+  }
+
+  it("says which door the keyboard is on, in the URL", () => {
+    const stages = entry.stages ?? [];
+    if (stages.length === 0) return;
+    const wrong = inRoom(entry.id)
+      .hashOnFocus.filter((seen) => routeOf.has(seen.id))
+      .filter((seen) => seen.hash !== `#${routeOf.get(seen.id)}`)
+      .map((seen) => `${seen.id} has the keyboard and the URL says ${JSON.stringify(seen.hash)}`);
+    expect(
+      wrong,
+      `${wrong.length} control(s) had the keyboard on them and the URL did not say so. Tab landing on a ` +
+        `door is the same arrival as walking to it.`,
+    ).toEqual([]);
+  });
+
+  it("says which room the reader is in, in the URL", () => {
+    expect(
+      inRoom(entry.id).hashOnEntering,
+      `opening ${entry.title} left the URL at ${JSON.stringify(inRoom(entry.id).hashOnEntering)}`,
+    ).toBe(`#${entry.id}`);
+  });
+
   it("opening it does not put an entry in the session history", () => {
     const read = inRoom(entry.id).history;
     expect(

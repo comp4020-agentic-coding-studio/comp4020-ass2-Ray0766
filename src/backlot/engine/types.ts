@@ -300,6 +300,19 @@ export interface RoomDoor {
    *  surface — that is the window — but a parked button must stay off it, and
    *  the engine keeps one list of those for the whole scene. */
   board?: Object3D;
+  /**
+   * What this door is called in the URL, if it is named there at all.
+   *
+   * The backlot writes where you are into the hash so that the browser's Back
+   * button lands a reader where they left rather than on the ring: a week's
+   * page goes back to the corridor with the figure standing at that week's
+   * door. The engine owns the writing and the parsing; **the room owns the
+   * spelling**, because the room is what a reader recognises the name of, and
+   * because it has to match the anchor the no-JS gallery carries for the same
+   * thing so the same URL scrolls to the same place with the island switched
+   * off entirely.
+   */
+  route?: string;
 }
 
 /** What the engine hands back for a door a room registered. */

@@ -106,6 +106,38 @@ const ROOM_EXPOSURE = 0.55;
 
 const wait = (milliseconds: number) => new Promise<void>((settle) => window.setTimeout(settle, milliseconds));
 
+/**
+ * Where in the backlot a reader is, written into the URL's hash.
+ *
+ * It exists for one button: **Back**. A week's door is a real navigation to a
+ * real page, so the browser's history holds `/backlot/` and then
+ * `/lectures/week-05/` — and Back used to return a reader to the middle of the
+ * ring, with the corridor to re-open and eleven doors to walk past again. The
+ * hash is what makes Back land where they left.
+ *
+ * Three rules, and each of them is the reason for the shape rather than a
+ * detail of it:
+ *
+ *   **`replaceState`, never `pushState`.** Walking about inside a room is not a
+ *   history entry. History holds pages, and a Back button that steps backwards
+ *   through somebody's wandering is a Back button nobody can use.
+ *
+ *   **The hash is an id the page already has.** `#corridor` is the gallery's own
+ *   room section and `#week-05` is its own week card, so the same URL scrolls to
+ *   the same place with the island switched off entirely — which is the half of
+ *   this that a reader with no JavaScript gets, and it needs no script at all to
+ *   work. A room is named when a reader is in one and not at any door; a door's
+ *   own name is enough on its own, because a door belongs to exactly one room.
+ *
+ *   **Parsed permissively, written one way.** `room@door`, `room` and `door` are
+ *   all understood on the way in, because a URL is something a person can type
+ *   and something an earlier build may have written.
+ */
+interface Route {
+  roomId: string | null;
+  doorRoute: string | null;
+}
+
 /** "The machine room" mid-sentence is "the machine room". Only the first letter,
  *  and only when the second one is already lower case, so a room named after an
  *  initialism keeps its capitals. */
@@ -352,6 +384,10 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
     await camera.focusOn(here.target, here.radius, here.normal, motion.reduced, here.clearance);
     if (disposed || framedId !== spec.id) return;
     framingArmed = false;
+    // The reader is now at this door with the camera in, which is the state the
+    // hash names. Written here rather than on the press, because a press may be
+    // countermanded and an arrival is where somebody actually is.
+    writeRoute();
     // Only now. The still is what hangs in the window, and the clip decodes once
     // the window is worth watching — which is the state the line above has just
     // arrived at, not the moment somebody set off for it. The heaviest of them
@@ -411,6 +447,7 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
     framedLabel = null;
     closeUp = false;
     describeCanvas();
+    writeRoute();
   }
 
   /** Back to the fixed god view, if there is anything to come back from. */
@@ -428,6 +465,7 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
     framedLabel = null;
     closeUp = false;
     describeCanvas();
+    writeRoute();
     // Only a release the reader asked for countermands a pending arrival. The
     // walk-away rule calls this too, and there the figure is already clear.
     if (speak && was) refused = { at: was.clone(), clear: reach };
@@ -474,6 +512,79 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
   };
 
   // ------------------------------------------------------------------ rooms
+
+  // ----------------------------------------------------------------- route
+
+  /** Read the hash, if it names anything this backlot knows about. */
+  function readRoute(): Route {
+    const raw = decodeURIComponent(window.location.hash.replace(/^#/, "")).trim();
+    if (!raw) return { roomId: null, doorRoute: null };
+    const [head, tail] = raw.split("@");
+    const known = (id: string | undefined) =>
+      id && manifest.rooms.some((room) => room.id === id) ? id : null;
+    // `room@door`, `room`, or a door on its own — a door belongs to exactly one
+    // room, so its name is enough to say which.
+    if (tail !== undefined) return { roomId: known(head), doorRoute: tail || null };
+    const room = known(head);
+    return room ? { roomId: room, doorRoute: null } : { roomId: null, doorRoute: head || null };
+  }
+
+  /** And write it, from where the reader actually is. */
+  function writeRoute(): void {
+    const room = mounted?.room.id ?? null;
+    const at = framedId ? roomDoors.find((door) => door.hotspot.id === framedId) : undefined;
+    const hash = room ? (at?.route ? `#${at.route}` : `#${room}`) : "";
+    const wanted = `${window.location.pathname}${window.location.search}${hash}`;
+    const now = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+    if (wanted === now) return;
+    // `history.state` carried through: ClientRouter keeps its own bookkeeping
+    // there, and replacing the URL is not a reason to throw it away.
+    window.history.replaceState(window.history.state, "", wanted);
+  }
+
+  /**
+   * Put the reader where a URL says they are.
+   *
+   * Used twice and they are not the same event: once on a cold load, where the
+   * document has just been built and the engine with it, and once on a bfcache
+   * restore, where the document comes back with the engine still alive and the
+   * hash possibly changed underneath it. The second is the one that is easy to
+   * forget and impossible to reason about, so both are driven.
+   */
+  async function applyRoute(): Promise<void> {
+    const route = readRoute();
+    const roomId = route.roomId ?? doorsRoom(route.doorRoute);
+    if (!roomId) {
+      if (mounted) returnToHub();
+      return;
+    }
+    if (mounted?.room.id !== roomId) {
+      await enterRoom(roomId);
+      if (disposed || mounted?.room.id !== roomId) return;
+    }
+    if (!route.doorRoute) return;
+    const door = roomDoors.find((one) => one.route === route.doorRoute);
+    if (!door) return;
+    // Stood at the door, facing it, and the keyboard on it — which is where a
+    // reader who walked here would be. Focusing the button is what brings the
+    // camera in: `focusin` is one of the three ways of arriving and the only one
+    // available to something that is restoring rather than walking.
+    const facing = door.focus.normal ? door.focus.normal.clone().multiplyScalar(-1) : undefined;
+    player.placeAt(door.standing.clone(), facing);
+    hotspots.track(player.position, true);
+    hotspots.buttonFor(door.hotspot.id)?.focus();
+  }
+
+  /** Which room a door's route name belongs to, by asking the rooms that are
+   *  built rather than by parsing the name. Only a mounted room has its doors
+   *  registered, so this answers from the manifest's own stage list. */
+  function doorsRoom(route: string | null): string | null {
+    if (!route) return null;
+    for (const room of manifest.rooms) {
+      if (room.stages?.some((stage) => stage.id === route)) return room.id;
+    }
+    return null;
+  }
 
   function unmount(): void {
     if (!mounted) return;
@@ -707,6 +818,7 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
     // of on the room.
     hotspots.track(player.position, true);
     announce(`Inside ${lowerArticle(room.title)}.`);
+    writeRoute();
   }
 
   function returnToHub(): void {
@@ -763,6 +875,7 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
     // one message, and code that says something nobody can hear is worse than
     // code that says nothing.
     if (!door) announce("Back on the backlot.");
+    writeRoute();
   }
 
   // ------------------------------------------------------------------ doors
@@ -1110,7 +1223,26 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
   void ready.then(() => {
     if (disposed) return;
     void hub.dress().catch((error) => console.warn("backlot: a door window did not land", error));
+    // And the room the URL names, if it names one.
+    //
+    // After the first frame rather than before it, deliberately: the budget is
+    // measured against a frame that is geometry and lights, and a reader who
+    // pressed Back is arriving from a page they were already reading. The ring
+    // is what they see for the moment it takes the room to stand up, which is
+    // the same moment a press already costs them.
+    void applyRoute().catch((error) => console.warn("backlot: the route did not restore", error));
   });
+
+  // A restore out of the back/forward cache is the other half of Back, and it
+  // is a different event: the document comes back whole with this engine still
+  // alive in it and the hash possibly changed underneath. Nothing about the
+  // first load runs again, so without this the URL and the scene disagree and
+  // the disagreement is invisible.
+  const onPageShow = (event: PageTransitionEvent) => {
+    if (!event.persisted || disposed) return;
+    void applyRoute().catch((error) => console.warn("backlot: the route did not restore", error));
+  };
+  window.addEventListener("pageshow", onPageShow);
 
   function tick(now: number): void {
     frame = window.requestAnimationFrame(tick);
@@ -1231,6 +1363,7 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
       unmount();
       input.dispose();
       sizer.dispose();
+      window.removeEventListener("pageshow", onPageShow);
       unwatchTheme();
       unwatchMotion();
       hotspots.dispose();

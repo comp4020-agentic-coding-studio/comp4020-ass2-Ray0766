@@ -658,6 +658,12 @@ export async function buildCorridor(context: RoomContext): Promise<void> {
       standing: door.standing,
       href: interactive.href,
       windowMetres: { wide: WINDOW_WIDE, tall: WINDOW.tall },
+      // What this door is called in the URL. The stage's own id, which is also
+      // the id the no-JS gallery gives that week's card — so `/backlot/#week-05`
+      // brings a reader back to this door with the island running, and scrolls
+      // to the same week's entry in the list with it switched off. One spelling,
+      // from the manifest, in both halves of the page.
+      route: door.stage.id,
       // The same object the hotspot's spec is holding. `RoomFixture.focus` says
       // why it is not a copy.
       focus,

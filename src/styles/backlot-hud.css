@@ -67,6 +67,14 @@
      rather than on purpose. The labels that would not fit anywhere are the
      crowded ones, and those come down to their dot instead of being cut. */
   max-inline-size: 20rem;
+  /* And the same ceiling for a name that has come down to its dot and been
+     brought back, which is a different box painted outside the button.
+     **The same one for all four sides**, which is not a tidy-up: while `below`
+     and `above` capped at 12rem and `beside` and `before` at 20rem, the width
+     of a revealed name depended on which side the engine had picked, and the
+     engine picks the side from the width. The Studio door's name alternated
+     between the two every 500 ms for as long as the keyboard was on it. */
+  --backlot-label-cap: 20rem;
   padding: 0.25rem var(--at-spacing-sm);
   border: 1px solid var(--at-border);
   border-radius: 999px;
@@ -164,9 +172,23 @@
   inset-block-start: 50%;
   inset-inline-start: 100%;
   inline-size: max-content;
-  max-inline-size: 20rem;
+  max-inline-size: var(--backlot-label-cap, 20rem);
   block-size: auto;
-  margin: 0 0 0 var(--at-spacing-xs);
+  /* A name wider than the cap wraps instead of running past it. With `nowrap`
+     the cap moved the text without shortening it: at 390 "Open the Studio door
+     into the machine room" is 304 px painted and there is no side of a dot at
+     x=274 that holds 304 px on a 390 px screen, so every side ran it off the
+     edge and the best on offer was 65.9% of the name. Two lines of the cap
+     below fit, on a side of the dot that the one line never could. */
+  white-space: normal;
+  /* Clear of the ring, not just clear of the button. The focus ring is three
+     bands painted out to 7 px past the button's edge, and this name is painted
+     outside the button too: at 4.5 px the pill's own background sat on top of
+     the outer band and the run of pixels out of the Studio door's left edge at
+     390 read `#fffdfa #fffdfa #e0d0b7 #efe1c8 #fffdfa …` — the page's own
+     background where `--at-text` should have been. An indicator a name covers
+     is not an indicator. */
+  margin: 0 0 0 var(--at-spacing-sm);
   padding: 0.2rem var(--at-spacing-sm);
   overflow: visible;
   clip-path: none;
@@ -284,6 +306,17 @@
      is what you hit. */
   .backlot-hotspot {
     max-inline-size: none;
+    /* Narrower here because the screen is: a name has to fit beside, under or
+       before a dot that is already inside a 390 px canvas, and 20rem is wider
+       than any of those positions can hold.
+
+       13rem and not 12: a name that wraps is two lines tall, and a two-line
+       name no longer fits above the dots at the far end of the corridor, so it
+       went under them instead and lay across the stills. "Week 10: Production,
+       Week One" is the longest one that still makes a single line at 13rem, and
+       at 12rem it was the one window in twelve reading 21.0% covered while the
+       other eleven read 0.3%. */
+    --backlot-label-cap: 13rem;
     min-inline-size: 2.75rem;
     min-block-size: 2.75rem;
     padding: var(--at-spacing-xs);
@@ -333,9 +366,8 @@
 .backlot-hotspot[data-backlot-dense="true"][data-backlot-side="below"]:focus-visible .backlot-hotspot__label {
   inset-block-start: 100%;
   inset-inline-start: 50%;
-  max-inline-size: 12rem;
   margin: 0;
-  translate: -50% var(--at-spacing-xs);
+  translate: -50% var(--at-spacing-sm);
 }
 
 /* Back along the other side, for a control near the right edge: the name reads
@@ -347,7 +379,7 @@
 .backlot-hotspot[data-backlot-dense="true"][data-backlot-side="before"]:focus-visible .backlot-hotspot__label {
   inset-inline-start: auto;
   inset-inline-end: 100%;
-  margin: 0 var(--at-spacing-xs) 0 0;
+  margin: 0 var(--at-spacing-sm) 0 0;
 }
 
 .backlot-hotspot[data-backlot-dense="true"][data-backlot-side="above"]:hover .backlot-hotspot__label,
@@ -355,9 +387,8 @@
   inset-block-start: auto;
   inset-block-end: 100%;
   inset-inline-start: 50%;
-  max-inline-size: 12rem;
   margin: 0;
-  translate: -50% calc(-1 * var(--at-spacing-xs));
+  translate: -50% calc(-1 * var(--at-spacing-sm));
 }
 
 /* ------------------------------------------------------------ less motion */

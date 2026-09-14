@@ -141,6 +141,25 @@ interface Parked {
    *  quantity the decision can change is what makes it flip-flop. */
   dotWidth: number;
   dotHeight: number;
+  /** The nameplate's painted box, kept from the first frame it is painted on.
+   *
+   *  A name is only painted while the reader is on the control, so most of the
+   *  time there is nothing to read and the pass below plans from the text's own
+   *  width instead. That estimate is the text without the pill it sits in; this
+   *  is the pill, and it is 20 px wider.
+   *
+   *  Kept rather than re-read for the usual reason, and this is the one that
+   *  bit hardest. The pass used to read the live label every frame, and for the
+   *  one control the keyboard is on, the live label is the revealed one — whose
+   *  width the side it chose last frame was capping, at 12rem under a dot and
+   *  20rem beside it. So the side decided the width and the width decided the
+   *  side: the Studio door's name alternated between `below` at 295 px and
+   *  `before` at 216 px every 500 ms, for as long as the keyboard was on it,
+   *  with the button standing still — 39.3% and 65.9% of the name on screen.
+   *  The stylesheet now caps every side the same, so the painted box no longer
+   *  depends on the answer, and this keeps the reading from drifting anyway. */
+  labelWidth: number;
+  labelHeight: number;
 }
 
 /** Whether an object is actually drawn, which is not what `visible` answers:
@@ -266,6 +285,12 @@ export function createHotspots(hud: HTMLElement, camera: OrthographicCamera, hoo
   const corner = new Vector3();
   let scoping = false;
   let liveTimer = 0;
+  /** How much wider a revealed name is than its own text: the pill's padding
+   *  and border, 20 px at the time of writing. Learned from the first name this
+   *  page paints rather than copied from the stylesheet, so that changing the
+   *  padding there does not quietly leave a number behind here. Zero until then,
+   *  which is the estimate the pass used to make on its own. */
+  let plate = 0;
 
   function announcer(message: string): void {
     // A live region only speaks when its contents change, so the same sentence
@@ -406,6 +431,8 @@ export function createHotspots(hud: HTMLElement, camera: OrthographicCamera, hoo
       hold: null,
       dotWidth: 0,
       dotHeight: 0,
+      labelWidth: 0,
+      labelHeight: 0,
       handle: {
         id: spec.id,
         button,
@@ -994,24 +1021,49 @@ export function createHotspots(hud: HTMLElement, camera: OrthographicCamera, hoo
           delete entry.button.dataset.backlotSide;
           continue;
         }
-        // The name's **own** width, not the button's.
+        // The name's **own** painted box, not the button's and not its text's.
         //
         // `entry.width` is the button measured with its label showing, which is
         // the right number at 1920 and the wrong one at 390: there the
         // stylesheet keeps every label visually hidden at 1 px, so the button
         // measures the dot and every side looked like it fitted. The names that
         // then ran off the canvas were 200 px being planned for as 50 —
-        // "open the Studio door" showing 29.7% of itself. A clipped element
-        // still reports its content width through `scrollWidth`, which is the
-        // one reading available before the label is painted at all.
+        // "open the Studio door" showing 29.7% of itself.
+        //
+        // `scrollWidth` fixed that and left a second gap: it is the *text's*
+        // width, and what has to stay on screen is the pill the text sits in,
+        // which is 20 px wider. "Open the Assessment door" planned at 174 and
+        // painted at 188 chose `beside` and hung 22 px off the right edge.
+        //
+        // So: the painted box when there is one to read, and the text plus the
+        // pill when there is not. Only the reader's own control is painted, so
+        // most controls are planned from the estimate — and `plate` is what
+        // makes the estimate right, taken from the first name this page paints
+        // rather than copied out of the stylesheet, where it could drift.
         const nameplate = entry.button.querySelector<HTMLElement>(".backlot-hotspot__label");
-        const labelWidth = Math.max(nameplate?.scrollWidth ?? 0, entry.width || DOT_BOX);
-        const labelHeight = Math.max(nameplate?.scrollHeight ?? 0, entry.height || DOT_BOX);
+        const painted = nameplate && entry.button.matches(":hover, :focus-visible");
+        if (painted) {
+          const box = nameplate.getBoundingClientRect();
+          if (box.width > DOT_BOX) {
+            entry.labelWidth = box.width;
+            entry.labelHeight = box.height;
+            if (nameplate.scrollWidth > 0) plate = Math.max(plate, box.width - nameplate.scrollWidth);
+          }
+        }
+        const labelWidth =
+          entry.labelWidth || (nameplate?.scrollWidth ? nameplate.scrollWidth + plate : 0) || entry.width || DOT_BOX;
+        const labelHeight =
+          entry.labelHeight || (nameplate?.scrollHeight ? nameplate.scrollHeight + plate : 0) || entry.height || DOT_BOX;
         const dotWidth = entry.dotWidth || DOT_BOX;
         const dotHeight = entry.dotHeight || DOT_BOX;
         // Everything the name must not land on: every other control where it
-        // ended up, and every face anybody published — but not this control's
-        // own face, which a dot is already allowed to sit on.
+        // ended up, and every face anybody published — **including this
+        // control's own**. A dot is allowed to sit on the thing it marks; that
+        // is what a dot is for, and the placement above goes on letting it. A
+        // 216x24 nameplate laid across a 120x209 still is not the same act, and
+        // the reader walked up to that door to look at that still: leaving the
+        // door's own window out of this took nine of the corridor's twelve
+        // windows from 0.3% covered to 12.4% at 390, and one to 21.0%.
         const others: Rect[] = [
           ...live
             .filter((other) => other.entry !== entry)
@@ -1021,7 +1073,7 @@ export function createHotspots(hud: HTMLElement, camera: OrthographicCamera, hoo
               top: other.entry.y - (other.entry.dotHeight || DOT_BOX) / 2,
               bottom: other.entry.y + (other.entry.dotHeight || DOT_BOX) / 2,
             })),
-          ...keepOut.filter((rect) => rect.owner !== entry),
+          ...keepOut,
         ];
         const clearOfOthers = (box: Rect) =>
           box.left >= 0 &&
@@ -1077,10 +1129,21 @@ export function createHotspots(hud: HTMLElement, camera: OrthographicCamera, hoo
           // graph on the monitor" 61.5%. A name half off the screen is not a
           // name covering something, it is a name nobody can read.
           //
-          // So the fallback takes the side that keeps the most of the name on
-          // the canvas, and breaks a tie on how little it covers. Covering
-          // something is a cost; being off the screen is not a cost, it is the
-          // text not being there.
+          // So the fallback asks two questions in order, and the order is the
+          // whole of it. **First: which sides hold the whole name on the
+          // canvas?** Among those, the least covering one wins. **Only if none
+          // of them does** is it a question of how much of the name is on
+          // screen at all.
+          //
+          // Ranking straight by on-screen area, with covering as a tie-break,
+          // is what this did first and it was wrong in the other direction: a
+          // name under a dot keeps more of itself on a 390 px screen than one
+          // beside it does, so `below` won nearly everywhere and landed on the
+          // picture it names. Measured in the corridor at 390: nine of twelve
+          // windows went from 0.3% covered to 12.4%, one to 21.0%. Both costs
+          // are real and they are not on the same scale — a name off the edge
+          // is text nobody can finish, a name over a still is a still nobody
+          // can see — so neither gets to be a tie-break for the other.
           const onCanvasArea = (box: Rect) =>
             Math.max(0, Math.min(box.right, width) - Math.max(box.left, 0)) *
             Math.max(0, Math.min(box.bottom, height) - Math.max(box.top, 0));
@@ -1092,7 +1155,10 @@ export function createHotspots(hud: HTMLElement, camera: OrthographicCamera, hoo
                   Math.max(0, Math.min(box.bottom, rect.bottom) - Math.max(box.top, rect.top)),
               0,
             );
-          const best = sides.reduce((most, side) => {
+          const whole = (box: Rect) => box.left >= 0 && box.right <= width && box.top >= 0 && box.bottom <= height;
+          const fits = sides.filter((side) => whole(side.box));
+          const best = (fits.length ? fits : sides).reduce((most, side) => {
+            if (fits.length) return covered(side.box) < covered(most.box) ? side : most;
             const here = onCanvasArea(side.box);
             const there = onCanvasArea(most.box);
             if (here !== there) return here > there ? side : most;
@@ -1122,6 +1188,7 @@ export function createHotspots(hud: HTMLElement, camera: OrthographicCamera, hoo
         delete entry.button.dataset.backlotDense;
         entry.width = 0;
         entry.dotWidth = 0;
+        entry.labelWidth = 0;
       }
     },
 

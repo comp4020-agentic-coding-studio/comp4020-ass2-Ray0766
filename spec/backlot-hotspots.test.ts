@@ -649,7 +649,20 @@ async function sweep(): Promise<Sweep> {
     // execution context an in-page poll is running in, and the protocol answers
     // "Inspected target navigated or closed" instead of a path.
     await pause(4000);
-    const landedOn = await tab.evaluate<string>(`return location.pathname;`);
+    // **Retried rather than read once, and never allowed to reject.**
+    //
+    // `Runtime.evaluate` landing while the tab is swapping execution contexts
+    // rejects with "Inspected target navigated or closed" — and this read is at
+    // module scope, so a rejection here is a *collection* error: the file
+    // reports zero tests rather than one failed assertion, under a summary that
+    // does not say it. That is the shape one run in six took, and the shape
+    // nobody could reproduce on demand. Forty-nine lines below, `arriveAt` has
+    // always caught the same read; it just never reached this one.
+    let landedOn = "";
+    for (let tries = 0; tries < 30 && !landedOn; tries++) {
+      landedOn = await tab.evaluate<string>(`return location.pathname;`).catch(() => "");
+      if (!landedOn) await pause(200);
+    }
 
     return {
       mounted: true,
@@ -758,8 +771,24 @@ interface Landing {
   why: string;
 }
 
-const driven = await sweep();
-const landings = await pressStages();
+// **A throw at module scope is a collection error, not a failed assertion.**
+//
+// `Tab.launch()` and every `tab.evaluate` inside these two drives can reject —
+// a browser that does not come up, or a `Runtime.evaluate` landing while the
+// tab swaps execution contexts and answering "Inspected target navigated or
+// closed". Thrown from here, that takes the whole file out: it reports zero
+// tests, under a summary that does not say so, which is the shape one run in
+// six took and nobody could reproduce on demand. Caught, it becomes the
+// "never mounted" failure this file already knows how to say, with the cause
+// attached rather than lost.
+let driveFailure = "";
+const driven = await sweep().catch((error: unknown) => {
+  driveFailure = String(error);
+  return EMPTY;
+});
+const landings = await pressStages().catch((error: unknown) => [
+  { stage: "(the drive)", want: "", landedOn: "", why: String(error) },
+]);
 
 // ---------------------------------------------------------------------------
 // One button per door, one per interactive.
@@ -1413,7 +1442,8 @@ describe("the island booted before any of this was driven", () => {
       driven.mounted,
       "the backlot never mounted, so there was no HUD to drive and nothing above is about a 3D scene. The " +
         "static gallery would still be on screen and still correct, which is why this is asserted rather " +
-        "than inferred.",
+        "than inferred." +
+        (driveFailure ? ` The drive threw rather than finishing: ${driveFailure}` : ""),
     ).toBe(true);
   });
 });

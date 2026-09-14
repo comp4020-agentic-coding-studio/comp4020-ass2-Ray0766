@@ -304,6 +304,48 @@
     inline-size: 0.75rem;
     block-size: 0.75rem;
   }
+
+}
+
+/* ------------------------------------------------------- which way it opens */
+
+/* A name that comes back beside its dot is painted outside the button, so it
+   covers whatever is on that side — and which side is free is not a constant.
+   The machine room's five screens are a row across one wall, so a name opening
+   sideways lands on the next screen twenty-five pixels away; the corridor's
+   twelve doors are two columns down the screen, so a name opening downwards
+   lands on the next door. Both measured by picking one and looking:
+   `play-front-t2`'s composited fill read #4b4947 against its own declared
+   #070504 with names opening sideways, and the corridor's windows went from
+   0.3% covered to 12.4% at 390x844 with them opening down.
+
+   So the engine picks, per control, against what is actually around it
+   (`engine/hotspots.ts`), and writes the side here. `beside` is the default and
+   needs no rule — it is what the block above already does. */
+/* Written with the dense attribute and the state in the selector, not because
+   they narrow anything — a side is only ever set on a dense control, and the
+   label is only painted in these two states — but because without them these
+   rules lose. The reveal above is
+   `.backlot-hotspot[data-backlot-dense]:focus-visible .backlot-hotspot__label`,
+   four selectors' worth, and a plain `[data-backlot-side]` rule is three: it
+   never applied, and the only tell was that the measurement did not move. */
+.backlot-hotspot[data-backlot-dense="true"][data-backlot-side="below"]:hover .backlot-hotspot__label,
+.backlot-hotspot[data-backlot-dense="true"][data-backlot-side="below"]:focus-visible .backlot-hotspot__label {
+  inset-block-start: 100%;
+  inset-inline-start: 50%;
+  max-inline-size: 12rem;
+  margin: 0;
+  translate: -50% var(--at-spacing-xs);
+}
+
+.backlot-hotspot[data-backlot-dense="true"][data-backlot-side="above"]:hover .backlot-hotspot__label,
+.backlot-hotspot[data-backlot-dense="true"][data-backlot-side="above"]:focus-visible .backlot-hotspot__label {
+  inset-block-start: auto;
+  inset-block-end: 100%;
+  inset-inline-start: 50%;
+  max-inline-size: 12rem;
+  margin: 0;
+  translate: -50% calc(-1 * var(--at-spacing-xs));
 }
 
 /* ------------------------------------------------------------ less motion */

@@ -652,17 +652,48 @@ export function createHotspots(hud: HTMLElement, camera: OrthographicCamera, hoo
           boxWidth <= (rect.right - rect.left) * 0.5 && boxHeight <= (rect.bottom - rect.top) * 0.5;
         const avoid =
           dense && entry !== alone ? keepOut.filter((rect) => rect.owner !== entry || !fitsInside(rect)) : keepOut;
-        if (avoid.length === 0) {
+
+        /**
+         * The controls already down, as rectangles this search has to respect
+         * too — **in the same search, not in a second one afterwards.**
+         *
+         * This used to be somebody else's problem: the caller nudged a
+         * colliding control downwards and then asked here again, and whatever
+         * came back was adopted. But this function knows about faces and
+         * nothing about controls, so its answer could put a control straight
+         * back on top of the button the nudge had just separated it from —
+         * eight times, whichever ran last winning. `look-machine`'s centre
+         * ended up inside "Back to the backlot" at 1920x1080, so a tap on the
+         * machine the room is named for answered for the way out. It was
+         * marginal — present, absent, present, present across four trees with
+         * nothing in the loop changing — which is worse than a fixed fault,
+         * because the run that comes up clean reads as a fix.
+         *
+         * Making the de-collision authoritative instead took this file's suite
+         * from 3 failures to 17: the two constraints are coupled, and a
+         * placement that satisfies one by ignoring the other moves a great many
+         * controls. So they are solved together — one candidate set, generated
+         * from both, tested against both.
+         */
+        const taken: Rect[] = placed.map((box) => ({
+          left: box.x - box.width / 2,
+          top: box.y - box.height / 2,
+          right: box.x + box.width / 2,
+          bottom: box.y + box.height / 2,
+        }));
+        const blocked = [...avoid, ...taken];
+        if (blocked.length === 0) {
           entry.hold = null;
           return { x, y };
         }
         const halfW = boxWidth / 2 + GAP;
         const halfH = boxHeight / 2 + GAP;
-        const hits = (at: { x: number; y: number }) =>
-          avoid.some(
+        const clears = (at: { x: number; y: number }, rects: readonly Rect[]) =>
+          !rects.some(
             (rect) =>
               at.x + halfW > rect.left && at.x - halfW < rect.right && at.y + halfH > rect.top && at.y - halfH < rect.bottom,
           );
+        const hits = (at: { x: number; y: number }) => !clears(at, blocked);
         const onCanvas = (at: { x: number; y: number }) =>
           at.x - boxWidth / 2 >= 0 &&
           at.x + boxWidth / 2 <= width &&
@@ -675,7 +706,7 @@ export function createHotspots(hud: HTMLElement, camera: OrthographicCamera, hoo
         }
 
         const candidates: { x: number; y: number; cost: number; up: boolean }[] = [];
-        for (const rect of avoid) {
+        for (const rect of blocked) {
           candidates.push(
             { x: rect.left - halfW, y, cost: 0, up: false },
             { x: rect.right + halfW, y, cost: 0, up: false },
@@ -691,10 +722,21 @@ export function createHotspots(hud: HTMLElement, camera: OrthographicCamera, hoo
         if (clear.length === 0) {
           // Nothing fits. Take the least covered rather than the anchor, and
           // hold it, so a control that cannot get clear at least stops moving.
+          //
+          // Least covered **by another control first**, and only then by a
+          // face. Ranked rather than weighted, so there is no number here that
+          // nobody could argue with: a control a reader cannot press is a
+          // failure, and a control sitting over a picture is a cost, and no
+          // amount of the second is worth any of the first.
           const all = [...candidates.filter(onCanvas), { x, y, cost: 0, up: false }];
-          const best = all.reduce((least, way) =>
-            overlapArea(way, boxWidth, boxHeight, avoid) < overlapArea(least, boxWidth, boxHeight, avoid) ? way : least,
-          );
+          const best = all.reduce((least, way) => {
+            const wayOnControls = overlapArea(way, boxWidth, boxHeight, taken);
+            const leastOnControls = overlapArea(least, boxWidth, boxHeight, taken);
+            if (wayOnControls !== leastOnControls) return wayOnControls < leastOnControls ? way : least;
+            return overlapArea(way, boxWidth, boxHeight, avoid) < overlapArea(least, boxWidth, boxHeight, avoid)
+              ? way
+              : least;
+          });
           entry.hold = { dx: best.x - x, dy: best.y - y };
           return { x: best.x, y: best.y };
         }
@@ -880,6 +922,90 @@ export function createHotspots(hud: HTMLElement, camera: OrthographicCamera, hoo
         else delete entry.button.dataset.backlotEdge;
       }
 
+      // --- which way a name opens ---------------------------------------
+      //
+      // A control that has come down to its dot gives its name back on hover
+      // and on focus, and that name is painted **outside** the button — so it
+      // covers whatever is on that side. Which side is free is not a constant,
+      // because the rooms do not run the same way: the machine room's five
+      // screens are a row across a wall, so a name opening to the side lands on
+      // the next screen twenty-five pixels away; the corridor's twelve doors
+      // are two columns down the screen, so a name opening downwards lands on
+      // the next door.
+      //
+      // Both were measured by picking one and looking. Opening to the side:
+      // `play-front-t2`'s composited fill read #4b4947 against its own declared
+      // #070504. Opening downwards instead: the corridor's windows went from
+      // 0.3% covered to 11.7-12.4% at 390x844. A fixed direction cannot be
+      // right for both, so it is chosen per control against what is actually
+      // around it — the same question the placement above answers for the
+      // button, asked for the label.
+      //
+      // The button's own final box is what the label hangs off, so this is a
+      // second pass rather than part of the loop: it needs every control down
+      // before it can ask what is beside any of them.
+      for (const one of live) {
+        const { entry } = one;
+        if (entry.button.dataset.backlotDense !== "true") {
+          delete entry.button.dataset.backlotSide;
+          continue;
+        }
+        const labelWidth = entry.width || DOT_BOX;
+        const labelHeight = entry.height || DOT_BOX;
+        const dotWidth = entry.dotWidth || DOT_BOX;
+        const dotHeight = entry.dotHeight || DOT_BOX;
+        // Everything the name must not land on: every other control where it
+        // ended up, and every face anybody published — but not this control's
+        // own face, which a dot is already allowed to sit on.
+        const others: Rect[] = [
+          ...live
+            .filter((other) => other.entry !== entry)
+            .map((other) => ({
+              left: other.entry.x - (other.entry.dotWidth || DOT_BOX) / 2,
+              right: other.entry.x + (other.entry.dotWidth || DOT_BOX) / 2,
+              top: other.entry.y - (other.entry.dotHeight || DOT_BOX) / 2,
+              bottom: other.entry.y + (other.entry.dotHeight || DOT_BOX) / 2,
+            })),
+          ...keepOut.filter((rect) => rect.owner !== entry),
+        ];
+        const clearOfOthers = (box: Rect) =>
+          box.left >= 0 &&
+          box.right <= width &&
+          box.top >= 0 &&
+          box.bottom <= height &&
+          !others.some(
+            (rect) => box.left < rect.right && box.right > rect.left && box.top < rect.bottom && box.bottom > rect.top,
+          );
+        const beside: Rect = {
+          left: entry.x + dotWidth / 2,
+          right: entry.x + dotWidth / 2 + labelWidth,
+          top: entry.y - labelHeight / 2,
+          bottom: entry.y + labelHeight / 2,
+        };
+        const below: Rect = {
+          left: entry.x - labelWidth / 2,
+          right: entry.x + labelWidth / 2,
+          top: entry.y + dotHeight / 2,
+          bottom: entry.y + dotHeight / 2 + labelHeight,
+        };
+        const above: Rect = {
+          left: entry.x - labelWidth / 2,
+          right: entry.x + labelWidth / 2,
+          top: entry.y - dotHeight / 2 - labelHeight,
+          bottom: entry.y - dotHeight / 2,
+        };
+        // Beside first, because that is where a name reads best and where it
+        // has always been; then under, then over. The last is a fallback rather
+        // than a choice: somewhere it is going to cover something, and it says
+        // so by keeping the side it was asked for.
+        entry.button.dataset.backlotSide = clearOfOthers(beside)
+          ? "beside"
+          : clearOfOthers(below)
+            ? "below"
+            : clearOfOthers(above)
+              ? "above"
+              : "beside";
+      }
     },
 
     keepClear(objects) {

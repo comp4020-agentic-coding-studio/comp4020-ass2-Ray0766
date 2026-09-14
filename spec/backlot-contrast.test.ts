@@ -136,6 +136,11 @@ interface Probe {
   parts: string[];
   /** Any ::before or ::after painting content on the control or inside it. */
   pseudo: string[];
+  /** The hotspot that owns the pixel at this control's own centre, when it is
+   *  not this control — which is a control a reader cannot tap. */
+  coveredBy: string | null;
+  /** The point that was asked, so a failure can be reproduced by hand. */
+  middle: { x: number; y: number };
   /** The engine collapsed this control to its dot. */
   dense: boolean;
   /** And the browser has the reader on it, which reveals a dense label. */
@@ -289,6 +294,30 @@ const PROBE = String.raw`
           .join(", ");
     }
 
+    // **What a tap in the middle of this control actually reaches.**
+    //
+    // The centre is the point a finger aims at, and a control whose centre
+    // belongs to a different control is a control that cannot be tapped. This is
+    // not the same question as the sampling one above — that asks whether there
+    // is anywhere clear to *read a colour*, and gives up quietly; this asks
+    // whether the reader can press the thing they are pressing, and there is no
+    // acceptable answer but yes.
+    //
+    // It is recorded here because the boxes are already in hand, and because the
+    // failure it catches is invisible in every other reading: the boxes do not
+    // overlap, the ids are right, the Tab order is right, and the wrong button
+    // still responds.
+    const middleX = Math.round((box.left + box.right) / 2);
+    const middleY = Math.round((box.top + box.bottom) / 2);
+    const atMiddle = document.elementFromPoint(middleX, middleY);
+    const ownerOfMiddle = atMiddle ? atMiddle.closest("[data-backlot-hotspot]") : null;
+    const coveredBy =
+      ownerOfMiddle && ownerOfMiddle.dataset.backlotHotspot !== button.dataset.backlotHotspot
+        ? ownerOfMiddle.dataset.backlotHotspot +
+          " (" + atMiddle.tagName.toLowerCase() + "." + String(atMiddle.className) +
+          ", " + JSON.stringify(atMiddle.textContent.trim().slice(0, 32)) + ")"
+        : null;
+
     // The name, whether or not a label is painted. A control collapsed to its
     // dot is still a control and still has to say what it is.
     const named = (button.getAttribute("aria-label") || button.textContent || "").replace(/\s+/g, " ").trim();
@@ -338,6 +367,8 @@ const PROBE = String.raw`
       fill: resolveColour(style.backgroundColor),
       point,
       why,
+      coveredBy,
+      middle: { x: middleX, y: middleY },
       // What the control was made of when it was read, so "no dot" says which
       // part was missing and how big it was rather than only that it was gone.
       parts: children.map((child) => {
@@ -911,6 +942,35 @@ describe("the sweep measured something", () => {
       painted,
       `${painted} of ${desktop.length} controls painted a label at the desktop viewport`,
     ).toBeGreaterThanOrEqual(Math.ceil(desktop.length / 2));
+  });
+
+  // Seen red on the tree as it stands, which is how it was found: with focus
+  // handed to a room's first control, that control's dense label is revealed at
+  // full width and lands over its neighbour.
+  //
+  //   AssertionError: 2 control(s) cannot be tapped where a reader aims:
+  //   play-front-t2 at phone 390×844 in the dark theme — its centre (129,307)
+  //   belongs to play-front-t1 (span.backlot-hotspot__label, "Play one line").
+  //
+  // Worth saying what this is not, because four other readings of the same
+  // moment call it fine: the boxes do not overlap (measured, zero pairs), the
+  // ids are right, the Tab order is right, and every control has its name. The
+  // wrong button still responds.
+  it("lets a reader tap the control they are aiming at", () => {
+    const covered = readings
+      .filter((one) => one.coveredBy)
+      .map(
+        (one) =>
+          `${one.id} at ${one.viewport} in the ${one.theme} theme — its centre ` +
+          `(${one.middle.x},${one.middle.y}) belongs to ${one.coveredBy}`,
+      );
+    expect(
+      covered,
+      `${covered.length} control(s) cannot be tapped where a reader aims. A control whose own centre ` +
+        `belongs to a different control is one a finger cannot reach, and nothing else in this file can ` +
+        `see it: the boxes need not overlap for it to happen, because what covers the point is a child of ` +
+        `the other control rather than its box.`,
+    ).toEqual([]);
   });
 
   it("gave every control a name, painted or collapsed", () => {

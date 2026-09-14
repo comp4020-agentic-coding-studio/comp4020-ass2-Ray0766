@@ -16,8 +16,9 @@
 // engine, and it is in spec/backlot-hotspots.test.ts and
 // spec/backlot-contrast.test.ts.
 
-import { existsSync, globSync, readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { createHash } from "node:crypto";
+import { existsSync, globSync, readFileSync, statSync } from "node:fs";
+import { basename, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { backlotManifest } from "../src/backlot/rooms/manifest";
@@ -43,10 +44,19 @@ const source = (path: string) => readFileSync(resolve(path), "utf8");
  *  assertion below vacuously true. Read once, asserted once. */
 const navLinks = siteConfig.links ?? [];
 
+interface Frame {
+  src: string | null;
+  srcset: string | null;
+  sizes: string | null;
+  width: string | null;
+  height: string | null;
+  alt: string | null;
+}
+
 interface Piece {
   id: string;
   caption: string | null;
-  image: { src: string | null; width: string | null; height: string | null; alt: string | null } | null;
+  image: Frame | null;
   links: { href: string | null; text: string | null }[];
 }
 
@@ -63,7 +73,7 @@ interface Week {
   href: string | null;
   where: string | null;
   caption: string | null;
-  image: { src: string | null; width: string | null; height: string | null; alt: string | null } | null;
+  image: Frame | null;
   links: { href: string | null; text: string | null }[];
 }
 
@@ -162,6 +172,8 @@ const PROBE = String.raw`
             image: image
               ? {
                   src: image.getAttribute("src"),
+                  srcset: image.getAttribute("srcset"),
+                  sizes: image.getAttribute("sizes"),
                   width: image.getAttribute("width"),
                   height: image.getAttribute("height"),
                   alt: image.getAttribute("alt"),
@@ -184,6 +196,8 @@ const PROBE = String.raw`
               image: image
                 ? {
                     src: image.getAttribute("src"),
+                    srcset: image.getAttribute("srcset"),
+                    sizes: image.getAttribute("sizes"),
                     width: image.getAttribute("width"),
                     height: image.getAttribute("height"),
                     alt: image.getAttribute("alt"),
@@ -309,6 +323,95 @@ const piecesOn = (wall: string) =>
 const withStages = backlotManifest.rooms.filter((entry) => (entry.stages?.length ?? 0) > 0);
 
 // ---------------------------------------------------------------------------
+// What the list is allowed to hang, now that it hangs thumbnails
+// ---------------------------------------------------------------------------
+
+/** Every master under public/studio/, grouped by its bytes.
+ *
+ *  **Astro content-addresses its derivatives**, so two masters that are the same
+ *  bytes share one and it is named after whichever the build reached first:
+ *  `hero-key-standin.avif` and `week04-t4.avif` are the same 63,662 bytes, and
+ *  the left wall's frame is emitted under `week04-t4`'s name. That is
+ *  deduplication working. A check that asserted the derivative carried its own
+ *  master's filename would call it a bug and be wrong, which is why this groups
+ *  by content rather than trusting a name. */
+const mastersByContent = new Map<string, string[]>();
+for (const path of globSync("public/studio/*.{avif,webp,png,jpg,jpeg}")) {
+  const key = createHash("sha1").update(readFileSync(path)).digest("hex");
+  mastersByContent.set(key, [...(mastersByContent.get(key) ?? []), basename(path)]);
+}
+
+/** The names a derivative of this master may legitimately be emitted under. */
+function namesFor(file: string): string[] {
+  const key = createHash("sha1").update(readFileSync(resolve("public/studio", file))).digest("hex");
+  const names = mastersByContent.get(key);
+  if (!names || names.length === 0) {
+    throw new Error(`spec: ${file} is not a master under public/studio/, so nothing can be derived from it`);
+  }
+  return names.map((one) => one.replace(/\.[^.]+$/, ""));
+}
+
+/** Asserts an `<img>` in the list hangs a thumbnail of the right picture rather
+ *  than the master itself, with the widths the layout asked for.
+ *
+ *  The point of the whole change is the bytes: the list was hanging a 120,348 B
+ *  master in a 126 px column. So this asserts the served file is **smaller than
+ *  the master**, which is the thing that would stop being true if the
+ *  optimisation were dropped, and does not assert a size in kilobytes, which is
+ *  a number nobody could defend. */
+function assertThumbnail(
+  shown: { src: string | null; width: string | null; height: string | null } & {
+    srcset?: string | null;
+    sizes?: string | null;
+  },
+  master: string,
+  widths: number[],
+  what: string,
+): void {
+  expect(shown.src, `${what} hangs nothing`).toBeTruthy();
+  expect(
+    shown.src!.startsWith(`${prefix}_astro/`),
+    `${what} hangs ${shown.src}, which is the master out of public/studio/ rather than a thumbnail of it. ` +
+      `The list is a catalogue of 126 px frames and the masters are up to 120 kB.`,
+  ).toBe(true);
+
+  const emitted = basename(shown.src!);
+  expect(
+    namesFor(master).some((name) => emitted.startsWith(`${name}.`)),
+    `${what} hangs ${emitted}, which is not derived from ${master} or from any master with the same bytes ` +
+      `(${namesFor(master).join(", ")})`,
+  ).toBe(true);
+
+  const served = resolve("dist", shown.src!.slice(prefix.length));
+  expect(existsSync(served), `${what} points at ${shown.src}, which the build did not produce`).toBe(true);
+  const derivative = statSync(served).size;
+  const original = statSync(resolve("public/studio", master)).size;
+  expect(
+    derivative,
+    `${what} serves ${derivative} B where the master ${master} is ${original} B — the thumbnail is not ` +
+      `smaller than the picture it is a thumbnail of`,
+  ).toBeLessThan(original);
+
+  const offered = (shown.srcset ?? "")
+    .split(",")
+    .map((one) => one.trim().split(/\s+/)[1])
+    .filter(Boolean);
+  expect(
+    offered,
+    `${what} offers the widths ${offered.join(", ") || "(none)"}; the layout asks for ` +
+      `${widths.map((one) => `${one}w`).join(", ")}`,
+  ).toEqual(widths.map((one) => `${one}w`));
+  expect(shown.sizes, `${what} has a srcset and no sizes, so the browser assumes 100vw`).toBeTruthy();
+}
+
+/** The candidates the page builds, which the layout's own rems decide: a piece's
+ *  frame is 7rem and 9rem under 30rem, a week's is 4.5rem, and the root font is
+ *  18px. Kept here as the two lists the page keeps, and a change to either has
+ *  to be a change to both. */
+const PIECE_WIDTHS = [162, 324];
+const WEEK_WIDTHS = [81, 162];
+
+// ---------------------------------------------------------------------------
 // 1. The page a reader with no JavaScript gets.
 // ---------------------------------------------------------------------------
 
@@ -421,12 +524,10 @@ describe("with JavaScript off, the gallery is the page", () => {
           expect(shown.links.map((link) => link.href)).toContain(`${prefix}studio/${piece.file}`);
           continue;
         }
-        expect(shown.image?.src, `${piece.id} hangs ${frame}, the frame the manifest gives it`).toBe(
-          `${prefix}studio/${frame}`,
-        );
+        assertThumbnail(shown.image!, frame, PIECE_WIDTHS, `${piece.id} on the ${wall} wall`);
         expect(
           existsSync(resolve("dist/studio", frame)),
-          `${piece.id} points at dist/studio/${frame}, which the build did not produce`,
+          `${piece.id}'s master ${frame} is not in dist/studio/, so the 3D cannot load it either`,
         ).toBe(true);
         // Intrinsic size on the tag, so the space is the right shape before the
         // lazy image lands and the list does not reflow under a reader who is
@@ -606,12 +707,10 @@ describe("with JavaScript off, the corridor is twelve week cards", () => {
       for (const stage of stages.filter((one) => one.window.kind === "still")) {
         const pane = stage.window as { kind: "still"; file: string; aspect: [number, number]; clip?: string };
         const card = rendered().weeks.find((week) => week.id === stage.id)!;
-        expect(card.image?.src, `${stage.id} does not hang ${pane.file}, the frame the manifest gives it`).toBe(
-          `${prefix}studio/${pane.file}`,
-        );
+        assertThumbnail(card.image!, pane.file, WEEK_WIDTHS, stage.id);
         expect(
           existsSync(resolve("dist/studio", pane.file)),
-          `${stage.id} points at dist/studio/${pane.file}, which the build did not produce`,
+          `${stage.id}'s master ${pane.file} is not in dist/studio/, so the 3D cannot load it either`,
         ).toBe(true);
         // Intrinsic size on the tag, so the space is the right shape before a
         // lazy image lands and six thousand pixels of list do not reflow under

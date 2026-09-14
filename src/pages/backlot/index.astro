@@ -12,6 +12,7 @@
 // of src/backlot/rooms/manifest.ts, the captions are the notes already written
 // in src/data/studio/*.json, and every href goes through withBase because Pages
 // mounts this site under a sub-path (CLAUDE.md §4).
+import { getImage } from "astro:assets";
 import { withBase } from "astro-theme-university/url";
 import StudioLayout from "../../layouts/StudioLayout.astro";
 import {
@@ -124,6 +125,76 @@ function wallsOf(room: BacklotRoom) {
 function frameOf(piece: BacklotPiece): string | undefined {
   const file = piece.poster ?? piece.file;
   return /\.(avif|webp|png|jpe?g)$/.test(file) ? file : undefined;
+}
+
+/**
+ * The gallery's frames, as thumbnails the gallery's own size rather than the
+ * masters the rig recorded.
+ *
+ * The list was hanging full-resolution stills in a 126 px column:
+ * `hero_full_wet.avif` is 120,348 B for a slot 126 px wide, and the five
+ * front-wall posters came to 176,531 B between them. That is a defect on its own
+ * terms whatever the budget says — a reader on a phone pays for a 1024 px master
+ * to look at 81 px of it.
+ *
+ * **The originals do not move.** The room loads these same files out of
+ * public/studio/ at runtime through `assetPrefix`, and every "The full-size
+ * still" link below still points at the master. This adds derivatives beside
+ * them for the list, and nothing else changes.
+ *
+ * `format: "avif"` is asked for explicitly: `astro:assets` defaults to webp, and
+ * the `imageFormat: "avif"` in astro.config.ts is the theme's option and does not
+ * govern this. Measured on the biggest of them, 120,348 B master to 21,060 B webp
+ * to 16,498 B avif at 252 px.
+ */
+const studioSources = import.meta.glob<{ default: ImageMetadata }>(
+  "../../../public/studio/*.{avif,webp,png,jpg,jpeg}",
+  { eager: true },
+);
+
+/** Displayed size times two, for a 2x screen. A piece's frame is 7rem and 9rem
+ *  under 30rem; a week's is 4.5rem. The root font here is 18px, so those are
+ *  126, 162 and 81 CSS px — two candidates cover 1x and 2x of both. */
+const PIECE_WIDTHS = [162, 324];
+const WEEK_WIDTHS = [81, 162];
+const PIECE_SIZES = "(max-width: 30rem) 9rem, 7rem";
+const WEEK_SIZES = "4.5rem";
+
+async function thumbnail(file: string, widths: number[]): Promise<{ src: string; srcset: string }> {
+  const source = studioSources[`../../../public/studio/${file}`];
+  if (!source) {
+    throw new Error(
+      `backlot: the list hangs ${file} and there is no such file under public/studio/, so there is ` +
+        `nothing to make a thumbnail from. The 3D loads it from the same directory at runtime, so this ` +
+        `would be a broken frame in both.`,
+    );
+  }
+  const made = await Promise.all(
+    widths.map((width) => getImage({ src: source.default, width, format: "avif" })),
+  );
+  return {
+    // The largest as the plain src, which is what a browser with no srcset
+    // support takes; every modern one reads the srcset and the sizes instead.
+    src: made[made.length - 1]!.src,
+    srcset: made.map((one, index) => `${one.src} ${widths[index]}w`).join(", "),
+  };
+}
+
+/** Built ahead of the template because the render callbacks below cannot await.
+ *  Keyed by what the frame is for as well as by its file: the same still hangs
+ *  on a wall at 7rem and on a week card at 4.5rem, and those want different
+ *  candidates. */
+const thumbnails = new Map<string, { src: string; srcset: string }>();
+for (const room of backlotManifest.rooms) {
+  for (const piece of room.pieces) {
+    const frame = frameOf(piece);
+    if (frame) thumbnails.set(`piece:${frame}`, await thumbnail(frame, PIECE_WIDTHS));
+  }
+  for (const stage of room.stages ?? []) {
+    if (stage.window.kind === "still") {
+      thumbnails.set(`week:${stage.window.file}`, await thumbnail(stage.window.file, WEEK_WIDTHS));
+    }
+  }
 }
 
 /** The door that opens a room, so the way out of the room can be named with the
@@ -370,7 +441,9 @@ function weeksOf(room: BacklotRoom) {
                         {shot && (
                           <img
                             class="backlot-week__frame"
-                            src={`${studioBase}${shot.file}`}
+                            src={thumbnails.get(`week:${shot.file}`)!.src}
+                            srcset={thumbnails.get(`week:${shot.file}`)!.srcset}
+                            sizes={WEEK_SIZES}
                             width={shot.aspect[0]}
                             height={shot.aspect[1]}
                             loading="lazy"
@@ -414,7 +487,9 @@ function weeksOf(room: BacklotRoom) {
                         {frame && (
                           <img
                             class="backlot-piece__frame"
-                            src={`${studioBase}${frame}`}
+                            src={thumbnails.get(`piece:${frame}`)!.src}
+                            srcset={thumbnails.get(`piece:${frame}`)!.srcset}
+                            sizes={PIECE_SIZES}
                             width={piece.aspect[0]}
                             height={piece.aspect[1]}
                             loading="lazy"

@@ -596,14 +596,6 @@ export async function buildCorridor(context: RoomContext): Promise<void> {
     presses.get(door.stage.id)?.near(near);
     if (near) {
       atStage = door.stage.id;
-      const focus = focusOf.get(door.stage.id);
-      void context.focus({
-        target: door.windowCentre.clone(),
-        // The engine's number, not the seed: it is the radius that delivers the
-        // window's pixel floor at the canvas the reader actually has.
-        radius: focus?.radius ?? Math.max(WINDOW_WIDE, WINDOW.tall) / 2,
-        normal: door.normal.clone(),
-      });
       // Nothing plays itself under the preference. `engine/index.ts` returns
       // before it starts a door's clip for the same reader, and this is that
       // rule at this end rather than a second opinion about it.
@@ -617,7 +609,6 @@ export async function buildCorridor(context: RoomContext): Promise<void> {
     // for.
     if (atStage !== door.stage.id) return;
     atStage = null;
-    context.unfocus();
     windows?.setLive(null);
   }
 

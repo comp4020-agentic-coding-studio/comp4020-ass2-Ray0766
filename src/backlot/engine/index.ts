@@ -581,25 +581,49 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
     const facing = door.focus.normal ? door.focus.normal.clone().multiplyScalar(-1) : undefined;
     player.placeAt(door.standing.clone(), facing);
     hotspots.track(player.position, true);
-    const at = hotspots.locate(door.hotspot.id);
-    if (at) {
-      framedId = door.hotspot.id;
-      framedLabel = `week ${door.name.replace(/^week\s*/i, "")}`;
-      closeUp = true;
-      describeCanvas();
-      await camera.focusOn(
-        at.clone(),
-        door.focus.radius,
-        door.focus.normal,
-        motion.reduced,
-        door.focus.clearance,
-      );
-    }
+    await frameRoomDoor(door);
     // And the keyboard, which is a separate question from the camera and is
     // handed over rather than counted as an arrival.
     const button = hotspots.buttonFor(door.hotspot.id);
     if (button) handFocusTo(button);
     writeRoute();
+  }
+
+  /**
+   * Bring the camera to a door a room built, and say in the URL that a reader is
+   * at it.
+   *
+   * **The one place a room's door is arrived at**, which is the whole of why it
+   * exists. `arriveAt` says in its own comment that walking up, the keyboard
+   * landing and a press are one event as far as the camera is concerned — and
+   * that was true for the ring's six doors and false for a room's, because a
+   * room's proximity went through `RoomContext.focus`, which moves the camera
+   * and sets none of the state that says *which* door it moved to. So a reader
+   * who **walked** to week 5 got the push, the announcement and
+   * `data-backlot-near`, and the URL still said `#corridor`: Back from that
+   * week's page dropped them at the room's entrance with the camera reset.
+   * Everything but the one thing the hash is for.
+   */
+  async function frameRoomDoor(door: RoomDoor): Promise<void> {
+    const at = hotspots.locate(door.hotspot.id);
+    if (!at) return;
+    // Backed out of a moment ago and not left since: the reader's Esc wins over
+    // a proximity that is only now catching up with it. `RoomContext.focus` has
+    // always honoured this and a direct call would have quietly dropped it.
+    if (refused && at.distanceTo(refused.at) < 0.5) return;
+    framedId = door.hotspot.id;
+    // The control's own accessible name, which is what `arriveAt` uses for every
+    // other arrival. `RoomDoor.name` is the short form the live region speaks
+    // mid-sentence — "Opening the week 5 door" — and using it here made the
+    // canvas say "week 5" after a walk and "Week 5: Text to Video" after a Tab,
+    // which is two names for one door depending on how you got there.
+    framedLabel = door.hotspot.button.textContent?.replace(/\s+/g, " ").trim() || door.name;
+    closeUp = true;
+    describeCanvas();
+    writeRoute();
+    await camera.focusOn(at.clone(), door.focus.radius, door.focus.normal, motion.reduced, door.focus.clearance);
+    if (disposed || framedId !== door.hotspot.id) return;
+    framingArmed = false;
   }
 
   /** Which room a door's route name belongs to, by asking the rooms that are
@@ -744,6 +768,13 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
           press: () => void use(id),
           near(at: boolean) {
             atDoorId = at ? id : atDoorId === id ? null : atDoorId;
+            // Arriving, not a note about which door. A room used to move the
+            // camera itself through `RoomContext.focus` and tell the engine
+            // separately, which left the engine knowing a reader was at a door
+            // and not that the camera was on it — so the URL never learned.
+            // One call, one arrival, the same one the keyboard and a press get.
+            if (at) void frameRoomDoor(entry);
+            else if (framedId === id) releaseFraming(false);
           },
         };
       },
@@ -1024,10 +1055,17 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
   for (const entry of hub.doors) {
     const spec: HotspotSpec = {
       id: entry.door.id,
-      label:
-        entry.door.kind === "room"
-          ? `Open the ${entry.door.label} door into the machine room`
-          : `Open the ${entry.door.label} door`,
+      // The room's own title, not a room's title. This said "into the machine
+      // room" for every door that opens one, which was true while there was one
+      // room and told a screen reader the Lectures door opens the machine room
+      // the moment there were two. The no-JS gallery on the same page has always
+      // read it off the manifest; so does this now.
+      label: (() => {
+        const opens = manifest.rooms.find((room) => room.id === entry.door.roomId);
+        return entry.door.kind === "room" && opens
+          ? `Open the ${entry.door.label} door into ${lowerArticle(opens.title)}`
+          : `Open the ${entry.door.label} door`;
+      })(),
       position: entry.anchor,
       radius: DOOR_REACH,
       // Where you are, and how to go on.

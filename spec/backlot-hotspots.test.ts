@@ -439,7 +439,27 @@ async function sweep(): Promise<Sweep> {
         `return document.activeElement?.dataset?.backlotHotspot ?? null;`,
       );
 
+      // The walk starts wherever the room put the reader, so where that is has
+      // to be part of the reading.
+      //
+      // This collected only the controls Tab *moved to*. That was the whole list
+      // while the room handed focus outside itself, and became one short the day
+      // entering a room started landing focus on the **first** control: the
+      // first press moves to the second, and the walk came back "expected
+      // [ 'play-front-t2', …(7) ] to deeply equal [ 'play-front-t1', …(8) ]",
+      // which reads as a missing control and is a missing starting point.
+      //
+      // Blurring does not fix it and it is worth saying why, because it is the
+      // obvious move: Chrome remembers the sequential-focus start at the element
+      // that was blurred, so the next Tab still goes to the one after it. The
+      // honest reading is the starting point plus what the walk saw — and when
+      // the walk has already wrapped round to it, it is in `seen` and must not
+      // be counted twice.
       const walk = await tabTo(tab, entry.interactives[entry.interactives.length - 1]!.id);
+      const order =
+        focusAfterEnter && !walk.seen.includes(focusAfterEnter)
+          ? [focusAfterEnter, ...walk.seen]
+          : walk.seen;
       const rings: Measured[] = [];
       for (const interactive of entry.interactives) {
         const measured = await measureRing(tab, interactive.id);
@@ -544,7 +564,7 @@ async function sweep(): Promise<Sweep> {
       rooms.push({
         id: entry.id,
         buttons,
-        tabOrder: walk.seen,
+        tabOrder: order,
         rings,
         enteredBy: door.id,
         focusAfterEnter,

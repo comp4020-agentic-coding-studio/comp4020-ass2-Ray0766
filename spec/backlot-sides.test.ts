@@ -7,7 +7,7 @@
 // itself had just written: the picker measured the live label, the live label
 // for the control the keyboard is on is the *revealed* one, and its width was
 // capped by whichever side had been picked last frame. So the side set the
-// width and the width set the side. Watched on a build of `01ff878`, the Studio
+// width and the width set the side. Watched on a build of `ff7807f`, the Studio
 // door's name alternated for as long as the keyboard stayed on it, with the
 // button standing still:
 //

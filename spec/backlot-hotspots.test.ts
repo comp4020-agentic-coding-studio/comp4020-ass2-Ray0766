@@ -951,10 +951,10 @@ describe.each(roomsWithDoors)("$room.title is its interactives", ({ room: entry,
   // assertion is that at every step where the engine says the figure is at a
   // door, the URL says the same door. No week is named here.
   //
-  // Seen red against e96bfb5, the last commit where walking never wrote the
+  // Seen red against d332408, the last commit where walking never wrote the
   // hash: "the figure is at stage-week-03 and the URL says "#corridor" —
   // 5 step(s) of the walk arrived at a door and the URL followed at none of
-  // them." Green after 0d1dff3.
+  // them." Green after a6c1996.
   // The route a hotspot's door writes, from the manifest: a stage's control is
   // `stage-week-05` and the fragment it writes is `#week-05`, so the two are not
   // the same string and the check has to map rather than concatenate. My first

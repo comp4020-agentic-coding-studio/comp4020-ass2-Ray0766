@@ -1035,7 +1035,7 @@ describe("the sweep measured something", () => {
   // a point off-screen, a probe that stopped finding the HUD. Those two are the
   // same value and opposite facts, so without this the tap check passes loudest
   // exactly when it has stopped looking.
-  // Seen red against e96bfb5, the commit before the side-picker learned to plan
+  // Seen red against d332408, the commit before the side-picker learned to plan
   // against the label's real width: 26 of 112 expanded names ran off the screen,
   // the worst at 29.7% of itself visible.
   //

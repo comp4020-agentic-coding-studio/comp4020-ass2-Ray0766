@@ -130,6 +130,15 @@ interface Reading {
    *  back to a bookmark. Whichever kind the Back above turned out to be, this is
    *  the other one. */
   coldUrl: State;
+  /** What the backlot's URL said at the moment the press took the document away
+   *  — the history entry Back comes back to.
+   *
+   *  **Read here rather than inferred from `back`**, because whether Back shows
+   *  a defect in that entry is the browser's choice and not this check's: a
+   *  restore out of the back/forward cache brings the live engine with it and it
+   *  rewrites the hash from the scene before anybody looks, so the same broken
+   *  entry reads as fine about two runs in three. This is the entry itself. */
+  leftAt: string;
   /** With JavaScript switched off entirely: does the same URL reach the same
    *  week's entry in the list? */
   noScript: { id: string | null; matched: boolean } | null;
@@ -145,7 +154,13 @@ async function drive(): Promise<Reading> {
     // listener can be put that will still be there to hear its own `pageshow`.
     await tab.onNewDocument(
       `window.__restored = "cold";
-       addEventListener("pageshow", (event) => { window.__restored = event.persisted ? "cache" : "cold"; });`,
+       addEventListener("pageshow", (event) => { window.__restored = event.persisted ? "cache" : "cold"; });
+       // And what this document's URL said as it went away, which is the history
+       // entry Back has to come back to. Kept in sessionStorage because the
+       // document that recorded it is gone by the time anybody can ask.
+       addEventListener("pagehide", () => {
+         try { sessionStorage.setItem("backlot:leftAt", location.hash); } catch {}
+       });`,
     );
     await tab.viewport(1920, 1080);
     // The engine is watched rather than the pixels, so the idle camera and the
@@ -168,6 +183,7 @@ async function drive(): Promise<Reading> {
     await tab.evaluate(`document.querySelector('[data-backlot-hotspot="stage-week-05"]').click(); return 1;`);
     await pause(4500);
     const onThePage = await tab.evaluate<State>(STATE);
+    const leftAt = await tab.evaluate<string>(`return sessionStorage.getItem("backlot:leftAt") || "(never recorded)";`);
 
     // Back — the browser's own button, not `history.back()` in the page.
     //
@@ -214,7 +230,7 @@ async function drive(): Promise<Reading> {
       return { id, matched: !!document.getElementById(id) };
     `);
 
-    return { atTheDoor, onThePage, back, backWas, coldUrl, noScript };
+    return { atTheDoor, onThePage, back, backWas, coldUrl, leftAt, noScript };
   } finally {
     await tab.close();
     await site.close();
@@ -228,6 +244,23 @@ describe("the backlot says where you are in the URL", () => {
     expect(STAGE, "the corridor has no fifth stage, so everything below is about nothing").toBeDefined();
     expect(CORRIDOR_DOOR, "no door opens the corridor").toBeDefined();
     expect(STAGE!.id).toBe("week-05");
+  });
+
+  it("leaves the door's name in the entry the press pushed off", () => {
+    // The act is the press; the state it has to change is the history entry the
+    // document leaves behind. Everything else here reads what Back gave back,
+    // and Back is allowed to hand the live engine back with it — which rewrites
+    // the hash from the scene and hides a broken entry about two runs in three.
+    //
+    // Seen red by taking the guard off the route writer: a navigation blurs the
+    // control that started it, the blur is how the framing is released, and the
+    // release wrote the room's own name over the door's on the way out.
+    expect(
+      seen.leftAt,
+      `the backlot's URL said "${seen.leftAt}" as the press took the document away, so the entry Back ` +
+        `comes back to does not name the door the reader pressed. Whether that shows up in the state after ` +
+        `Back is the browser's choice of restore, not this check's.`,
+    ).toBe(`#${STAGE!.id}`);
   });
 
   it("names the door the reader is standing at, not just the room", () => {

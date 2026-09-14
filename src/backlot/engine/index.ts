@@ -530,7 +530,38 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
   }
 
   /** And write it, from where the reader actually is. */
+  /**
+   * This document has asked to be replaced, so its history entry is final.
+   *
+   * **A navigation blurs the control that started it, and a blur is how the
+   * framing is released.** The focusout handler cannot tell the reader Tabbing
+   * off a door from the browser taking the page away, and the release writes the
+   * room's own name into the URL — so the entry Back comes back to said
+   * `#corridor` when the reader had pressed week 5. Measured on one press, from
+   * the document's own callbacks:
+   *
+   *   CLICK on stage-week-05        @9613ms
+   *   aria-disabled=true, =false    @9615ms   the press, start to finish
+   *   data-backlot-near=true        @9618ms   the figure at the door
+   *   replaceState -> #corridor     @9631ms
+   *   FOCUSOUT                      @9631ms   the same millisecond
+   *   pagehide url=#corridor        @9634ms
+   *
+   * It read as intermittent — about one full run in three — because of what
+   * happens next: a Back served from the back/forward cache brings this engine
+   * back with it, the figure is still standing at the door, and it rewrites
+   * `#week-05` before anybody can look. A Back served cold has no engine to do
+   * that and gets the entry as it was left. Same defect every time; only the
+   * browser's choice of restore decides whether anyone can see it.
+   *
+   * `pagehide` is too late to be the signal — the focusout above lands three
+   * milliseconds ahead of it — so the departure is declared where it is decided,
+   * next to the `assign` that causes it.
+   */
+  let departing = false;
+
   function writeRoute(): void {
+    if (departing) return;
     const room = mounted?.room.id ?? null;
     const at = framedId ? roomDoors.find((door) => door.hotspot.id === framedId) : undefined;
     const hash = room ? (at?.route ? `#${at.route}` : `#${room}`) : "";
@@ -1039,6 +1070,14 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
         await enterRoom(roomId);
         return;
       }
+      // Where the reader is going, and then that this document is finished.
+      //
+      // The first is usually a no-op: the arrival wrote it already. The second
+      // is what stops the URL being edited on the way out, by the focusout the
+      // navigation itself causes — see `departing`.
+      framedId = doorId;
+      writeRoute();
+      departing = true;
       // Already base-resolved by the page: the island never calls withBase and
       // never writes a root-absolute URL (CLAUDE.md §4). A room door with no
       // builder registered lands here too, which is the honest fallback — the
@@ -1305,6 +1344,11 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
   // the disagreement is invisible.
   const onPageShow = (event: PageTransitionEvent) => {
     if (!event.persisted || disposed) return;
+    // This document was on its way out and has been handed back, so it owns its
+    // URL again. Without this the flag above would still be set and the restored
+    // page could never say where the reader walked to next — the same document,
+    // mute for the rest of its life.
+    departing = false;
     void applyRoute().catch((error) => console.warn("backlot: the route did not restore", error));
   };
   window.addEventListener("pageshow", onPageShow);

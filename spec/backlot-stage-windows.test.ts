@@ -150,6 +150,8 @@ interface Window {
   tally: Map<string, number>;
   /** First and last row each value appears on, so a leak can say where it is. */
   span: Map<string, [number, number]>;
+  /** The middle third of the opening, where the numeral is drawn. */
+  heart: Map<string, number>;
   /** The rectangle's height, so a row range reads against something. */
   rows: number;
 }
@@ -337,7 +339,27 @@ async function readWindow(tab: Tab, stage: string): Promise<Window> {
       span.set(key, seen ? [Math.min(seen[0], row), Math.max(seen[1], row)] : [row, row]);
     }
   }
-  return { stage, rect, tally, span, rows: raster.height };
+  // The middle of the opening, where `drawEmptyGate` puts the numeral: it is
+  // drawn centred with `textAlign: center` and a baseline at `height/2 + cap/2`,
+  // so the glyph straddles the vertical middle. A third of the width and a third
+  // of the height around the centre is well inside it and well clear of the
+  // frame, so what is in here is the number or it is nothing.
+  const heart = new Map<string, number>();
+  const fromX = Math.floor(raster.width / 3);
+  const toX = Math.ceil((raster.width * 2) / 3);
+  const fromY = Math.floor(raster.height / 3);
+  const toY = Math.ceil((raster.height * 2) / 3);
+  for (let row = fromY; row < toY; row++) {
+    for (let column = fromX; column < toX; column++) {
+      const key = raster
+        .at(column, row)
+        .map((channel) => Math.round(channel * 255))
+        .join(",");
+      heart.set(key, (heart.get(key) ?? 0) + 1);
+    }
+  }
+
+  return { stage, rect, tally, span, heart, rows: raster.height };
 }
 
 const commonest = (window: Window): string =>
@@ -505,6 +527,36 @@ describe("a week that has not been shot yet says so", () => {
           "empty frame lit from behind. The gate is that ground with a wash of the brand fill over it; " +
           "hub.ts measured a bare one at 0.012 relative luminance and it read as a hole with writing on it.",
       ).not.toBe(bare);
+    });
+
+    // Seen red by drawing the numeral at `globalAlpha = 0` in
+    // rooms/corridor-windows.ts, which an independent review landed and the
+    // whole suite survived at 1,908 passed:
+    //   AssertionError: week-01's panel is one flat colour through the middle
+    //   third of its opening, so there is no number on it. The panel says "this
+    //   week has not been shot yet"; without the numeral it says "this door is
+    //   broken", which is the one reading it exists to prevent.
+    //
+    // The ground assertions above are all about the panel being *consistent* —
+    // one colour, not the bare fill, absent from windows with a picture,
+    // unchanged across themes — and every one of them is happiest when the panel
+    // is perfectly blank. Half the claim was unguarded because the other half's
+    // checks were satisfied by its absence.
+    it(`carries its own number, in the ${scheme} theme`, () => {
+      const read = windows.get(scheme)!;
+      for (const stage of unshot) {
+        const heart = read.get(stage)!.heart;
+        const ground = commonest(read.get(stage)!);
+        const ink = [...heart.entries()].filter(([colour]) => colour !== ground);
+        expect(
+          ink.length,
+          `${stage}'s panel is one flat colour (${ground}) through the middle third of its opening, so ` +
+            `there is no number on it. The panel says "this week has not been shot yet"; without the ` +
+            `numeral it says "this door is broken", which is the one reading it exists to prevent. Every ` +
+            `other assertion here is about the panel being consistent, and a blank panel is perfectly ` +
+            `consistent.`,
+        ).toBeGreaterThan(0);
+      }
     });
 
     it(`is in none of the ${shot.length} windows that have a picture, in the ${scheme} theme`, () => {

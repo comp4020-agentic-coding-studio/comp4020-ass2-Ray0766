@@ -128,6 +128,20 @@
 }
 
 .backlot-hotspot[data-backlot-dense="true"] .backlot-hotspot__label {
+  /* The label is read, never pressed — and when it comes back on hover or focus
+     it is positioned at `100%`, **outside** its own button, which is what the
+     rule below says it is for. A thing painted outside the button that still
+     hit-tests is a thing that answers for a control it does not belong to: at
+     390x844 the machine room's five screens are twenty-five pixels apart, so
+     "Play one line" revealed beside the first dot lay across the centre of the
+     second, and a tap on the second screen activated the first. The boxes never
+     overlapped, which is why nothing that looks at boxes could see it — the
+     checks lane found it by asking `elementFromPoint` what owns each control's
+     own centre.
+
+     Only in the dense state. An uncrowded label is inside its button and is
+     exactly what a reader aims at. */
+  pointer-events: none;
   position: absolute;
   inline-size: 1px;
   block-size: 1px;

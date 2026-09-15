@@ -88,8 +88,16 @@ const READY = String.raw`
 /** Every sentence the live region says from here on, in order.
  *
  *  `announce` empties the region before it writes, so the empties are dropped
- *  and a repeat of the sentence already standing is dropped with them — the
- *  region is being re-announced, not saying something new.
+ *  and every call lands exactly one entry here.
+ *
+ *  **Repeats are kept, on purpose.** The first version of this dropped a
+ *  sentence identical to the one already recorded, on the grounds that a live
+ *  region re-announcing itself is not saying something new — which would have
+ *  collapsed a settle firing every frame, saying the same thing each time, into
+ *  a single tidy entry. That is one of the two regressions the settle's guard
+ *  stands between us and, and this file counts sentences precisely so it can see
+ *  it. The count is the assertion; hiding repeats would be answering the
+ *  question next to the one being asked.
  *
  *  **No backticks below.** This is a String.raw template and one closes it
  *  early, which collects zero tests under a summary that says the file passed. */
@@ -100,7 +108,6 @@ const SPY = String.raw`
   new MutationObserver(() => {
     const text = (live.textContent || "").replace(/\s+/g, " ").trim();
     if (!text) return;
-    if (window.__said[window.__said.length - 1] === text) return;
     window.__said.push(text);
   }).observe(live, { childList: true, characterData: true, subtree: true });
   return "watching";
@@ -152,6 +159,19 @@ interface Five {
   path: string;
 }
 
+/** Whether a sentence names a particular door, as a reader would hear it: the
+ *  week's number, word-bounded so that week 1 is not week 11, or the week's own
+ *  title. The property rather than any one form of words — the sentences are
+ *  the engine's to choose and this file must not pin them. */
+function names(sentence: string, stage: { week: number; title: string }): boolean {
+  return new RegExp(`\\bweek ${stage.week}\\b`, "i").test(sentence) || sentence.includes(stage.title);
+}
+
+/** And whether it names any of the twelve at all. */
+function namesADoor(sentence: string): boolean {
+  return STAGES.some((stage) => names(sentence, stage));
+}
+
 /** One reading, in the reader's terms, for a failure message. */
 function shown(at: Five): string {
   return (
@@ -169,7 +189,7 @@ function notNaming(at: Five, id: string): string[] {
   if (!at.near.includes(id)) wrong.push(`the doors drawn as arrived at are [${at.near.join(", ")}]`);
   if (at.hash !== `#${stage.id}`) wrong.push(`the URL says "${at.hash}"`);
   if (at.keyboard !== id) wrong.push(`the keyboard is on "${at.keyboard}"`);
-  if (!at.said.includes(`week ${stage.week} door`)) wrong.push(`the live region says "${at.said}"`);
+  if (!names(at.said, stage)) wrong.push(`the live region says "${at.said}"`);
   return wrong;
 }
 
@@ -178,7 +198,7 @@ function stillNamingADoor(at: Five): string[] {
   const wrong: string[] = [];
   if (at.near.length) wrong.push(`the doors drawn as arrived at are [${at.near.join(", ")}]`);
   if (at.hash !== `#${CORRIDOR!.id}`) wrong.push(`the URL says "${at.hash}"`);
-  if (/week \d+ door/.test(at.said)) wrong.push(`the live region says "${at.said}"`);
+  if (namesADoor(at.said)) wrong.push(`the live region says "${at.said}"`);
   if (at.closeOn) wrong.push(`the camera is close on "${at.closeOn}"`);
   if (at.framed) wrong.push("the HUD still says the camera is framed");
   return wrong;
@@ -444,10 +464,11 @@ describe("Esc at a door pulls the camera back and nothing else", () => {
         `not moved.`,
     ).toHaveLength(1);
     expect(
-      refused.saidOnEsc[0],
-      `Escape said "${refused.saidOnEsc[0]}", which does not name the door the other three answers name. ` +
-        `That made the live region the one of the four that had stopped.`,
-    ).toContain(`week ${stage!.week} door`);
+      names(refused.saidOnEsc[0] ?? "", stage!),
+      `Escape said "${refused.saidOnEsc[0]}", which names neither week ${stage!.week} nor ` +
+        `"${stage!.title}", so it does not name the door the other three answers name. That made the live ` +
+        `region the one of the four that had stopped.`,
+    ).toBe(true);
   });
 
   it("keeps the camera out when the reader steps back inside the reach", () => {
@@ -550,10 +571,13 @@ describe("walking out of every door's reach", () => {
         `${JSON.stringify(left.saidOnLeaving)}. Arrival was announced and departure was not, which left the ` +
         `last arrival standing in the live region while the reader was nowhere near it.`,
     ).toHaveLength(1);
+    const named = STAGES.filter((stage) => names(left.saidOnLeaving[0] ?? "", stage));
     expect(
-      /week \d+ door/.test(left.saidOnLeaving[0] ?? ""),
-      `the departure sentence is "${left.saidOnLeaving[0]}", which names a door the reader has left`,
-    ).toBe(false);
+      named.map((stage) => stage.id),
+      `the departure sentence is "${left.saidOnLeaving[0]}", which names ${named.length} of the corridor's ` +
+        `doors. It is said at the moment there is no door to name, and it is said for all twelve — so it ` +
+        `must carry neither a week's number nor a week's title.`,
+    ).toEqual([]);
   });
 
   it("does nothing at all on Enter", () => {

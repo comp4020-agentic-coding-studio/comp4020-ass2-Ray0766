@@ -798,6 +798,17 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
       atDoorId = nearest;
       return;
     }
+    // **This guard is the only thing standing between here and a settle every
+    // frame, and it is coupled to `atDoorId`.** "Have we already acted on this
+    // containing set" is asked as "is the set the one we acted on, and is the
+    // winner still the door we recorded" — so anything that writes `atDoorId`
+    // from outside this function makes the second half stop matching and the
+    // whole body run on every frame. That is not a quiet failure: `announce`
+    // blanks the live region 40 ms before it writes, so a settle per frame
+    // clears it and never lets a sentence land, and the hand-over re-grabs focus
+    // off whatever the reader had. Both of those read as something else
+    // entirely. `atDoorId` is written here and, outside a room, by the hub's own
+    // proximity; nothing else may.
     if (signature === doorsAround && nearest === atDoorId) return;
     const changed = nearest !== atDoorId;
     doorsAround = signature;
@@ -1249,17 +1260,18 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
         await enterRoom(roomId);
         return;
       }
-      // Which door the reader is leaving from, and then that this document is
-      // finished.
+      // Where the reader is going, and then that this document is finished.
       //
-      // The first is usually a no-op: the walk above ended at this door's
-      // standing mark and the settle wrote it already. It says `atDoorId` rather
-      // than `framedId` for the same reason `writeRoute` reads that one — a
-      // press can be made from across the corridor with the camera on nothing,
-      // and it is still this door the reader is going through. The second is
-      // what stops the URL being edited on the way out, by the focusout the
+      // The first is usually a no-op: the arrival wrote it already. The second
+      // is what stops the URL being edited on the way out, by the focusout the
       // navigation itself causes — see `departing`.
-      atDoorId = doorId;
+      //
+      // **`framedId`, not `atDoorId`, and that is not a detail.** `writeRoute`
+      // reads `framedId` first, so this line says what it always said. Writing
+      // `atDoorId` here would say it too — and would also leave `atDoorId`
+      // holding something the settle did not put there, which is a state the
+      // guard below `doorsAround` cannot survive. See `settleRoomDoors`.
+      framedId = doorId;
       writeRoute();
       departing = true;
       // Already base-resolved by the page: the island never calls withBase and

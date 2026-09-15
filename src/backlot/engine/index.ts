@@ -45,6 +45,23 @@ const HUB_LABEL =
   "A view from above the backlot: a circular floor with six doors standing in a ring and a figure " +
   "in the middle. The buttons over this picture open the doors, and the arrow keys walk.";
 
+/**
+ * What the live region says at the moment the figure is standing at no door.
+ *
+ * One string for both halves of the backlot, because it is one event. It was
+ * written for the corridor and left inside `settleRoomDoors`, which returns
+ * unless a room is mounted — so the ring's six doors, the first thing every
+ * reader sees, announced an arrival and said nothing at all on the way out.
+ * Walking away from the Lectures door left "At the Lectures door. Press Enter
+ * to open it." standing with nothing near, nothing framed and Enter dead, and
+ * after an Esc it left this round's own "Pulled back. Still at the Lectures
+ * door." there instead, which is worse for being newer.
+ *
+ * It names no door, because it is said at the moment there is no door to name
+ * and it is said for all eighteen of them.
+ */
+const NO_DOOR_NEAR = "No door within reach.";
+
 /** How long a leaf is given to swing before the door does what it is for. */
 const OPEN_MILLISECONDS = 420;
 
@@ -882,7 +899,7 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
       // nothing. A reader on a screen reader had no way to know they had left.
       // One message, so this is the whole of what is said, and it names no door
       // because there is no door to name.
-      if (changed) announce("No door within reach.");
+      if (changed) announce(NO_DOOR_NEAR);
     }
   }
 
@@ -1377,7 +1394,11 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
       activate: () => void use(entry.door.id),
       onProximity(near) {
         hub.setNear(entry.door.id, near);
-        atDoorId = near ? entry.door.id : atDoorId === entry.door.id ? null : atDoorId;
+        // Read before it is written: "was this the door the reader was at" is
+        // what decides whether leaving it is a departure worth announcing, and
+        // the line below is about to answer it differently.
+        const wasAt = atDoorId === entry.door.id;
+        atDoorId = near ? entry.door.id : wasAt ? null : atDoorId;
         // Walking up to a door is arriving at it, and arriving is what frames
         // it. It is **not** what opens it, and that changed this round.
         //
@@ -1395,6 +1416,14 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
         // And walking away puts it back, which is the half of this a keyboard
         // reader gets by Tabbing off the button.
         leaveOf(spec);
+        // **And leaving is an event on the ring too.** `settleRoomDoors` says
+        // this for a room's doors and cannot say it here — it returns unless a
+        // room is mounted — so this is the same sentence at the same moment for
+        // the other six. Only when the door being left is the one the reader was
+        // at: the ring's doors are 11.5 m apart against a 2.1 m reach, so two of
+        // them cannot hold the figure at once and this is always the whole of
+        // the departure rather than half of one.
+        if (wasAt) announce(NO_DOOR_NEAR);
       },
     };
     doorSpecs.set(entry.door.id, spec);

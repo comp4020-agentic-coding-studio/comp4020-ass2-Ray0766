@@ -10,7 +10,9 @@ import { execFileSync } from "node:child_process";
 //
 // A template cannot hardcode the path, because it does not know the repo name
 // until a student generates from it. So it is derived: GITHUB_REPOSITORY in
-// Actions, the origin remote otherwise.
+// Actions, the origin remote otherwise --- the origin of the checkout that is
+// *this directory's own*, which is a narrower question than the one git answers
+// when it is asked for a remote. See `notThisRepo`.
 //
 // And when neither can be had, the build stops. There is no safe guess here:
 // "I don't know the repo" used to mean base `/`, which builds a whole site of
@@ -20,15 +22,17 @@ import { execFileSync } from "node:child_process";
 // only reading of an unknown repo that is honest is that this build cannot be
 // made, so it isn't.
 
-/** What git had to say when asked for the origin remote. Four answers, not
- *  the two a `string | undefined` can carry: here it is; this is a checkout
+/** What git had to say when asked for the origin remote. Five answers, not
+ *  the two a `string | undefined` can carry: here it is; here is one, but it is
+ *  some enclosing repository's and not this directory's; this is a checkout
  *  with no origin set; this is not a checkout at all; I could not be run at
  *  all. The last is a fact about the toolchain rather than about the tree ---
  *  on this machine it was an unaccepted Xcode licence failing every git call
- *  --- and each of the four needs its own answer, because each needs a
+ *  --- and each of the five needs its own answer, because each needs a
  *  different fix. */
 export type GitRemote =
   | { kind: "origin"; url: string }
+  | { kind: "foreign-checkout"; url: string; root: string; detail: string }
   | { kind: "no-origin"; detail: string }
   | { kind: "no-checkout"; detail: string }
   | { kind: "git-unusable"; detail: string };
@@ -57,8 +61,9 @@ function why(error: unknown): string {
 /** Ask git for the origin remote. Impure, and kept apart from the resolution
  *  below so that stays testable. */
 export function gitOrigin(): GitRemote {
+  let url: string;
   try {
-    return { kind: "origin", url: runGit(["remote", "get-url", "origin"]) };
+    url = runGit(["remote", "get-url", "origin"]);
   } catch (error) {
     const answer = why(error);
     // Having no remote to name is not the same failure as being unable to
@@ -82,6 +87,67 @@ export function gitOrigin(): GitRemote {
       return { kind: "no-checkout", detail: why(outside) };
     }
     return { kind: "no-origin", detail: answer };
+  }
+
+  // A url is not yet an answer: git found *a* repository, and the one it found
+  // may be one this directory is merely sitting inside.
+  const foreign = notThisRepo();
+  return foreign ? { kind: "foreign-checkout", url, ...foreign } : { kind: "origin", url };
+}
+
+/** Whether the repository git just answered from is somebody else's.
+ *
+ *  `git remote get-url origin` never fails for want of a repository *here*: git
+ *  walks up the directory tree until it finds one. Unpack the template inside
+ *  any other checkout --- last semester's repo, a notes repo, anything under a
+ *  synced folder that happens to be one, which is where people unpack things ---
+ *  and every git question this file asks is answered by that repository instead.
+ *  The build then succeeds under *its* name and puts a real path that does not
+ *  exist in front of every asset URL on the site. It is the same 404 the rest of
+ *  this file refuses, arriving through the one door left open, and nothing
+ *  downstream can see it, because the base it produces is well-formed.
+ *
+ *  Two questions settle it, and git answers both about itself, so neither costs
+ *  anything to a symlinked path, to /tmp resolving to /private/tmp, or to a
+ *  case-insensitive volume --- all of which a comparison of `--show-toplevel`
+ *  against `process.cwd()` has to get right by hand. `--show-prefix` is empty
+ *  exactly when the build directory is the repository's own root, which is the
+ *  ordinary case (a clone, a generated repo, a linked worktree) and needs no
+ *  second question. A non-empty prefix is not yet wrong: a site built from a
+ *  subdirectory of its own repo is a normal layout and does deploy under that
+ *  repo's name. What separates that from a stowaway is whether the repository
+ *  tracks anything here at all. A stowaway tracks nothing. */
+function notThisRepo(): { root: string; detail: string } | null {
+  let prefix: string;
+  try {
+    prefix = runGit(["rev-parse", "--show-prefix"]).trim();
+  } catch (error) {
+    // git named a remote and then could not place this directory inside a work
+    // tree. Whatever that is, it is not a repository this site is published as,
+    // and guessing it is, is exactly the guess this file exists to refuse.
+    return { root: repoRoot(), detail: `git could not place this directory in it: ${why(error)}` };
+  }
+  if (prefix === "") return null;
+
+  try {
+    runGit(["ls-files", "--error-unmatch", "--", "."]);
+  } catch {
+    return {
+      root: repoRoot(),
+      detail: `It tracks no file under ${prefix}, so this directory is not part of it`,
+    };
+  }
+  return null;
+}
+
+/** The root of the repository git answered from, for naming it in the refusal.
+ *  Empty rather than thrown: by here the build is already refused, and failing
+ *  to decorate the message is not a second failure worth reporting. */
+function repoRoot(): string {
+  try {
+    return runGit(["rev-parse", "--show-toplevel"]).trim();
+  } catch {
+    return "";
   }
 }
 
@@ -186,11 +252,33 @@ export function resolveDeployment(
     ]);
   }
 
+  if (remote.kind === "foreign-checkout") {
+    // Where a downloaded copy of the template actually lands, and the last
+    // failure in this file that still built a whole site: git walks up, so a
+    // build anywhere inside another checkout is answered by that checkout and
+    // published under its name. The base it produces is a real path, just
+    // somebody else's, which is why nothing downstream ever objected.
+    throw undeployable(
+      "this is not a checkout of its own, and git answered from the one it sits\n"
+        + `  inside: the repository${remote.root ? ` at ${remote.root}` : ""}, whose origin is\n`
+        + `  "${remote.url.trim()}".\n`
+        + `  ${remote.detail}.${ignored}`,
+      [
+        "clone the repo this site deploys to, rather than unpacking a copy inside\n"
+          + "    another checkout --- a copy carries no origin of its own, so git answers\n"
+          + "    with the enclosing repository's",
+        `or ${SET_IT}`,
+      ],
+    );
+  }
+
   if (remote.kind === "no-checkout") {
-    // A zip download of the template lands here, and it is refused too. There
-    // is nothing here that knows the repo it will be published as, and a
-    // template exists to be published --- so the one line that makes it
-    // buildable is better said now than inferred from a blank live page. The
+    // Reached only when the build lands outside *every* repository --- a copy
+    // unpacked where no checkout encloses it. Unpacked inside one, it is the
+    // foreign-checkout above instead, which is the commoner accident of the two.
+    // Either way there is nothing here that knows the repo it will be published
+    // as, and a template exists to be published --- so the one line that makes
+    // it buildable is better said now than inferred from a blank live page. The
     // build still works; it just has to be told the one thing it cannot see.
     throw undeployable(
       `this is not a git checkout, so there is no remote to read: ${remote.detail}${ignored}`,

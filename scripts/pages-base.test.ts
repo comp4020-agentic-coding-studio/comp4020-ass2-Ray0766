@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { chmodSync, mkdtempSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, realpathSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -60,6 +60,12 @@ describe("resolveDeployment", () => {
     kind: "no-checkout",
     detail: "fatal: not a git repository",
   });
+  const foreign = (): GitRemote => ({
+    kind: "foreign-checkout",
+    url: "https://github.com/someone-else/the-parent-repo.git\n",
+    root: "/Users/ray/notes",
+    detail: "It tracks no file under site/, so this directory is not part of it",
+  });
 
   it("prefers GITHUB_REPOSITORY, and does not ask git at all", () => {
     // The Actions path. Asserting the remote is never consulted, not just that
@@ -105,9 +111,11 @@ describe("resolveDeployment", () => {
     });
 
     it("when this is not a checkout at all", () => {
-      // A zip download of the template. Refused for the same reason as the
-      // rest: nothing here knows the repo, and a template exists to be
-      // deployed. The message hands over the one line that builds it anyway.
+      // A copy of the template unpacked where no checkout encloses it ---
+      // which, as `gitOrigin` below shows, is the rarer of the two ways a
+      // downloaded copy lands. Refused for the same reason as the rest:
+      // nothing here knows the repo, and a template exists to be deployed.
+      // The message hands over the one line that builds it anyway.
       expect(() => resolveDeployment({}, noCheckout)).toThrow(/not a git checkout/);
       expect(() => resolveDeployment({}, noCheckout)).toThrow(/GITHUB_REPOSITORY=<owner>\/<repo>/);
     });
@@ -117,6 +125,20 @@ describe("resolveDeployment", () => {
         /not a GitHub repo this can publish to/,
       );
     });
+  });
+
+  // Not one of the four above, and it is worth saying why it is kept apart:
+  // those all used to answer base "/", and this one answered a base that was
+  // perfectly well-formed and belonged to a stranger. A site of 404s either
+  // way, but nothing downstream could have objected to this one.
+  it("refuses a base borrowed from the checkout this one sits inside", () => {
+    const message = getMessage(() => resolveDeployment({}, foreign));
+    expect(message).toContain("not a checkout of its own");
+    expect(message).toContain("https://github.com/someone-else/the-parent-repo.git");
+    expect(message).toContain("/Users/ray/notes");
+    expect(message).toContain("It tracks no file under site/");
+    expect(message).toContain("clone the repo this site deploys to");
+    expect(message).toContain("GITHUB_REPOSITORY=<owner>/<repo>");
   });
 
   it("says what went wrong, why it is fatal, and what to do", () => {
@@ -159,6 +181,27 @@ describe("gitOrigin", () => {
 
   const scratch = () => mkdtempSync(join(tmpdir(), "pages-base-"));
 
+  /** A real checkout with an origin, at a fresh temp directory. `realpathSync`
+   *  because tmpdir() hands back /var/..., git answers /private/var/..., and a
+   *  test that compared the two unresolved would be measuring macOS rather
+   *  than this code. */
+  const checkout = (url: string): string => {
+    const dir = realpathSync(scratch());
+    execFileSync("git", ["init", "-q", "."], { cwd: dir, stdio: "ignore" });
+    execFileSync("git", ["remote", "add", "origin", url], { cwd: dir, stdio: "ignore" });
+    return dir;
+  };
+
+  /** A directory inside `parent` that `parent` does not track --- a copy of the
+   *  template unpacked into somebody else's checkout, which is where people
+   *  unpack things. */
+  const stowaway = (parent: string): string => {
+    const dir = join(parent, "site");
+    mkdirSync(dir);
+    writeFileSync(join(dir, "package.json"), "{}\n");
+    return dir;
+  };
+
   it("reads the origin of a checkout that has one", () => {
     const remote = gitOrigin();
     expect(remote.kind).toBe("origin");
@@ -174,8 +217,84 @@ describe("gitOrigin", () => {
   });
 
   it("calls a bare directory not a checkout", () => {
+    // Outside every repository. This is the only shape `no-checkout` has:
+    // inside one, git answers with that one, which is the next three tests.
     process.chdir(scratch());
     expect(gitOrigin().kind).toBe("no-checkout");
+  });
+
+  it("reads the origin of a checkout whose root is the build directory", () => {
+    // The ordinary case, and the one an ownership test can most easily break:
+    // this repo has no commit and no file in its index, so "does this repo
+    // track anything here" is the wrong question to ask first. Being the root
+    // is the answer, and git is the one that says so.
+    const dir = checkout("git@github.com:octocat/hello-world.git");
+    process.chdir(dir);
+
+    const remote = gitOrigin();
+    expect(remote.kind).toBe("origin");
+    if (remote.kind !== "origin") return;
+    expect(parseRepoSlug(remote.url)).toEqual({ owner: "octocat", repo: "hello-world" });
+  });
+
+  it("reads the origin from a subdirectory its own repo tracks", () => {
+    // A site built from a subdirectory of its own repo is a normal layout and
+    // deploys under that repo's name. Being nested is not the defect; being a
+    // stranger is, and refusing this would be refusing a build that works.
+    const repo = checkout("git@github.com:octocat/hello-world.git");
+    const site = join(repo, "packages", "site");
+    mkdirSync(site, { recursive: true });
+    writeFileSync(join(site, "package.json"), "{}\n");
+    execFileSync("git", ["add", "packages/site/package.json"], { cwd: repo, stdio: "ignore" });
+    process.chdir(site);
+
+    expect(gitOrigin().kind).toBe("origin");
+  });
+
+  it("will not hand back the origin of a repo this directory merely sits inside", () => {
+    // `git remote get-url origin` walks up, so this used to answer
+    // `{ kind: "origin" }` carrying a stranger's url, and the build went on to
+    // publish a whole site under a stranger's name. A stubbed `gitRemote`
+    // cannot reach any of this: the defect is in `gitOrigin`'s relationship
+    // with the filesystem, so the fixture is a real nested checkout.
+    const parent = checkout("https://github.com/someone-else/the-parent-repo.git");
+    process.chdir(stowaway(parent));
+
+    const remote = gitOrigin();
+    expect(remote.kind).toBe("foreign-checkout");
+    if (remote.kind !== "foreign-checkout") return;
+    expect(remote.url.trim()).toBe("https://github.com/someone-else/the-parent-repo.git");
+    expect(remote.root).toBe(parent);
+    expect(remote.detail).toContain("tracks no file under site/");
+  });
+
+  it("refuses the build there rather than publishing under the enclosing name", () => {
+    // The whole chain, as `astro.config.ts` runs it. Assert on the thing the
+    // bug produced: this exact fixture built 60 pages, printed Complete!, and
+    // wrote 166 URLs under /the-parent-repo/ into dist/backlot/index.html.
+    // `getMessage` fails rather than passing vacuously if a Deployment comes
+    // back at all, which is what a returned base would be.
+    const parent = checkout("https://github.com/someone-else/the-parent-repo.git");
+    process.chdir(stowaway(parent));
+
+    const message = getMessage(() => resolveDeployment({}, gitOrigin));
+    expect(message).toContain("not a checkout of its own");
+    expect(message).toContain("the-parent-repo");
+    expect(message).toContain(parent);
+  });
+
+  it("still lets GITHUB_REPOSITORY win there, without asking git", () => {
+    // The env path must not have grown a git call while this was being fixed:
+    // it is the path every deploy takes, and it is the fix the message above
+    // hands the reader, so it has to work in exactly the directory that is
+    // refused.
+    const parent = checkout("https://github.com/someone-else/the-parent-repo.git");
+    process.chdir(stowaway(parent));
+
+    expect(resolveDeployment({ GITHUB_REPOSITORY: "octocat/hello-world" }, gitOrigin)).toEqual({
+      site: "https://octocat.github.io",
+      base: "/hello-world",
+    });
   });
 
   it("calls a git that cannot run a git that cannot run, and quotes it", () => {

@@ -1587,6 +1587,31 @@ describe.each(VIEWPORTS)("what the engine publishes at $name", ({ name }) => {
 // sideways would have been the reader's own version of it and it is what I
 // drove, but a 0.4 m step against a 1.1 m reach is a walk inside an assertion,
 // and this file has paid for one of those already.
+//
+// **Seen red, both of them, with nothing injected** — they are live defects and
+// the reds are the defects themselves — and then re-taken against the fixed
+// tree with each fix undone in the built chunk, anchored inside the function it
+// breaks and matched exactly once (CLAUDE.md §7: an injection's anchor expires
+// more quietly than a check does).
+//
+//   - L1, and the departure announcement taken back out of the ring door's
+//     `onProximity`:
+//       ...re(t),r&&L(zf)}  ->  ...re(t)}
+//       AssertionError: walking out of lectures's reach said 0 thing(s): []
+//       AssertionError: the live region is left saying "Pulled back. Still at
+//       the Lectures door. Press Enter to open it." with the figure at no door
+//   - L2, and the refusal's band put back on the framing target inside
+//     `refusalBand` while keeping the hotspot's reach, which is the pairing the
+//     defect was:
+//       {from:t.clone(),clear:n}  ->  {from:u.framedTarget?.clone()??t.clone(),clear:n}
+//       AssertionError: Escape at play-front-t1, then one Tab onto
+//       play-front-t2, and the camera came straight back to the wall:
+//       near=[play-front-t1] keyboard=play-front-t2 framed=true said="Pulled
+//       back."
+//     The second injection is the interesting one to have written down: it
+//     changes one of the two fields and leaves the other, which is exactly what
+//     the code did before, and it is the smallest thing that can tell this check
+//     apart from a check that would pass on any band at all.
 
 /** The five answers this pair turns on, read in one go. */
 const LEAVING = String.raw`

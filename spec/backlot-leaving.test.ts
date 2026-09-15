@@ -74,6 +74,29 @@
 // across a departure is the defect. Nothing legitimately moves the keyboard when
 // the figure walks out of every reach; §7's paragraph is about not *dropping* a
 // reader on `<body>`, not a licence to pick them up.
+//
+// **Seen red, three ways.** Two of them on 87d594f with nothing injected at all
+// — they are live defects and the reds are the defects themselves — and the
+// third re-taken against the fixed tree, because an injection's anchor expires
+// more quietly than a check does (CLAUDE.md §7). Every injection went into the
+// built chunk anchored inside the function it breaks and matched exactly once.
+//
+//   - No injection, 87d594f, the Tab/Escape/Enter leg:
+//       AssertionError: Escape said "Pulled back. Still at the week 3 door.
+//       Press Enter to open it.", which promises Enter opens the week 3 door,
+//       and Enter opened /comp4020-ass2-Ray0766/lectures/week-04/
+//     Re-taken on the fixed tree with the promise forced back on inside
+//     `enterOpensTheDoorAt` — `function oe(){return P?!0:!1}` — and it says the
+//     same thing.
+//   - The departure keeping its announcement and moving the keyboard as well,
+//     anchored inside `settleRoomDoors`'s no-door branch:
+//       ae(!1),i&&L(zf)}  ->  ae(!1),i&&(I(_[0].hotspot.button),L(zf))}
+//       AssertionError: walking out of every door's reach moved the keyboard
+//       from stage-week-03 to stage-week-01 [...] said="No door within reach."
+//     The sentence still lands in that run, which is the point: it is the
+//     keyboard that is wrong and nothing that reads what the keyboard *names*
+//     can see it. That injection passed 115 tests across this file,
+//     `backlot-doors` and `backlot-hotspots` before this check existed.
 import { describe, expect, it } from "vitest";
 
 import { backlotManifest } from "../src/backlot/rooms/manifest";

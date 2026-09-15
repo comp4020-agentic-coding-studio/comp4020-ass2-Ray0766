@@ -696,17 +696,18 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
     // "come off this", which is a sentence about the shot; it is not the reader
     // saying they have left the door they are standing at.
     const pushIn = !(refused && at.distanceTo(refused.at) < 0.5);
-    // A refusal is still a change of door, so the camera comes off whatever it
-    // was on. The reaches overlap, and inside the overlap the nearest door can
-    // change while the figure stays inside the refused one's reach — which is
-    // how a reader gets here with the camera pushed in on the door **next** to
-    // the one they are now at. Leaving it there would put "The camera is close
-    // on: Week 1" over a reader standing at week 3, which is the lie this whole
-    // change is about, arriving from the other side. Silently: nothing was asked
-    // for, so there is nothing to announce and no second refusal to record.
-    if (!pushIn) releaseFraming(false);
-    // And `framedId`/`framedLabel` are the camera's own answer, so under a
-    // refusal they stay empty. Setting them would put the sentence back.
+    // **`framedId` is the camera's own answer, so under a refusal it stays as it
+    // is — which is how the camera comes off the door it was on.** The reaches
+    // overlap, and inside the overlap the nearest door can change while the
+    // figure stays inside the refused one's reach, so a reader can arrive at a
+    // refused door with the camera pushed in on the one **next** to it. The
+    // hand-over below moves the keyboard off that door's button, its `focusout`
+    // reaches `leaveOf`, and `leaveOf` releases whatever `framedId` still names
+    // — which is the neighbour, because this line did not overwrite it. Setting
+    // it here would make `leaveOf` decide it was releasing somebody else's
+    // framing, and the canvas would go on saying "The camera is close on: Week
+    // 1" over a reader standing at week 3: the lie this whole change is about,
+    // arriving from the other side. Watched, both ways round.
     if (pushIn) framedId = door.hotspot.id;
     // **And the keyboard, because Enter has to mean this door.**
     //

@@ -39,6 +39,29 @@
 //     against a 0.6 m band, and asserts that two reaches hold the figure before
 //     it asks anything else.
 //
+// **And rewritten again in the seventh round, because it could not see the
+// engine dragging the keyboard.** One line added to `settleRoomDoors`'s
+// else-branch, with the departure announcement left exactly as it is:
+//
+//   if (changed) { announce("No door within reach."); handFocusTo(roomDoors[0]!.hotspot.button); }
+//
+// That is the engine pulling the keyboard onto week 1's button while the reader
+// walks away from week 11. This file, `spec/backlot-leaving.test.ts` and
+// `spec/backlot-hotspots.test.ts` reported **115 passed, 0 failed** against it.
+// Enter is resolved by whatever holds focus, so Enter then opens week 1 for a
+// reader standing nowhere near it — Review 3's defect, back, with three checks
+// watching and none of them looking.
+//
+// Both files exempted the keyboard **totally** in the "no door" state, on the
+// reasoning that moving focus off the control a reader is on would be the theft
+// §7 forbids. That reasoning is right about not *requiring* the keyboard to
+// move and wrong about not *noticing* when the engine moves it. So the question
+// asked of the keyboard on leaving is not "does it name a door" — the answer to
+// that is allowed to be yes, and usually is — it is **"did it move"**. Parked
+// where the reader left it is the state this file has to permit; dragged to a
+// door the reader is not at is the defect; one comparison across the departure
+// tells them apart, and no reading of a single moment can.
+//
 // **The nearest-first rule is checked without measuring a distance.** The DOM
 // says which reaches contain the figure; it does not say which door is nearer.
 // But the doors' depths are monotone in the week number (`BacklotStage.depth`,
@@ -83,6 +106,40 @@
 //       AssertionError: the four named week-03 with [stage-week-01,
 //       stage-week-03] holding the figure, and a window-level Enter opened
 //       /lectures/week-01/.
+//
+// **Seen red three ways in the seventh round, two of them the injection above
+// and the third the invariant that keeps them honest.** Each was anchored
+// inside the function it breaks by walking the braces of that function and
+// editing only what is between them. Before this round it was 15 passed, 0
+// failed.
+//
+//   - The yank onto the room's **first** door — 2 failed of 19:
+//       AssertionError: 3 of 3 departure(s) moved the keyboard:
+//         leaving week-11 at "up the left, step 13": the keyboard moved from
+//         "stage-week-11" to "stage-week-01" across the departure.
+//         leaving week-12 ... "stage-week-12" to "stage-week-01" ...
+//         leaving week-02 ... "stage-week-02" to "stage-week-01" ...
+//     The Esc scenario's own departure stayed green, because it leaves from
+//     week 1 and week 1 is where this yank lands — which is the blind spot
+//     `keyboardHeldStill` says it has.
+//   - The same yank onto the room's **last** door — 3 failed of 19, and it is
+//     the other half of the same evidence:
+//       AssertionError: walking out of week-01's reach: the keyboard moved from
+//       "stage-week-01" to "stage-week-12" across the departure.
+//       AssertionError: 2 of 3 departure(s) moved the keyboard:
+//     Two of three, not three: the route's departure from week 12 cannot see a
+//     yank onto week 12. Neither departure is blind to both yanks, which is the
+//     whole of why the spread below is asserted, and the Esc scenario's
+//     departure is red here — so it is a check that can fail rather than a
+//     check that has never been asked.
+//   - The spread invariant itself, blinded on purpose: the route's departures
+//     rewritten to all name the first door, with the engine untouched —
+//       AssertionError: every departure on the route was from the same door, so
+//       the keyboard check above is one door's worth of evidence and is blind
+//       to a yank onto that door's own button. the route departed from
+//       [week-01, week-01, week-01].
+//     An invariant nobody has watched fail is a comment (CLAUDE.md §7), and
+//     this one exists only to stop the check above going quietly blind.
 import { describe, expect, it } from "vitest";
 
 import { backlotManifest } from "../src/backlot/rooms/manifest";
@@ -283,11 +340,22 @@ function claimOf(at: Four): BacklotStage | null {
  * behaviour unassertable. It is asked separately, by a caller that knows whether
  * the camera is supposed to be in or out at that moment.
  *
- * The keyboard is not asked about in the "no door" case either, and for the
- * opposite reason: a reader who walks out of a door's reach was never using the
- * keyboard, and moving focus off the control they are on would be the theft
- * CLAUDE.md §7 forbids. "No door" is a claim about the containing set, the URL
- * and the sentence.
+ * **A parked Tab position is not a fifth answer, and this round ruled on it
+ * rather than leaving it implied.** On the twelve-door route 49 of 85 readings
+ * had the keyboard naming a door while `near`, the URL, the live region and the
+ * camera all said no door, and that is not four answers with one dissenting.
+ * "Which door are you at" is a question about where the figure is standing; the
+ * keyboard is not standing anywhere. It is a record of where the reader last
+ * put it, and it is **supposed** to survive them walking away — taking focus
+ * off the control somebody is on is the theft CLAUDE.md §7 forbids, and it also
+ * loses a screen reader its place. A route that called those 49 readings
+ * disagreements would be demanding the defect. So "no door" is a claim about the
+ * containing set, the URL and the sentence, and a parked keyboard is not judged
+ * here.
+ *
+ * What is judged is the keyboard **moving**, which is a different question and
+ * is asked in a different place: `keyboardHeldStill`, across the departure,
+ * where the engine is the only thing that could have moved it.
  */
 function fourDisagreements(at: Four, door: BacklotStage | null): string[] {
   const named = { hash: stageOfHash(at.hash), keyboard: stageOfHotspot(at.keyboard), said: doorsNamedBy(at.said) };
@@ -314,6 +382,36 @@ function fourDisagreements(at: Four, door: BacklotStage | null): string[] {
     wrong.push(`the figure is at no door and the live region still says "${at.said}"`);
   }
   return wrong;
+}
+
+/**
+ * Did the keyboard stay where the reader left it while they walked out of every
+ * door's reach?
+ *
+ * The one question about focus a departure can honestly be asked. "It names
+ * nothing" is the wrong question: the reader walked away from a control they
+ * were on and that control is still theirs. "It names a door" cannot tell
+ * parked from dragged, and reported 115 passed against a build that dragged it.
+ * The comparison can. Between the last reading with a reach holding the figure
+ * and the first with none, exactly one walk happened, and a walk is not a
+ * reason for the engine to move focus.
+ *
+ * Blind in exactly one place, and the place is worth saying out loud: a yank
+ * whose target is the button the keyboard is **already** on is a yank this
+ * cannot see. So its reach is decided by which doors a walk departs from, and
+ * that is asserted rather than assumed — the route below requires more than one
+ * departure door and requires them not to be only the first or only the last of
+ * the row, which is the smallest statement that leaves no single target
+ * invisible everywhere. Both halves of it were watched failing; see the records
+ * at the top of this file.
+ */
+function keyboardHeldStill(before: Four, after: Four): string[] {
+  if (after.keyboard === before.keyboard) return [];
+  return [
+    `the keyboard moved from "${before.keyboard}" to "${after.keyboard}" across the departure. The reader walked; ` +
+      `nothing they did asked for focus to go anywhere, so the engine moved it. Enter is resolved by whatever ` +
+      `holds focus, which makes this a reader whose next Enter opens a door they are standing nowhere near`,
+  ];
 }
 
 /** The camera, in: close on this door and no other. */
@@ -460,6 +558,10 @@ interface Refused {
   /** Out of every door's reach, and what the live region said on the way. */
   leftEveryReach: Four | null;
   heardOnLeaving: string[];
+  /** The last reading on the way out that still had a reach holding the figure.
+   *  The "before" of the departure, so the keyboard can be compared across it
+   *  rather than judged on its own. */
+  aboutToLeave: Four | null;
   /** Back in. */
   cameBackIn: Four | null;
   /** Where Enter went, pressed on the door's own button. */
@@ -479,6 +581,7 @@ async function escapeAtADoor(): Promise<Refused> {
     steppedForward: null,
     leftEveryReach: null,
     heardOnLeaving: [],
+    aboutToLeave: null,
     cameBackIn: null,
     landed: "",
     log,
@@ -520,11 +623,19 @@ async function escapeAtADoor(): Promise<Refused> {
     // Out of every reach. Watched from here, because "the live region announces
     // once" is a count and the region only ever holds the last sentence.
     await tab.evaluate(WATCH_LIVE);
+    // Every tap logged and the last in-reach reading kept. The keyboard on
+    // leaving is a comparison, not a reading, so the reading it is compared
+    // against has to be the one immediately before the set emptied — one tap of
+    // 0.18 m earlier, which is too little to have crossed a second reach and
+    // out of it again.
+    state.aboutToLeave = state.steppedForward;
     for (let step = 0; step < 24 && !state.leftEveryReach; step++) {
       await tab.hold("ArrowDown", TAP);
       await pause(SETTLE);
       const at = await read(tab);
+      log.push(line(`leaving, tap ${String(step).padStart(2, "0")}`, at));
       if (at.near.length === 0) state.leftEveryReach = at;
+      else state.aboutToLeave = at;
     }
     await pause(900);
     if (state.leftEveryReach) {
@@ -569,8 +680,22 @@ interface Visit {
   wrong: string[];
 }
 
+/** One walk out of every door's reach, with the reading either side of it. */
+interface Departure {
+  where: string;
+  /** The last reading with a reach holding the figure, and the first with none.
+   *  One walk apart, which is what makes a difference between them the engine's
+   *  doing rather than the reader's. */
+  before: Four;
+  after: Four;
+  /** The door the reader was standing at when they took that last step. */
+  from: BacklotStage | null;
+}
+
 interface Route {
   visits: Visit[];
+  /** Every time the route walked out of every door's reach. */
+  departures: Departure[];
   /** Where the reader stopped being in the corridor, if they ever did. */
   threwOut: string | null;
   log: string[];
@@ -579,8 +704,13 @@ interface Route {
 async function walkThemAll(): Promise<Route> {
   const { site, tab } = await open();
   const visits: Visit[] = [];
+  const departures: Departure[] = [];
   const log: string[] = [];
   let threwOut: string | null = null;
+  /** The reading the next one is a walk away from, and the last door the reader
+   *  stood at. Both are the departure's "before". */
+  let previous: Four | null = null;
+  let lastDoor: BacklotStage | null = null;
   try {
     await intoTheCorridor(tab, site.origin, true);
     const look = async (where: string): Promise<void> => {
@@ -601,6 +731,17 @@ async function walkThemAll(): Promise<Route> {
       const already = visits.find((visit) => visit.key === key);
       if (!already) visits.push({ key, where, wrong });
       else if (wrong.length && !already.wrong.length) already.wrong = wrong;
+      // **Every departure the route makes, kept as a pair.** A reading of the
+      // keyboard at no door says nothing — parked on the door just left and
+      // dragged onto a door two metres away look identical in one reading — so
+      // what is kept is the reading either side of the walk that emptied the
+      // set. The route makes three of these on its own and they are from
+      // different doors, which a test below requires rather than hopes for.
+      if (!at.near.length && previous?.near.length) {
+        departures.push({ where, before: previous, after: at, from: lastDoor });
+      }
+      previous = at;
+      if (door) lastDoor = door;
       // **Pull back before walking on.** Walking is camera-relative, so a framed
       // door turns the whole basis and the next arrow key means something else.
       // A reader does this; it is also the only way a scripted route keeps its
@@ -610,6 +751,18 @@ async function walkThemAll(): Promise<Route> {
       if (at.closeOn) {
         await tab.press("Escape");
         await pause(500);
+        // Read again, and **this** reading is the departure's "before".
+        //
+        // Esc is the reader's own act, so whatever it does to the keyboard is
+        // theirs and not a yank — and the round this file was written in has a
+        // lane changing what Esc does to the sentence and possibly to the
+        // keyboard. Sampling after it keeps the pair one walk apart whichever
+        // way that lands, which is the difference between asserting a property
+        // and asserting somebody's current implementation.
+        const settled = await read(tab);
+        log.push(line(`${where}, after Esc`, settled));
+        previous = settled;
+        if (settled.near.length) lastDoor = claimOf(settled) ?? lastDoor;
       }
     };
     // Down one side, sampling between steps rather than holding a long walk:
@@ -637,7 +790,7 @@ async function walkThemAll(): Promise<Route> {
       await pause(240);
       await look(`down the right, step ${i}`);
     }
-    return { visits, threwOut, log };
+    return { visits, departures, threwOut, log };
   } finally {
     await tab.close();
     await site.close();
@@ -800,6 +953,32 @@ describe("Esc at a door refuses the camera and nothing else", () => {
     ).toEqual([]);
   });
 
+  it("leaves the keyboard where the reader left it when they walk away", () => {
+    // The property, asked as a comparison. Requiring the keyboard to name
+    // nothing here would be requiring the engine to take focus off the control
+    // the reader is on, which CLAUDE.md §7 forbids twice over; accepting
+    // whatever it names is what let a build that dragged the keyboard onto
+    // another door report 115 passed. What is left is: it did not move.
+    //
+    // **This departure is from the room's first door and cannot see a yank onto
+    // the room's first door** — the parked button and the yank's target are the
+    // same element, so there is nothing to compare. That is not a reason to
+    // leave the property unasserted here; it is the reason the route below
+    // requires its departures to come from more than one door and from more
+    // than one end of the row. Two instruments, and the blind spot of this one
+    // is not the blind spot of that one.
+    expect(
+      refused.aboutToLeave,
+      `never had a reading with a reach holding the figure on the way out, so there is nothing to compare the ` +
+        `keyboard against. ${walk(refused.log)}`,
+    ).not.toBeNull();
+    const wrong =
+      refused.aboutToLeave && refused.leftEveryReach
+        ? keyboardHeldStill(refused.aboutToLeave, refused.leftEveryReach)
+        : ["there was no reading either side of the departure"];
+    expect(wrong, `walking out of ${door.id}'s reach: ${wrong.join("; ")}. ${walk(refused.log)}`).toEqual([]);
+  });
+
   it("pushes the camera in again when the reader walks back in", () => {
     // The refusal has to have cleared. `releaseFraming` sets the clear distance
     // to at least 3 m and walking out of a reach takes 1.3, so "Esc, step back,
@@ -841,6 +1020,58 @@ describe("walking every door in the corridor", () => {
         `${STAGES.length} doors and never stood at ${missed.join(", ")}. A door no check has ever walked to is a ` +
         `door with no evidence behind it — which is how a defect in the overlap band survived four reviews.`,
     ).toEqual([]);
+  });
+
+  it("leaves the keyboard where the reader left it at every departure", () => {
+    expect(
+      route.departures.length,
+      `the route never walked out of every door's reach, so nothing below is about a departure at all. The ` +
+        `walk: ${walk(route.log)}`,
+    ).toBeGreaterThan(0);
+    const dragged = route.departures
+      .map((departure) => {
+        const said = keyboardHeldStill(departure.before, departure.after);
+        return said.length ? `leaving ${departure.from?.id ?? "a door"} at "${departure.where}": ${said.join("; ")}` : "";
+      })
+      .filter(Boolean);
+    expect(
+      dragged,
+      `${dragged.length} of ${route.departures.length} departure(s) moved the keyboard:\n  ${dragged.join("\n  ")}` +
+        `\nThe walk: ${walk(route.log)}`,
+    ).toEqual([]);
+  });
+
+  it("departs from more than one door, and not only from an end of the row", () => {
+    // The invariant that stops the check above going quietly blind.
+    //
+    // "The keyboard did not move" cannot see a yank whose target is the button
+    // the keyboard is already on, so its reach depends entirely on which doors
+    // the route happens to depart from. A route that left only from week 1
+    // would be green against a yank onto week 1 and would look exactly like a
+    // route that had checked something. So the spread is asserted rather than
+    // assumed: departures from at least two doors, at least one of them not the
+    // first of the twelve and at least one not the last. No single target
+    // survives all three.
+    const from = route.departures.map((departure) => departure.from?.id ?? "(no door named)");
+    const distinct = [...new Set(from)];
+    const first = STAGES[0]!.id;
+    const last = STAGES[STAGES.length - 1]!.id;
+    const spread = `the route departed from [${from.join(", ")}]. The walk: ${walk(route.log)}`;
+    expect(
+      distinct.length,
+      `every departure on the route was from the same door, so the keyboard check above is one door's worth of ` +
+        `evidence and is blind to a yank onto that door's own button. ${spread}`,
+    ).toBeGreaterThan(1);
+    expect(
+      distinct.filter((id) => id !== first),
+      `every departure was from ${first}, the first of the twelve, which is the one target the keyboard check ` +
+        `cannot see. ${spread}`,
+    ).not.toEqual([]);
+    expect(
+      distinct.filter((id) => id !== last),
+      `every departure was from ${last}, the last of the twelve, which is the one target the keyboard check ` +
+        `cannot see. ${spread}`,
+    ).not.toEqual([]);
   });
 
   it("gives one answer at every one of them", () => {

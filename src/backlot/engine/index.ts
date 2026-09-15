@@ -305,8 +305,15 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
    *  just been asked about — so an Esc pressed while that walk is still running
    *  used to be undone by the arrival a moment later, and the reader could press
    *  Esc twice and still be nose-first against the monitor. A request to frame
-   *  this again is ignored until the figure has actually been away from it. */
-  let refused: { at: Vector3; clear: number } | null = null;
+   *  this again is ignored until the figure has actually been away from it.
+   *
+   *  Two points, not one, and they answer two questions. `at` is **which**
+   *  framing was refused, compared against whatever is asking to frame next, so
+   *  it is the camera's own target. `from` and `clear` are **whether the reader
+   *  has left**, and they are the position and the reach of one hotspot — see
+   *  `refusalBand`, where taking them off two different objects put the band up
+   *  to 2 m away from the reader it was about. */
+  let refused: { at: Vector3; from: Vector3; clear: number } | null = null;
   /** The hotspot the camera is currently on, by id, so a `focusout` that lands
    *  after the next button's `focusin` can tell whether it is releasing the
    *  framing it made or somebody else's. */
@@ -486,20 +493,41 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
    *
    * Asked of the hotspot rather than written down here, because the machine
    * room's pieces refuse through this same record and their reaches are not a
-   * door's. Where nothing owns the framing — a room framed a bare point and the
-   * figure is not standing in anything — the old number stands.
+   * door's.
+   *
+   * **Both halves come from one object, and that is the correction.** This
+   * handed back a reach and let the caller draw the band around the camera's
+   * framing target — and for a door, the tower and the desk those are the same
+   * point, so it read as right. For a room that frames a bare point they are
+   * not: the machine room's five front-wall screens share one shot aimed at the
+   * middle of the run, and a reader standing at the end screen is 2.23 m from a
+   * band 1.1 m wide. The refusal was gone on the next frame. Driven, with real
+   * keys: Esc at t4 and one step sideways brought the camera straight back; the
+   * same keys and the same step at t3, where the reader happens to be standing
+   * near the middle of the run, kept it out. Same sequence, opposite answers,
+   * decided by where on the wall the reader is — which is what a band drawn
+   * around the wrong point looks like from outside.
+   *
+   * So the point and the distance are read off the same hotspot. Where nothing
+   * owns the framing — the figure is standing in nothing and the camera is on a
+   * point no hotspot marks — the old number stands, about the framing itself.
    */
-  function refusalReach(): number {
+  function refusalBand(): { from: Vector3; clear: number } {
     const id = framedId ?? hotspots.within(player.position)[0]?.id ?? null;
+    const from = id ? hotspots.locate(id) : null;
     const reach = id ? hotspots.reachOf(id) : null;
-    return reach ?? Math.max(camera.framedRadius * 6, 3);
+    if (from && reach !== null) return { from: from.clone(), clear: reach };
+    return {
+      from: camera.framedTarget?.clone() ?? player.position.clone(),
+      clear: Math.max(camera.framedRadius * 6, 3),
+    };
   }
 
   /** Back to the fixed god view, if there is anything to come back from. */
   function releaseFraming(speak: boolean): boolean {
     if (!camera.framed) return false;
     const was = camera.framedTarget;
-    const reach = refusalReach();
+    const band = refusalBand();
     camera.release(motion.reduced);
     // The clip goes with the framing, whichever end the release came from — a
     // walk away, a Tab away, Esc, leaving for a room, or the engine being torn
@@ -513,7 +541,7 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
     writeRoute();
     // Only a release the reader asked for countermands a pending arrival. The
     // walk-away rule calls this too, and there the figure is already clear.
-    if (speak && was) refused = { at: was.clone(), clear: reach };
+    if (speak && was) refused = { at: was.clone(), from: band.from, clear: band.clear };
     if (speak) {
       // A live region holds one message, so after Esc at a door this sentence
       // has to do both jobs: the camera has come back, and the reader has not
@@ -1644,7 +1672,7 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
     camera.update(delta);
     // Walking away puts the camera back on its own, which is what makes the
     // framing a place you stand rather than a mode you are stuck in.
-    if (refused && Math.hypot(refused.at.x - player.position.x, refused.at.z - player.position.z) > refused.clear) {
+    if (refused && Math.hypot(refused.from.x - player.position.x, refused.from.z - player.position.z) > refused.clear) {
       refused = null;
     }
     const framedAt = camera.framedTarget;

@@ -73,6 +73,27 @@ export interface Input {
   dispose(): void;
 }
 
+/**
+ * Whether Enter belongs to whatever holds focus rather than to the figure.
+ *
+ * `<body>` and the root element are what the document reports when nothing is
+ * holding focus, which is the only state the window-level Enter below is
+ * allowed to act in. Anything else owns its own Enter: a button's activation
+ * behaviour is the browser's and runs on the button, and a link in the page
+ * under the stage is the reader's.
+ *
+ * **Exported, and a function rather than a line inside the handler, because the
+ * engine has to be able to ask the same question.** A sentence that says "press
+ * Enter to open it" is only true if this is false, or if the thing holding focus
+ * is that very door's own button — and the engine had no way to ask, so it
+ * promised an Enter the reader did not have. Two copies of this test would drift
+ * the moment one of them learned about a case the other had not; there is one.
+ */
+export function enterYieldsToFocus(): boolean {
+  const active = document.activeElement;
+  return active !== null && active !== document.body && active !== document.documentElement;
+}
+
 export function createInput(options: InputOptions): Input {
   const { canvas, camera, drive, walkTo, onEscape, onActivate, aim, reducedMotion } = options;
 
@@ -109,14 +130,6 @@ export function createInput(options: InputOptions): Input {
     drive(direction.clampLength(0, 1));
   }
 
-  /** Whether anything at all is holding focus. `<body>` and the root element are
-   *  what the document reports when nothing is, which is the only state the
-   *  window-level Enter above is allowed to act in. */
-  function hasFocus(): boolean {
-    const active = document.activeElement;
-    return active !== null && active !== document.body && active !== document.documentElement;
-  }
-
   /** True when the key belongs to something the reader is typing into, or to a
    *  browser shortcut. Either way it is not ours to take. */
   function busyElsewhere(event: KeyboardEvent): boolean {
@@ -137,7 +150,7 @@ export function createInput(options: InputOptions): Input {
       // is the browser's and runs on the button; taking the key here as well
       // would run the door twice, and taking it while somebody is on a link in
       // the page under the stage would run it instead of the link.
-      if (busyElsewhere(event) || hasFocus()) return;
+      if (busyElsewhere(event) || enterYieldsToFocus()) return;
       event.preventDefault();
       onActivate();
       return;

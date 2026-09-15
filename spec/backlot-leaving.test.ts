@@ -24,6 +24,10 @@
 //       with a sentence that names no door.
 //   S5  Walking back in afterwards. The refusal has cleared, so the camera
 //       pushes in again and the four agree.
+//   S6  Esc with the keyboard somewhere the figure is not. Tab is an arrival —
+//       it moves the camera and the hash — and it does not move the figure, so
+//       after one Tab the door Enter goes through is the keyboard's and not the
+//       figure's. Whatever Esc says about Enter has to be true of that Enter.
 //
 // What it looked like before, driven with real keys (receipts/rig-3d/reviewB5):
 //
@@ -181,6 +185,25 @@ function names(sentence: string, stage: { week: number; title: string }): boolea
 /** And whether it names any of the twelve at all. */
 function namesADoor(sentence: string): boolean {
   return STAGES.some((stage) => names(sentence, stage));
+}
+
+/**
+ * The door a sentence **promises** Enter will open, or null when it promises
+ * nothing.
+ *
+ * A promise is a door's name and an Enter in the same breath; neither half is
+ * one on its own. "Pulled back." promises nothing. "Pulled back. Still at the
+ * week 3 door." says where the figure is and promises nothing either — the
+ * browser has already read out whatever the keyboard is on, and this file's
+ * business is not to pin which of the two the engine chooses to say.
+ *
+ * Written as the property rather than as a form of words, so the engine keeps
+ * the sentences: any wording that names a door and says Enter opens it is a
+ * promise, and this is what holds it to it.
+ */
+function promises(sentence: string): (typeof STAGES)[number] | null {
+  if (!/press enter/i.test(sentence)) return null;
+  return STAGES.find((stage) => names(sentence, stage)) ?? null;
 }
 
 /** One reading, in the reader's terms, for a failure message. */
@@ -579,8 +602,59 @@ async function leaveAndComeBack(): Promise<Left> {
   }
 }
 
+// ---------------------------------------------------------------------------
+// 3. Esc with the keyboard somewhere the figure is not.
+// ---------------------------------------------------------------------------
+
+interface Promised {
+  door: string;
+  tabbed: Five;
+  afterEsc: Five;
+  saidOnEsc: string[];
+  landed: string;
+}
+
+/**
+ * Walk to a door, Tab once, Escape, Enter — and **do not blur in between**.
+ *
+ * Every other leg in this file reaches the post-Esc state by walking, and a
+ * walked arrival hands the keyboard to the door it arrives at, so focus and the
+ * figure already name the same door and Enter cannot disagree with anything.
+ * That agreement is what five reviews' worth of machinery was measuring. One Tab
+ * breaks it: Tab is an arrival — it moves the camera, the hash and `closeOn` —
+ * and it does not move the figure, so the door `atDoorId` names and the door a
+ * focused button's own Enter opens are two different doors.
+ *
+ * So the blur the other legs take before pressing Enter would destroy the whole
+ * case here. The window-level Enter is not what this is about; what is being
+ * asked is whether the sentence Esc leaves standing is true of the Enter the
+ * reader actually has, wherever they have parked the keyboard.
+ */
+async function tabThenEscThenEnter(): Promise<Promised> {
+  const { site, tab } = await open();
+  try {
+    const door = await walkToADoor(tab);
+    await tab.press("Tab");
+    await pause(1600);
+    const tabbed = await read(tab);
+    await since(tab);
+    await tab.press("Escape");
+    await pause(1600);
+    const afterEsc = await read(tab);
+    const saidOnEsc = await since(tab);
+    await tab.press("Enter");
+    await pause(5000);
+    const landed = await tab.evaluate<string>(`return location.pathname;`);
+    return { door, tabbed, afterEsc, saidOnEsc, landed };
+  } finally {
+    await tab.close();
+    await site.close();
+  }
+}
+
 const refused = await escAtADoor();
 const left = await leaveAndComeBack();
+const promised = await tabThenEscThenEnter();
 
 describe("Esc at a door pulls the camera back and nothing else", () => {
   it("has a corridor of doors to stand at", () => {
@@ -817,5 +891,72 @@ describe("walking out of every door's reach", () => {
       left.backAgain.closeOn,
       `the camera came back in and the canvas does not say what it is on: ${shown(left.backAgain)}`,
     ).not.toBe("");
+  });
+});
+
+describe("Esc with the keyboard somewhere the figure is not", () => {
+  it("got the keyboard onto a different door from the figure's, so the case ran", () => {
+    const stage = STAGES.find((one) => `stage-${one.id}` === promised.tabbed.keyboard);
+    expect(
+      stage,
+      `one Tab from ${promised.door} put the keyboard on "${promised.tabbed.keyboard}" rather than on another ` +
+        `of the corridor's doors: ${shown(promised.tabbed)}. Everything below is about the state where the ` +
+        `keyboard and the figure name two different doors, so this is reported rather than passed: the case ` +
+        `did not run.`,
+    ).toBeDefined();
+    expect(
+      promised.tabbed.near,
+      `after the Tab the figure should still be at ${promised.door} — Tab moves the camera and the hash and ` +
+        `it does not move the figure: ${shown(promised.tabbed)}`,
+    ).toContain(promised.door);
+    expect(
+      promised.tabbed.keyboard,
+      `the Tab landed back on the door the figure is at, so the keyboard and the figure agree and there is ` +
+        `nothing here to disagree about: ${shown(promised.tabbed)}`,
+    ).not.toBe(promised.door);
+  });
+
+  it("opened the door the keyboard was on, which is the fact the sentence has to live with", () => {
+    const stage = STAGES.find((one) => `stage-${one.id}` === promised.afterEsc.keyboard);
+    expect(
+      stage,
+      `Escape left the keyboard on "${promised.afterEsc.keyboard}", which is not one of the corridor's doors, ` +
+        `so there is no door for Enter to have opened: ${shown(promised.afterEsc)}`,
+    ).toBeDefined();
+    expect(
+      promised.landed,
+      `the keyboard was on ${promised.afterEsc.keyboard} and Enter opened ${promised.landed}. Whatever holds ` +
+        `focus owns its own Enter (engine/input.ts yields to it), so this is what Enter does here — and it ` +
+        `is the thing the sentence below is measured against rather than the thing this file wants changed.`,
+    ).toContain(stage!.id);
+  });
+
+  it("does not promise an Enter it will not deliver", () => {
+    const said = promised.saidOnEsc[0] ?? "";
+    expect(
+      promised.saidOnEsc,
+      `Escape said ${promised.saidOnEsc.length} thing(s): ${JSON.stringify(promised.saidOnEsc)}. A live ` +
+        `region holds one message.`,
+    ).toHaveLength(1);
+    const vow = promises(said);
+    expect(
+      vow === null || promised.landed.includes(vow.id),
+      `Escape said "${said}", which promises Enter opens the week ${vow?.week} door, and Enter opened ` +
+        `${promised.landed} — the door the keyboard was on. A sentence that names a door and says Enter ` +
+        `opens it is a promise, and this one is false: same shape as the defect this round closed, one door ` +
+        `named and another opened, arriving through the keyboard instead of through the walk. Either name ` +
+        `the door Enter will actually open, or say nothing about Enter while focus and the figure disagree. ` +
+        `Reading: ${shown(promised.afterEsc)}`,
+    ).toBe(true);
+  });
+
+  it("still says where the figure is standing", () => {
+    const stage = STAGES.find((one) => `stage-${one.id}` === promised.door)!;
+    expect(
+      names(promised.saidOnEsc[0] ?? "", stage),
+      `Escape said "${promised.saidOnEsc[0]}" and the figure is standing at ${promised.door}. Dropping the ` +
+        `promise is not the same as dropping the reader: \`near\` and the hash both still name this door, ` +
+        `and a live region that names none of them is the answer that has stopped again.`,
+    ).toBe(true);
   });
 });

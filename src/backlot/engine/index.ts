@@ -19,7 +19,7 @@ import { createGodCamera, focusRadiusFor } from "./camera";
 import { createFigure } from "./player";
 import { createHotspots } from "./hotspots";
 import { createHub, DOOR_REACH } from "./hub";
-import { createInput } from "./input";
+import { createInput, enterYieldsToFocus } from "./input";
 import { createLayers } from "./layers";
 import { createMotionPreference } from "./motion";
 import { createResizer } from "./resize";
@@ -504,10 +504,52 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
       // four answers that stopped naming the door the other three still named —
       // the same class of lie as leaving an arrival standing after the reader
       // has walked away from it.
+      //
+      // **And the second sentence is a promise, so it is only made where it is
+      // keepable.** Enter is resolved by whatever holds focus, and Tab is an
+      // arrival that moves the camera, the hash and the keyboard without moving
+      // the figure — so one Tab puts the keyboard on the door *next* to the one
+      // the figure is standing at, and this sentence named the figure's while
+      // Enter opened the keyboard's. Driven, 5 of 5 combinations: the reader was
+      // told "still at the week 3 door, press Enter to open it" and Enter opened
+      // week 4. That is the defect this round closed — one door named, another
+      // opened — coming back through the keyboard instead of through the walk.
       const door = atDoorId ? pressables.get(atDoorId) : undefined;
-      announce(door ? `Pulled back. Still at the ${door.name} door. Press Enter to open it.` : "Pulled back.");
+      if (!door) announce("Pulled back.");
+      else if (enterOpensTheDoorAt()) announce(`Pulled back. Still at the ${door.name} door. Press Enter to open it.`);
+      else announce(`Pulled back. Still at the ${door.name} door.`);
     }
     return true;
+  }
+
+  /**
+   * Whether the Enter a reader has right now is the one that opens the door the
+   * figure is standing at.
+   *
+   * Three states and only two of them are yes. Nothing holding focus: the
+   * window-level Enter fires and `onActivate` puts it through `atDoorId`, which
+   * is this door. The door's own button holding focus: the browser runs that
+   * button's activation, which is this door — the state a walked arrival leaves,
+   * because `frameRoomDoor` hands the keyboard to the door it arrives at.
+   * Anything else holding focus — another door's button after a Tab, a control
+   * in the room, a link in the page under the stage — owns its own Enter, and
+   * this door is not what it opens.
+   *
+   * **The three options and why this one.** Naming the door Enter *will* open
+   * would make the sentence true and would make the live region name a door that
+   * `near`, the hash and the drawn framing do not — the four answers splitting
+   * again, arriving from the other side, and the browser has already read that
+   * button's own name out on the way in. Re-homing the keyboard on Esc would
+   * make the sentence true by moving focus the reader put somewhere on purpose,
+   * which is the theft CLAUDE.md §7 spends a paragraph forbidding and which
+   * would also turn Esc — an answer about the shot — into a navigation of the
+   * keyboard. So the promise is dropped where it cannot be kept, and the half
+   * that is still true, where the figure is, is still said.
+   */
+  function enterOpensTheDoorAt(): boolean {
+    if (!atDoorId) return false;
+    if (!enterYieldsToFocus()) return true;
+    return document.activeElement === hotspots.buttonFor(atDoorId);
   }
 
   /** Whether the keyboard is currently on something in the HUD. Read before

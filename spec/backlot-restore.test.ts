@@ -27,6 +27,14 @@
 //   released the framing and the hash stayed at "#week-05". It came back from
 //   the cache with the departure flag still set, so nothing it does can reach
 //   the address bar: expected '#week-05' to be '#corridor'
+//
+// **The act that writes the URL used to be Escape and is a walk now.** Escape
+// at a door pulls the camera back and stops there: the reader has not moved, so
+// `near`, the keyboard, the live region and the hash all go on naming the door
+// they are standing at. What takes the door's name out of the address bar is
+// leaving its reach, which is the same fact the check was always after — the
+// restored document can still reach the address bar — asked of the state that
+// actually changes it. One key became a walk; nothing else about this moved.
 import { describe, expect, it } from "vitest";
 
 import { backlotManifest } from "../src/backlot/rooms/manifest";
@@ -58,8 +66,9 @@ interface Restored {
   tries: number;
   /** The URL the restored document came back with. */
   came: string;
-  /** And the URL after Escape, which releases the framing and should write. */
-  afterEscape: string;
+  /** And the URL after walking out of the door's reach, which is the act that
+   *  takes the door's name back out of the hash. */
+  afterLeaving: string;
 }
 
 async function leaveAndComeBack(): Promise<Restored> {
@@ -105,13 +114,24 @@ async function leaveAndComeBack(): Promise<Restored> {
       }
     }
 
-    // Escape releases the framing, and a release writes the room's own name.
-    // Chosen over walking because it is one key and the state it changes is
-    // unambiguous — the camera was framed on the door the restore put it on.
-    await tab.press("Escape");
-    await pause(1600);
-    const afterEscape = await tab.evaluate<string>(`return location.hash;`);
-    return { kind, tries, came, afterEscape };
+    // Out of the door's reach, which is what puts the room's own name back in
+    // the hash. Escape does not: it pulls the camera back and leaves the reader
+    // standing at the door, with all four answers still naming it. Walked in
+    // taps and read after each one, so the walk stops the moment the door stops
+    // being drawn as arrived at rather than carrying on to somewhere else.
+    let afterLeaving = came;
+    for (let i = 0; i < 14; i++) {
+      await tab.hold("ArrowRight", 220);
+      await pause(420);
+      const near = await tab.evaluate<number>(
+        `return document.querySelectorAll('[data-backlot-near="true"]').length;`,
+      );
+      afterLeaving = await tab.evaluate<string>(`return location.hash;`);
+      if (near === 0) break;
+    }
+    await pause(900);
+    afterLeaving = await tab.evaluate<string>(`return location.hash;`);
+    return { kind, tries, came, afterLeaving };
   } finally {
     await tab.close();
     await site.close();
@@ -144,11 +164,11 @@ describe("a document handed back by the cache still owns its URL", () => {
 
   it("can still write the URL after being handed back", () => {
     expect(
-      seen.afterEscape,
-      `the restored document never wrote the URL again: Escape released the framing and the hash stayed ` +
-        `at "${seen.afterEscape}". It came back from the cache with the departure flag still set, so ` +
-        `nothing it does can reach the address bar — the reader can walk the whole corridor and the URL ` +
-        `will go on naming the door they left.`,
+      seen.afterLeaving,
+      `the restored document never wrote the URL again: the reader walked out of the door's reach and the ` +
+        `hash stayed at "${seen.afterLeaving}". It came back from the cache with the departure flag still ` +
+        `set, so nothing it does can reach the address bar — the reader can walk the whole corridor and ` +
+        `the URL will go on naming the door they left.`,
     ).toBe(`#${CORRIDOR!.id}`);
   });
 });

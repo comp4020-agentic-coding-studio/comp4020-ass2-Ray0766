@@ -1536,3 +1536,398 @@ describe.each(VIEWPORTS)("what the engine publishes at $name", ({ name }) => {
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// Leaving the ring, and refusing the wall
+// ---------------------------------------------------------------------------
+//
+// Two states the hub and the machine room were left in that the corridor had
+// already had fixed, and both are about the same thing: something going on
+// naming, or going on giving back, what the reader has left.
+//
+//   L1  Walking out of a ring door's reach. The live region announces once,
+//       with a sentence that names no door. `settleRoomDoors` does this for a
+//       room's doors and returns before it reaches the ring — it is guarded on
+//       a room being mounted — so the hub's departure runs through the door
+//       spec's own `onProximity`, which said nothing at all. Driven on the tree
+//       this was written against:
+//
+//         walked to a ring door   near=[lectures] framed=true
+//                                 said="At the Lectures door. Press Enter to
+//                                 open it."
+//         walked out of reach     near=[]         framed=false
+//                                 said="At the Lectures door. Press Enter to
+//                                 open it."
+//         said while leaving: []
+//
+//       The ring is the first thing every reader sees, and its six doors are
+//       doors.
+//
+//   L2  Esc at the front wall, and the shot not coming back while the reader is
+//       still standing at the screen they refused it at. `refusalReach()` takes
+//       the reach of the hotspot the **figure** is inside and draws the band
+//       around the camera's **framing target**, and for a room that frames a
+//       bare point those are two different objects: the front wall's five
+//       screens share one shot aimed at the middle of the run, so a reader
+//       standing at t1 is 2.23 m from a band 1.1 m wide and the refusal is gone
+//       on the next frame. Driven, walking, on the same tree:
+//
+//         at t4, Escape, one step sideways  -> the camera came straight back in
+//         at t3, Escape, one step sideways  -> it stayed out
+//
+//       Same keys, same step, opposite answers, decided by where on the wall the
+//       reader happens to be standing — which is what a band drawn around the
+//       wrong point looks like from outside.
+//
+// **Neither leg walks inside its own assertion.** L1's walk is closed on both
+// sides — it reads after every tap and stops on the reading, and running out of
+// wall clock lands in a "did not run" flag that is asserted and therefore red.
+// L2 does not walk at all once the figure is in place: the reader stands still
+// and presses Tab, which asks for the same shot through the keyboard. A step
+// sideways would have been the reader's own version of it and it is what I
+// drove, but a 0.4 m step against a 1.1 m reach is a walk inside an assertion,
+// and this file has paid for one of those already.
+
+/** The five answers this pair turns on, read in one go. */
+const LEAVING = String.raw`
+  const near = [...document.querySelectorAll('[data-backlot-near="true"]')]
+    .map((button) => button.dataset.backlotHotspot);
+  const active = document.activeElement;
+  const live = document.querySelector("[data-backlot-hud] [aria-live]");
+  const hud = document.querySelector("[data-backlot-hud]");
+  const canvas = document.querySelector("[data-backlot-stage] canvas");
+  return JSON.stringify({
+    near,
+    keyboard: !active || active === document.body
+      ? "<body>"
+      : ((active.dataset && active.dataset.backlotHotspot) || active.tagName.toLowerCase()),
+    said: live ? (live.textContent || "").replace(/\s+/g, " ").trim() : "",
+    framed: hud ? hud.dataset.backlotFramed === "true" : false,
+    label: canvas ? canvas.getAttribute("aria-label") : "",
+    path: location.pathname,
+  });
+`;
+
+/** Every sentence the live region says from here on, in order, repeats kept.
+ *
+ *  "Announces once" is a claim about a count and the resting text cannot tell
+ *  one announcement from three. `announce` empties the region before it writes,
+ *  so the empties are dropped and every call lands exactly one entry.
+ *
+ *  **No backticks below.** This is a String.raw template and one closes it
+ *  early, which collects zero tests under a summary saying the file passed. */
+const SPY = String.raw`
+  const live = document.querySelector("[data-backlot-hud] [aria-live]");
+  if (!live) return "no live region";
+  window.__said = [];
+  new MutationObserver(() => {
+    const text = (live.textContent || "").replace(/\s+/g, " ").trim();
+    if (!text) return;
+    window.__said.push(text);
+  }).observe(live, { childList: true, characterData: true, subtree: true });
+  return "watching";
+`;
+
+const SINCE = String.raw`
+  const all = window.__said || [];
+  const from = window.__mark || 0;
+  window.__mark = all.length;
+  return JSON.stringify(all.slice(from));
+`;
+
+interface Reading {
+  near: string[];
+  keyboard: string;
+  said: string;
+  framed: boolean;
+  label: string | null;
+  path: string;
+}
+
+const readOut = async (tab: Tab): Promise<Reading> => JSON.parse(await tab.evaluate<string>(LEAVING)) as Reading;
+const saidSince = async (tab: Tab): Promise<string[]> => JSON.parse(await tab.evaluate<string>(SINCE)) as string[];
+const told = (at: Reading): string =>
+  `near=[${at.near.join(", ")}] keyboard=${at.keyboard} framed=${at.framed} said=${JSON.stringify(at.said)}`;
+
+/** A wall-clock budget, because an iteration cap is not one. Running out of it
+ *  is not a pass: it lands in the same "did not run" flag an exhausted tap count
+ *  does, and that flag is asserted. */
+const budget = (milliseconds: number): (() => boolean) => {
+  const until = Date.now() + milliseconds;
+  return () => Date.now() < until;
+};
+
+/** Whether a sentence names any of the six doors, as a reader would hear it. */
+const namesADoor = (sentence: string): string[] =>
+  DOORS.filter((door) => new RegExp(`\\b${door.label}\\b`, "i").test(sentence)).map((door) => door.id);
+
+interface Ring {
+  /** The door the figure walked up to. */
+  door: string;
+  atTheDoor: Reading;
+  afterEsc: Reading;
+  /** True once the figure is out of every door's reach. */
+  clearOfEveryDoor: boolean;
+  away: Reading;
+  saidOnLeaving: string[];
+  afterEnter: Reading;
+  saidOnEnter: string[];
+}
+
+interface Wall {
+  /** Whether the room, the screen and the push were all reached. */
+  ran: boolean;
+  why: string;
+  atTheScreen: Reading;
+  afterEsc: Reading;
+  /** Read again after a wait, with nothing touched: the camera must not come
+   *  back on its own, or the Tab below proves nothing. */
+  stillOut: Reading;
+  /** Which control the Tab landed on. */
+  tabbedTo: string;
+  afterTab: Reading;
+}
+
+/**
+ * One tab: out to a ring door and away from it, then into the machine room and
+ * up to the front wall.
+ *
+ * Reduced motion throughout, the same branch `backlot-leaving` walks: the
+ * camera cuts rather than travels, so a reading is of an arrival rather than of
+ * a journey, and Escape with nothing framed is where the fall-through out of a
+ * room lives.
+ */
+async function leavingAndRefusing(): Promise<{ ring: Ring; wall: Wall }> {
+  const site = await serveBuild("dist", base);
+  const tab = await Tab.launch();
+  try {
+    await tab.viewport(1920, 1080);
+    await tab.media({ colourScheme: THEME, reducedMotion: true });
+
+    // --- L1, on the ring.
+    await tab.goto(`${site.origin}${prefix}backlot/`);
+    await tab.evaluate<string>(READY);
+    await pause(1200);
+    if ((await tab.evaluate<string>(SPY)) !== "watching") throw new Error("the HUD has no live region to watch");
+
+    // Out from the middle until a door has the figure. The ring is 11.5 m out
+    // and the doors are 11.5 m apart with a 2.1 m reach, so there is metres of
+    // room either side of this — but it is read after every tap all the same,
+    // because a stride that is right on a quiet machine is not on a loaded one.
+    let at = await readOut(tab);
+    const outward = budget(90_000);
+    for (let step = 0; step < 24 && outward() && at.near.length === 0; step++) {
+      await tab.hold("ArrowUp", 600);
+      await pause(400);
+      at = await readOut(tab);
+    }
+    const door = at.near[0] ?? "";
+    await pause(1200);
+    const atTheDoor = await readOut(tab);
+
+    // Esc first, so this is also the state this round made worse: a live
+    // refusal, and the reader walking away from the door it was taken at.
+    await tab.press("Escape");
+    await pause(1600);
+    const afterEsc = await readOut(tab);
+    await saidSince(tab);
+
+    const back = budget(90_000);
+    for (let step = 0; step < 24 && back() && at.near.length > 0; step++) {
+      await tab.hold("ArrowDown", 600);
+      await pause(400);
+      at = await readOut(tab);
+    }
+    await pause(1200);
+    const away = await readOut(tab);
+    const clearOfEveryDoor = away.near.length === 0;
+    const saidOnLeaving = await saidSince(tab);
+
+    // Enter, with nothing in the HUD focused and the figure at no door, does
+    // nothing at all.
+    await tab.evaluate(`document.activeElement && document.activeElement.blur(); return null;`);
+    await pause(300);
+    await tab.press("Enter");
+    await pause(3000);
+    const afterEnter = await readOut(tab);
+    const saidOnEnter = await saidSince(tab);
+
+    // --- L2, in the machine room. A fresh document: the walk above has left
+    // the figure somewhere, and this leg is about a figure that has not moved.
+    let ran = false;
+    let why = "";
+    let tabbedTo = "";
+    await tab.goto(`${site.origin}${prefix}backlot/`);
+    await tab.evaluate<string>(READY);
+    await pause(1200);
+    const roomDoor = doorInto(roomNamed("machine-room"));
+    // Guarded, and not because a Tab that never lands is acceptable: this drive
+    // runs after `walk()` at module scope, so a throw here would take the sixty
+    // checks above it down with a message about the keyboard. It lands in the
+    // "did not run" flag instead, which is asserted and therefore red on its
+    // own terms.
+    let screens: string[] = [];
+    try {
+      await tabTo(tab, roomDoor.id);
+      await tab.press("Enter");
+      await pause(4500);
+      screens = (await tab.evaluate<State>(STATE)).controls
+        .filter((one) => !one.hidden && /^play-front-/.test(one.id))
+        .map((one) => one.id);
+    } catch (error) {
+      why = `the machine room was never entered: ${String(error)}`;
+    }
+    let atTheScreen = await readOut(tab);
+    let afterEsc2 = atTheScreen;
+    let stillOut = atTheScreen;
+    let afterTab = atTheScreen;
+    if (screens.length < 2) {
+      why = why || `the machine room showed ${screens.length} front-wall screen(s), so there is no wall to refuse`;
+    } else {
+      try {
+        // Enter on the first screen, which walks the figure to that screen's own
+        // spot and leaves it there. The placement is the point: a refusal is about
+        // where the reader is standing, and this is the only way to put them
+        // somewhere known without walking inside the assertion.
+        await tabTo(tab, screens[0]!).catch((error: unknown) => {
+          why = `the keyboard never reached ${screens[0]}: ${String(error)}`;
+          throw error;
+        });
+        await tab.press("Enter");
+        await pause(6000);
+        await settleWall(tab);
+        atTheScreen = await readOut(tab);
+        if (!atTheScreen.framed || !atTheScreen.near.includes(screens[0]!)) {
+          why =
+            `Enter on ${screens[0]} left the reader at ${told(atTheScreen)} rather than standing at that ` +
+            `screen with the camera in`;
+        } else {
+          await tab.press("Escape");
+          await pause(1600);
+          afterEsc2 = await readOut(tab);
+          // Nothing touched. The camera must not come back on its own, or the Tab
+          // below is not what brought it.
+          await pause(2500);
+          stillOut = await readOut(tab);
+          await tab.press("Tab");
+          await pause(2500);
+          tabbedTo = (await readOut(tab)).keyboard;
+          afterTab = await readOut(tab);
+          ran = screens.includes(tabbedTo) && tabbedTo !== screens[0];
+          if (!ran) {
+            why =
+              `one Tab from ${screens[0]} put the keyboard on "${tabbedTo}" rather than on another screen ` +
+              `sharing the same shot`;
+          }
+        }
+      } catch {
+        ran = false;
+      }
+    }
+
+    return {
+      ring: { door, atTheDoor, afterEsc, clearOfEveryDoor, away, saidOnLeaving, afterEnter, saidOnEnter },
+      wall: { ran, why, atTheScreen, afterEsc: afterEsc2, stillOut, tabbedTo, afterTab },
+    };
+  } finally {
+    await tab.close();
+    await site.close();
+  }
+}
+
+const { ring: theRing, wall: theWall } = await leavingAndRefusing();
+
+describe("walking out of a ring door's reach", () => {
+  it("got the figure to a door and then out of every reach, so the case ran", () => {
+    expect(
+      theRing.door,
+      `the walk out from the middle never reached a door: ${told(theRing.atTheDoor)}. Everything below is about ` +
+        `leaving one, so this is reported rather than passed: the case did not run.`,
+    ).not.toBe("");
+    expect(
+      theRing.atTheDoor.framed,
+      `the figure reached ${theRing.door} and the camera never came in: ${told(theRing.atTheDoor)}`,
+    ).toBe(true);
+    expect(
+      theRing.clearOfEveryDoor,
+      `the walk back never left every door's reach — last reading ${told(theRing.away)}. The case did not run.`,
+    ).toBe(true);
+  });
+
+  it("says so once, in a sentence that names no door", () => {
+    expect(
+      theRing.saidOnLeaving,
+      `walking out of ${theRing.door}'s reach said ${theRing.saidOnLeaving.length} thing(s): ` +
+        `${JSON.stringify(theRing.saidOnLeaving)}. Arrival is announced on the ring and departure was not, so ` +
+        `what was left standing is the sentence from the door the reader has walked away from — and with ` +
+        `Escape pressed first it is this round's own "still at the Lectures door, press Enter to open it", ` +
+        `with nothing near, nothing framed and Enter dead.`,
+    ).toHaveLength(1);
+    const named = namesADoor(theRing.saidOnLeaving[0] ?? "");
+    expect(
+      named,
+      `the departure sentence is "${theRing.saidOnLeaving[0]}", which names ${named.length} of the ring's six ` +
+        `doors. It is said at the moment there is no door to name, and it is said for all six.`,
+    ).toEqual([]);
+  });
+
+  it("leaves nothing else naming the door either", () => {
+    expect(theRing.away.near, `the figure is at no door: ${told(theRing.away)}`).toEqual([]);
+    expect(theRing.away.framed, `the camera is still framed on something: ${told(theRing.away)}`).toBe(false);
+    expect(
+      namesADoor(theRing.away.said),
+      `the live region is left saying "${theRing.away.said}" with the figure at no door`,
+    ).toEqual([]);
+  });
+
+  it("does nothing at all on Enter", () => {
+    expect(
+      theRing.afterEnter.path,
+      `Enter at no door navigated to ${theRing.afterEnter.path}. A window-level Enter goes through the door the ` +
+        `figure is standing at, and there is not one.`,
+    ).toBe(theRing.away.path);
+    expect(
+      theRing.saidOnEnter,
+      `Enter at no door said ${JSON.stringify(theRing.saidOnEnter)}. Nothing happened, so there is nothing to say.`,
+    ).toEqual([]);
+  });
+});
+
+describe("Esc at the front wall, from a reader who has not moved since", () => {
+  it("stood the figure at a screen with the camera in, so the case ran", () => {
+    expect(theWall.ran, theWall.why).toBe(true);
+    expect(
+      theWall.atTheScreen.framed,
+      `the camera never came to the wall: ${told(theWall.atTheScreen)}`,
+    ).toBe(true);
+  });
+
+  it("takes the camera off the wall", () => {
+    expect(
+      theWall.afterEsc.framed,
+      `Escape left the camera framed: ${told(theWall.afterEsc)}`,
+    ).toBe(false);
+    expect(
+      theWall.stillOut.framed,
+      `the camera came back on its own, with nothing pressed and the figure standing still: ` +
+        `${told(theWall.stillOut)}. Nothing below can tell what brought it back if this is already true.`,
+    ).toBe(false);
+  });
+
+  it("does not give the same shot back to a reader who has not left the screen they refused it at", () => {
+    expect(
+      theWall.afterTab.near,
+      `the figure moved between the Escape and the Tab: ${told(theWall.afterTab)}. This case is about a reader ` +
+        `who has not moved at all, so it did not run.`,
+    ).toEqual(theWall.atTheScreen.near);
+    expect(
+      theWall.afterTab.framed,
+      `Escape at ${theWall.atTheScreen.near.join(", ")}, then one Tab onto ${theWall.tabbedTo}, and the camera came ` +
+        `straight back to the wall: ${told(theWall.afterTab)}. The five screens share one shot aimed at the ` +
+        `middle of the run, so that is the shot the reader has just refused, handed back without them having ` +
+        `moved a millimetre. A refusal expires when the figure is out of the reach of the thing it was taken ` +
+        `at — and the band has to be drawn around that thing, not around a framing target up to 2 m away ` +
+        `from it.`,
+    ).toBe(false);
+  });
+});

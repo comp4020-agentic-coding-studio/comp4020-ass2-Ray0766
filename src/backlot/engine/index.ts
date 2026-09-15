@@ -454,11 +454,35 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
     writeRoute();
   }
 
+  /**
+   * How far the figure has to go before a refusal expires: **out of the reach of
+   * the thing it was taken at**, which is what "and not left since" means
+   * everywhere else in this file.
+   *
+   * It used to be `max(framedRadius * 6, 3)` — three metres at the least — and a
+   * corridor door's reach is 1.3, so a reader who pressed Esc at a door, walked
+   * out of it and walked back in was still inside a band the door itself says
+   * they left, and the door could not be arrived at again. The framing radius is
+   * how big the *window* is. That is a fact about the shot, not about where the
+   * reader is standing, and the two stopped being interchangeable the moment a
+   * room had doors 1.3 m deep.
+   *
+   * Asked of the hotspot rather than written down here, because the machine
+   * room's pieces refuse through this same record and their reaches are not a
+   * door's. Where nothing owns the framing — a room framed a bare point and the
+   * figure is not standing in anything — the old number stands.
+   */
+  function refusalReach(): number {
+    const id = framedId ?? hotspots.within(player.position)[0]?.id ?? null;
+    const reach = id ? hotspots.reachOf(id) : null;
+    return reach ?? Math.max(camera.framedRadius * 6, 3);
+  }
+
   /** Back to the fixed god view, if there is anything to come back from. */
   function releaseFraming(speak: boolean): boolean {
     if (!camera.framed) return false;
     const was = camera.framedTarget;
-    const reach = Math.max(camera.framedRadius * 6, 3);
+    const reach = refusalReach();
     camera.release(motion.reduced);
     // The clip goes with the framing, whichever end the release came from — a
     // walk away, a Tab away, Esc, leaving for a room, or the engine being torn
@@ -473,7 +497,16 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
     // Only a release the reader asked for countermands a pending arrival. The
     // walk-away rule calls this too, and there the figure is already clear.
     if (speak && was) refused = { at: was.clone(), clear: reach };
-    if (speak) announce("Pulled back.");
+    if (speak) {
+      // A live region holds one message, so after Esc at a door this sentence
+      // has to do both jobs: the camera has come back, and the reader has not
+      // moved. Saying only "Pulled back." made the live region the one of the
+      // four answers that stopped naming the door the other three still named —
+      // the same class of lie as leaving an arrival standing after the reader
+      // has walked away from it.
+      const door = atDoorId ? pressables.get(atDoorId) : undefined;
+      announce(door ? `Pulled back. Still at the ${door.name} door. Press Enter to open it.` : "Pulled back.");
+    }
     return true;
   }
 
@@ -563,7 +596,19 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
   function writeRoute(): void {
     if (departing) return;
     const room = mounted?.room.id ?? null;
-    const at = framedId ? roomDoors.find((door) => door.hotspot.id === framedId) : undefined;
+    // **Where the reader is, not where the camera is.** This asked `framedId`,
+    // which is the hotspot the camera has been pushed in on — and those are the
+    // same door right up until the reader presses Esc at one. A refusal takes
+    // the camera off the door and leaves the reader standing in front of it, so
+    // deriving the hash from the camera put `#corridor` in the address bar of a
+    // reader whose `near`, keyboard and live region all said week 3. Back from
+    // that landed them at the room's entrance.
+    //
+    // `atDoorId` is the answer `settleRoomDoors` already gives to "which door
+    // are you at", and it is the one a window-level Enter goes through — so the
+    // URL now names the door Enter opens, which is what a reader reading it
+    // would assume it meant.
+    const at = atDoorId ? roomDoors.find((door) => door.hotspot.id === atDoorId) : undefined;
     const hash = room ? (at?.route ? `#${at.route}` : `#${room}`) : "";
     const wanted = `${window.location.pathname}${window.location.search}${hash}`;
     const now = `${window.location.pathname}${window.location.search}${window.location.hash}`;
@@ -642,8 +687,27 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
     // Backed out of a moment ago and not left since: the reader's Esc wins over
     // a proximity that is only now catching up with it. `RoomContext.focus` has
     // always honoured this and a direct call would have quietly dropped it.
-    if (refused && at.distanceTo(refused.at) < 0.5) return;
-    framedId = door.hotspot.id;
+    //
+    // **The refusal governs the camera and nothing else.** It used to return
+    // here, before the keyboard was handed over and before the URL was written,
+    // so "Esc at a door, step out, step back in" arrived at a door that the
+    // hash, the keyboard and Enter all still thought was the previous one:
+    // `near` said week 3 and Enter opened week 1, 8 of 8. Esc is an answer to
+    // "come off this", which is a sentence about the shot; it is not the reader
+    // saying they have left the door they are standing at.
+    const pushIn = !(refused && at.distanceTo(refused.at) < 0.5);
+    // A refusal is still a change of door, so the camera comes off whatever it
+    // was on. The reaches overlap, and inside the overlap the nearest door can
+    // change while the figure stays inside the refused one's reach — which is
+    // how a reader gets here with the camera pushed in on the door **next** to
+    // the one they are now at. Leaving it there would put "The camera is close
+    // on: Week 1" over a reader standing at week 3, which is the lie this whole
+    // change is about, arriving from the other side. Silently: nothing was asked
+    // for, so there is nothing to announce and no second refusal to record.
+    if (!pushIn) releaseFraming(false);
+    // And `framedId`/`framedLabel` are the camera's own answer, so under a
+    // refusal they stay empty. Setting them would put the sentence back.
+    if (pushIn) framedId = door.hotspot.id;
     // **And the keyboard, because Enter has to mean this door.**
     //
     // Entering a room hands focus to the room's first control, which is right —
@@ -668,10 +732,13 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
     // mid-sentence — "Opening the week 5 door" — and using it here made the
     // canvas say "week 5" after a walk and "Week 5: Text to Video" after a Tab,
     // which is two names for one door depending on how you got there.
-    framedLabel = door.hotspot.button.textContent?.replace(/\s+/g, " ").trim() || door.name;
-    closeUp = true;
+    if (pushIn) {
+      framedLabel = door.hotspot.button.textContent?.replace(/\s+/g, " ").trim() || door.name;
+      closeUp = true;
+    }
     describeCanvas();
     writeRoute();
+    if (!pushIn) return;
     await camera.focusOn(at.clone(), door.focus.radius, door.focus.normal, motion.reduced, door.focus.clearance);
     if (disposed || framedId !== door.hotspot.id) return;
     framingArmed = false;
@@ -728,6 +795,12 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
     const changed = nearest !== atDoorId;
     doorsAround = signature;
     atDoorId = nearest;
+    // The hash is written from here rather than left to whoever frames next,
+    // because this is the line that changes the answer. `releaseFraming` used to
+    // carry it on the way out, which is a route that does not exist when the
+    // camera is already back — a reader who pressed Esc and then walked off took
+    // the door's name in the address bar with them.
+    if (changed) writeRoute();
     if (nearest) {
       const door = roomDoors.find((one) => one.hotspot.id === nearest);
       if (door) {
@@ -740,8 +813,16 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
         const sentence = hotspots.arrivalOf(nearest);
         if (sentence) announce(sentence);
       }
-    } else if (framedId && roomDoors.some((door) => door.hotspot.id === framedId)) {
-      releaseFraming(false);
+    } else {
+      if (framedId && roomDoors.some((door) => door.hotspot.id === framedId)) releaseFraming(false);
+      // **And leaving is an event too.** Arrival was announced and departure was
+      // not, so walking away from the last door left "At the week 11 door:
+      // Production, Week Two. Press Enter to open it." standing in the live
+      // region while `near` was empty, the hash said the corridor and Enter did
+      // nothing. A reader on a screen reader had no way to know they had left.
+      // One message, so this is the whole of what is said, and it names no door
+      // because there is no door to name.
+      if (changed) announce("No door within reach.");
     }
   }
 
@@ -1161,12 +1242,17 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
         await enterRoom(roomId);
         return;
       }
-      // Where the reader is going, and then that this document is finished.
+      // Which door the reader is leaving from, and then that this document is
+      // finished.
       //
-      // The first is usually a no-op: the arrival wrote it already. The second
-      // is what stops the URL being edited on the way out, by the focusout the
+      // The first is usually a no-op: the walk above ended at this door's
+      // standing mark and the settle wrote it already. It says `atDoorId` rather
+      // than `framedId` for the same reason `writeRoute` reads that one — a
+      // press can be made from across the corridor with the camera on nothing,
+      // and it is still this door the reader is going through. The second is
+      // what stops the URL being edited on the way out, by the focusout the
       // navigation itself causes — see `departing`.
-      framedId = doorId;
+      atDoorId = doorId;
       writeRoute();
       departing = true;
       // Already base-resolved by the page: the island never calls withBase and

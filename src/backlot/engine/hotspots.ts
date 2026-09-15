@@ -262,6 +262,18 @@ export interface HotspotDeck {
    * in the doorway 2.2 m away from it.
    */
   within(point: Vector3): { id: string; distance: number }[];
+  /**
+   * How close the figure has to be to this hotspot to be at it, or null for a
+   * hotspot with no reach at all.
+   *
+   * The same number `within` and `track` decide "near" with, published so that
+   * anything which has to expire when the reader leaves a thing can ask the
+   * thing rather than pick a distance. The engine's refusal used to pick one —
+   * three metres, against a corridor door's reach of 1.3 — and a reader who
+   * stepped out of a door and back in was still inside a band the door itself
+   * says they left.
+   */
+  reachOf(id: string): number | null;
   /** The sentence a room gave this hotspot for the moment of arrival, if it
    *  gave one. The room writes it; who says it, and when, is the engine's. */
   arrivalOf(id: string): string | null;
@@ -1267,6 +1279,10 @@ export function createHotspots(hud: HTMLElement, camera: OrthographicCamera, hoo
         if (distance <= radius) inside.push({ id: entry.spec.id, distance });
       }
       return inside.sort((one, two) => one.distance - two.distance);
+    },
+
+    reachOf(id) {
+      return parked.find((entry) => entry.spec.id === id)?.spec.radius ?? null;
     },
 
     arrivalOf(id) {

@@ -53,12 +53,23 @@
 // end. "Announces once" is a claim about a count, and the resting text cannot
 // tell one announcement from three.
 //
-// And the keyboard is **not** asserted in S4. Nothing moves it when the figure
-// walks away, and moving it would drop the reader on `<body>` — the failure
-// CLAUDE.md §7 spends a paragraph on. A parked Tab position is where the reader
-// can act from, not a claim about where the figure is standing; the three
-// answers that are claims (`near`, the hash, the live region) are the ones this
-// file holds to naming nothing.
+// And the keyboard in S4 is asserted as **not having moved**, which is a
+// different thing from not being asserted at all and it is the correction this
+// round made. A parked Tab position is where the reader can act from, not a
+// claim about where the figure is standing, so this file does not hold it to
+// naming nothing the way it holds `near`, the hash and the live region. But
+// "not a claim" was read as "not looked at", and that left a hole a reviewer
+// walked straight through: an engine that keeps the departure announcement and
+// **also** yanks the keyboard onto the first door's button passed all 115 tests
+// across this file, `backlot-doors` and `backlot-hotspots`. That is review 3's
+// defect — Enter opening a door the reader is not at — coming back through the
+// focus path, and it is invisible to a check that only asks what the keyboard
+// names. So the reading is taken on both sides of the walk and compared:
+// **parked where the reader left it** is the contract, and it permits `<body>`,
+// a door's button, or anything else the reader chose, while the engine moving it
+// across a departure is the defect. Nothing legitimately moves the keyboard when
+// the figure walks out of every reach; §7's paragraph is about not *dropping* a
+// reader on `<body>`, not a licence to pick them up.
 import { describe, expect, it } from "vitest";
 
 import { backlotManifest } from "../src/backlot/rooms/manifest";
@@ -465,6 +476,8 @@ async function escAtADoor(): Promise<Refused> {
 
 interface Left {
   door: string;
+  /** Where the reader left the keyboard, read before the departure walk. */
+  keyboardBefore: string;
   away: Five;
   saidOnLeaving: string[];
   afterEnter: Five;
@@ -483,6 +496,12 @@ async function leaveAndComeBack(): Promise<Left> {
     await tab.press("Escape");
     await pause(1300);
     await since(tab);
+    // Where the reader has left the keyboard, taken **before** the walk so that
+    // the reading after it is a comparison rather than a description. Nothing
+    // in a departure is allowed to move this; see the note at the top of the
+    // file about the injection that kept the announcement and moved the
+    // keyboard anyway.
+    const keyboardBefore = (await read(tab)).keyboard;
 
     // Back out into the middle of the corridor, which is 1.9 m from every side
     // door and so is outside all twelve reaches at once. Across the width rather
@@ -543,7 +562,17 @@ async function leaveAndComeBack(): Promise<Left> {
     const reachedItAgain = backAgain.hash === route;
     await pause(900);
     backAgain = await read(tab);
-    return { door, away, saidOnLeaving, afterEnter, saidOnEnter, clearOfEveryDoor, reachedItAgain, backAgain };
+    return {
+      door,
+      keyboardBefore,
+      away,
+      saidOnLeaving,
+      afterEnter,
+      saidOnEnter,
+      clearOfEveryDoor,
+      reachedItAgain,
+      backAgain,
+    };
   } finally {
     await tab.close();
     await site.close();
@@ -733,6 +762,18 @@ describe("walking out of every door's reach", () => {
         `doors. It is said at the moment there is no door to name, and it is said for all twelve — so it ` +
         `must carry neither a week's number nor a week's title.`,
     ).toEqual([]);
+  });
+
+  it("leaves the keyboard exactly where the reader parked it", () => {
+    expect(
+      left.away.keyboard,
+      `walking out of every door's reach moved the keyboard from ${left.keyboardBefore} to ` +
+        `${left.away.keyboard}. Nothing in a departure may move it: the reader is standing at no door, so a ` +
+        `keyboard the engine has put on one is a keyboard that opens a door the reader is not at — review 3's ` +
+        `defect, arriving through the focus path instead of through the walk. Where it was parked is the ` +
+        `reader's business and this check does not care which control it is; that it is the same one is the ` +
+        `whole of the claim. Reading: ${shown(left.away)}`,
+    ).toBe(left.keyboardBefore);
   });
 
   it("does nothing at all on Enter", () => {

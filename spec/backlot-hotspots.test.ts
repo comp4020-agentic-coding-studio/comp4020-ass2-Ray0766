@@ -1078,12 +1078,39 @@ describe.each(roomsWithDoors)("$room.title is its interactives", ({ room: entry,
     it("says which door the figure has walked up to, and says a different one at each", () => {
       const said = inRoom(entry.id).announcements;
       // Everything after the sentence the room says on the way in.
-      const arrivals = said.slice(1);
+      const walking = said.slice(1);
       expect(
-        arrivals.length,
+        walking.length,
         `walking ${entry.title} produced ${said.length} live-region sentence(s): ` +
           `${said.map((one) => JSON.stringify(one)).join(", ")}. A reader who cannot see the camera and is ` +
           `walking with the arrow keys is told nothing about arriving anywhere.`,
+      ).toBeGreaterThan(1);
+
+      // **A walk is arrivals and departures.** Leaving every door's reach is an
+      // event the live region says out loud now, and it names no door because
+      // there is no door to name — before that, walking away from the last door
+      // left "At the week 11 door: Production, Week Two. Press Enter to open
+      // it." standing while the figure was nowhere near it.
+      //
+      // Partitioned on whether a sentence names a week rather than filtered down
+      // to the ones that do: a filter would drop an arrival that names *two*
+      // weeks, or names one the room does not have, and both of those are the
+      // failure this check exists for. Anything that is not an arrival has to be
+      // the one departure sentence, so a region that starts saying something new
+      // and unnamed cannot hide in here either.
+      const NAMES_A_WEEK = /\bweek \d+\b/i;
+      const arrivals = walking.filter((one) => NAMES_A_WEEK.test(one));
+      const departures = walking.filter((one) => !NAMES_A_WEEK.test(one));
+      expect(
+        [...new Set(departures)],
+        `walking ${entry.title} said ${departures.length} sentence(s) that name no door: ` +
+          `${[...new Set(departures)].map((one) => JSON.stringify(one)).join(", ")}. Leaving every reach is ` +
+          `one state and it says one thing.`,
+      ).toHaveLength(departures.length === 0 ? 0 : 1);
+      expect(
+        arrivals.length,
+        `walking ${entry.title} said ${walking.length} sentence(s) and none of them named a door: ` +
+          `${walking.map((one) => JSON.stringify(one)).join(", ")}`,
       ).toBeGreaterThan(1);
 
       // **Not "every arrival is distinct".** That is what this said first, and

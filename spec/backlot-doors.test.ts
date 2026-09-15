@@ -62,6 +62,16 @@
 // door the reader is not at is the defect; one comparison across the departure
 // tells them apart, and no reading of a single moment can.
 //
+// **Enter at no door is now pressed in the state a reader is in.** The state
+// worth asking about there is not an emptied `activeElement` — nobody's
+// keyboard is on `<body>` after they have walked to a door — it is focus parked
+// on the button of the door they walked away from. So the route ends by walking
+// out of every reach and pressing Enter with nothing rearranged, and asserts
+// both halves of what should happen: Enter opens the door the keyboard is on,
+// and the keyboard is on the door the reader last stood at. Under the yank the
+// second half is false and the first is still true, which is the whole reason
+// the second half is written down.
+//
 // **The nearest-first rule is checked without measuring a distance.** The DOM
 // says which reaches contain the figure; it does not say which door is nearer.
 // But the doors' depths are monotone in the week number (`BacklotStage.depth`,
@@ -119,6 +129,8 @@
 //         "stage-week-11" to "stage-week-01" across the departure.
 //         leaving week-12 ... "stage-week-12" to "stage-week-01" ...
 //         leaving week-02 ... "stage-week-02" to "stage-week-01" ...
+//       AssertionError: at no door the keyboard was on "stage-week-01" rather
+//       than on the button of week-02.
 //     The Esc scenario's own departure stayed green, because it leaves from
 //     week 1 and week 1 is where this yank lands — which is the blind spot
 //     `keyboardHeldStill` says it has.
@@ -146,6 +158,7 @@ import { backlotManifest } from "../src/backlot/rooms/manifest";
 import type { BacklotStage } from "../src/backlot/rooms/manifest";
 import { gitOrigin, resolveDeployment } from "../scripts/pages-base.ts";
 import { serveBuild, Tab } from "./lib/chrome.ts";
+import type { Key } from "./lib/chrome.ts";
 
 const { base } = resolveDeployment(process.env, gitOrigin);
 const prefix = base.endsWith("/") ? base : `${base}/`;
@@ -414,6 +427,65 @@ function keyboardHeldStill(before: Four, after: Four): string[] {
   ];
 }
 
+/**
+ * Walk until nothing holds the figure, and fail loudly rather than quietly if
+ * that cannot be reached.
+ *
+ * A closed loop rather than a count of taps, because walking is camera-relative
+ * and the basis turns under the walk: a framed door points the arrow keys at the
+ * wall, and walking away releases the framing mid-tap and points them somewhere
+ * else again. So the loop reads the containing set after every tap, keeps a
+ * direction while the set is still changing, and rotates to the next one after
+ * four taps that changed nothing. A wall-clock budget rather than a tap budget,
+ * because on a busy machine a tap is the same 55 ms and a frame is not.
+ *
+ * Two ways to overshoot, and it recognises both: walking into another door's
+ * reach is a set that changed and the loop carries on, and walking out of the
+ * corridor altogether ends the walk with the log in hand instead of leaving
+ * every reading after it about the ring.
+ */
+async function walkOutOfEveryReach(
+  tab: Tab,
+  log: string[],
+  budgetMs: number,
+): Promise<{ at: Four; lastInReach: Four | null }> {
+  const deadline = Date.now() + budgetMs;
+  const directions: Key[] = ["ArrowDown", "ArrowRight", "ArrowLeft", "ArrowUp"];
+  let which = 0;
+  let stuck = 0;
+  let at = await read(tab);
+  /** The reading the departure is measured against: the last one with a reach
+   *  still holding the figure, which is this loop's own condition. */
+  let lastInReach: Four | null = null;
+  while (at.near.length) {
+    if (Date.now() > deadline) {
+      throw new Error(
+        `could not walk out of every door's reach inside ${budgetMs} ms; [${at.near.join(", ")}] still hold the ` +
+          `figure. The walk: ${walk(log)}`,
+      );
+    }
+    lastInReach = at;
+    const was = at.near.join(" ");
+    await tab.hold(directions[which]!, TAP);
+    await pause(SETTLE);
+    at = await read(tab);
+    log.push(line(`out, ${directions[which]}`, at));
+    if (!at.inTheCorridor) {
+      throw new Error(`walking out of every reach left the corridor. The walk: ${walk(log)}`);
+    }
+    if (at.near.join(" ") === was) {
+      stuck += 1;
+      if (stuck >= 4) {
+        which = (which + 1) % directions.length;
+        stuck = 0;
+      }
+    } else {
+      stuck = 0;
+    }
+  }
+  return { at, lastInReach };
+}
+
 /** The camera, in: close on this door and no other. */
 function cameraPushedIn(at: Four, door: BacklotStage): string[] {
   const on = cameraOn(at);
@@ -447,6 +519,13 @@ function cameraNotOnAnotherDoor(at: Four, door: BacklotStage): string[] {
 const line = (where: string, at: Four): string =>
   `${where.padEnd(28)} near=[${at.near.join(",")}] hash="${at.hash}" keyboard=${at.keyboard} ` +
   `closeOn="${at.closeOn}" said="${at.said}"`;
+
+/** A walk, laid out under a failure. Declared here rather than beside the
+ *  assertions because `walkOutOfEveryReach` quotes it from inside the walks
+ *  themselves, which run before those lines are reached — and a `const` read
+ *  before its declaration throws, on a failure path, where the check's own way
+ *  of saying what went wrong would become the thing that went wrong. */
+const walk = (log: string[]): string => `\n  ${log.join("\n  ")}`;
 
 // ---------------------------------------------------------------------------
 // The browser
@@ -698,6 +777,11 @@ interface Route {
   departures: Departure[];
   /** Where the reader stopped being in the corridor, if they ever did. */
   threwOut: string | null;
+  /** Standing at no door with nothing rearranged, the door left behind, and
+   *  where an Enter pressed from there went. */
+  beforeEnter: Four | null;
+  leftBehind: BacklotStage | null;
+  landed: string;
   log: string[];
 }
 
@@ -790,7 +874,35 @@ async function walkThemAll(): Promise<Route> {
       await pause(240);
       await look(`down the right, step ${i}`);
     }
-    return { visits, departures, threwOut, log };
+    // **The Enter a reader actually presses at no door.**
+    //
+    // Nothing is blurred, nothing is clicked and nothing is focused by hand.
+    // The reader has walked out of every door's reach with the keyboard still
+    // on the button of the door they walked away from, because that is where
+    // the engine handed it on arrival and a walk is not a reason to take it
+    // back. An assertion about Enter taken after `activeElement.blur()` is an
+    // assertion about a state nobody is in; this is the state they are in.
+    const out = await walkOutOfEveryReach(tab, log, 40000);
+    if (out.lastInReach) {
+      departures.push({
+        where: "the walk out at the end of the route",
+        before: out.lastInReach,
+        after: out.at,
+        from: claimOf(out.lastInReach),
+      });
+      lastDoor = claimOf(out.lastInReach) ?? lastDoor;
+    }
+    // Read again at the press rather than reusing the loop's exit reading. The
+    // loop only returns with nothing in reach, so an assertion about that
+    // reading's own `near` is a sentence that cannot be false — a check that
+    // answers the question next to the one being asked (CLAUDE.md §7). This is
+    // an independent observation of the state the key goes into.
+    const atThePress = await read(tab);
+    log.push(line("about to press Enter", atThePress));
+    await tab.press("Enter");
+    await pause(6000);
+    const landed = await tab.evaluate<string>(`return location.pathname;`);
+    return { visits, departures, threwOut, beforeEnter: atThePress, leftBehind: lastDoor, landed, log };
   } finally {
     await tab.close();
     await site.close();
@@ -800,8 +912,6 @@ async function walkThemAll(): Promise<Route> {
 const crossed = await crossTheBand();
 const refused = await escapeAtADoor();
 const route = await walkThemAll();
-
-const walk = (log: string[]): string => `\n  ${log.join("\n  ")}`;
 
 // ---------------------------------------------------------------------------
 
@@ -874,6 +984,20 @@ describe("crossing the band where two reaches overlap", () => {
   });
 
   it("opens the door the four named when Enter comes from the window", () => {
+    // **Why this press is taken with the keyboard off the HUD, and not only
+    // there.** There are two Enters and they are different code. This one is
+    // `engine/input.ts`'s window-level handler, it yields whenever anything in
+    // the HUD holds focus, and it is the only one that reads `atDoorId` — so it
+    // is the only one that can disagree with the four at all, and inside the
+    // band it is the only answer that can differ. It cannot be reached with a
+    // door's button focused, by design, which is why the keyboard is taken off
+    // the HUD the way a reader takes it off: a click on the page beside the
+    // stage, asserted above not to have moved the figure.
+    //
+    // It is not a substitute for the press a reader makes. The button's own
+    // activation is asserted twice more, both times with nothing rearranged:
+    // standing at a door after Esc, and standing at no door with focus parked
+    // on the door just left, at the end of the route below.
     const door = crossed.band.length ? claimOf(crossed.band[crossed.band.length - 1]!) : null;
     expect(
       crossed.landed,
@@ -1072,6 +1196,37 @@ describe("walking every door in the corridor", () => {
       `every departure was from ${last}, the last of the twelve, which is the one target the keyboard check ` +
         `cannot see. ${spread}`,
     ).not.toEqual([]);
+  });
+
+  it("opens the door the keyboard is on when Enter comes from where the reader left it", () => {
+    const at = route.beforeEnter;
+    expect(at, `the route never reached the state this case is about. ${walk(route.log)}`).not.toBeNull();
+    expect(
+      at!.near,
+      `Enter was pressed with [${at!.near.join(", ")}] still holding the figure, so it is not the press this case ` +
+        `is named for. ${walk(route.log)}`,
+    ).toEqual([]);
+    const parked = stageOfHotspot(at!.keyboard);
+    // Two statements, and they fail for different reasons on purpose. The first
+    // is about where focus is: at no door, nothing blurred, it has to be on the
+    // button of the door the reader walked away from, because that is where
+    // they left it. The second is about what Enter does: it follows focus. A
+    // yank makes the first false and leaves the second true, which is exactly
+    // why the first is written down — under it, Enter honestly opens the door
+    // the keyboard is on, and the keyboard is on a door the reader never
+    // stood at.
+    expect(
+      parked?.id ?? at!.keyboard,
+      `at no door the keyboard was on "${at!.keyboard}" rather than on the button of ` +
+        `${route.leftBehind?.id ?? "the door the reader walked away from"}. Nothing here blurred anything or ` +
+        `focused anything: if the keyboard is not where the reader left it, the engine moved it, and Enter is ` +
+        `resolved by whatever holds focus. ${walk(route.log)}`,
+    ).toBe(route.leftBehind?.id ?? "the door the reader walked away from");
+    expect(
+      route.landed,
+      `the keyboard was on "${at!.keyboard}", the live region said "${at!.said}", and Enter opened ` +
+        `${route.landed}. A focused button owns its own Enter, so what holds focus is what Enter has to open.`,
+    ).toContain(parked?.id ?? "no door was parked on");
   });
 
   it("gives one answer at every one of them", () => {

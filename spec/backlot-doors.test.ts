@@ -58,6 +58,31 @@
 // that decides in the band. So the band run takes the keyboard off the HUD the
 // way a reader does, with a click on the page beside the stage, and presses
 // Enter from there.
+//
+// **Seen red, four ways, before any of it was believed.** Each bug was put into
+// the tree, the build remade, and this file run against it; every injection was
+// anchored inside the function it breaks, because an injection that matches a
+// bare pattern is fed by whatever else is in the file and turns into a no-op
+// that reads exactly like a check gone blind (CLAUDE.md §7).
+//
+//   - The old key sequence, put back in place of the walk below:
+//       AssertionError: no reading on the way up the left wall had two doors'
+//       reaches holding the figure, so nothing below is about the overlap band
+//       at all.
+//         where the old sequence reads  near=[stage-week-03] hash="#week-03"
+//     Which is the whole of what was wrong with it.
+//   - `hotspots.within` sorted farthest-first:
+//       AssertionError: inside the band the answer went from week-03 to
+//       week-01, which is deeper to shallower.
+//   - `settleRoomDoors` taking the farthest containing door for `atDoorId`: the
+//     live region emptied inside the band and the keyboard was taken back off
+//     `<body>` within the frame, because the set's signature then never matches
+//     and the settle runs every frame. Two reds, neither of them the Enter.
+//   - So the Enter was proven on its own, with the farthest door fed to
+//     `onActivate` and nothing else touched:
+//       AssertionError: the four named week-03 with [stage-week-01,
+//       stage-week-03] holding the figure, and a window-level Enter opened
+//       /lectures/week-01/.
 import { describe, expect, it } from "vitest";
 
 import { backlotManifest } from "../src/backlot/rooms/manifest";
@@ -656,10 +681,14 @@ describe("crossing the band where two reaches overlap", () => {
     ).not.toContain(null);
     expect(
       (first?.depth ?? -1) < (last?.depth ?? -1),
-      `inside the band the answer went from ${first?.id} to ${last?.id}. The doors' depths are monotone in the week ` +
-        `number, so walking in, the distance to the shallower door only grows and the nearest door whose reach ` +
-        `contains the figure can only get deeper. ${first?.id} -> ${last?.id} is the nearest-first ordering ` +
-        `reversed. ${crossing}`,
+      first?.id === last?.id
+        ? `the answer never moved off ${first?.id} while the figure crossed the whole band. The nearest door whose ` +
+          `reach contains the figure changes hands halfway across it, so an answer that holds is an answer that is ` +
+          `not being asked of the position. ${crossing}`
+        : `inside the band the answer went from ${first?.id} to ${last?.id}, which is deeper to shallower. The ` +
+          `doors' depths are monotone in the week number, so walking in, the distance to the shallower door only ` +
+          `grows and the nearest door whose reach contains the figure can only get deeper. That is the ` +
+          `nearest-first ordering reversed. ${crossing}`,
     ).toBe(true);
   });
 

@@ -612,6 +612,7 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
     const facing = door.focus.normal ? door.focus.normal.clone().multiplyScalar(-1) : undefined;
     player.placeAt(door.standing.clone(), facing);
     hotspots.track(player.position, true);
+    settleRoomDoors(true);
     await frameRoomDoor(door);
     // And the keyboard, which is a separate question from the camera and is
     // handed over rather than counted as an arrival.
@@ -674,6 +675,74 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
     await camera.focusOn(at.clone(), door.focus.radius, door.focus.normal, motion.reduced, door.focus.clearance);
     if (disposed || framedId !== door.hotspot.id) return;
     framingArmed = false;
+  }
+
+  /** The containing set the last settle acted on, so a set that has not changed
+   *  costs nothing and a set that has cannot be missed. */
+  let doorsAround = "";
+
+  /**
+   * Which door the reader is at, decided from where they are standing.
+   *
+   * **All four answers come from one number.** `framedId`, `atDoorId`, the hash
+   * and the live region used to be driven by threshold crossings, and crossings
+   * cannot answer "where are you now" when reaches overlap. The corridor's are
+   * 1.3 m against a 2.0 m pitch between same-side doors, which leaves a 0.6 m
+   * band inside two of them at once, and this is what a reader got for walking
+   * past a door and stepping back:
+   *
+   *   near     ["stage-week-03"]   the door drawn as though the figure is there
+   *   hash     "#corridor"         the URL saying no door at all
+   *   keyboard stage-week-01       two metres away
+   *   said     "At the week 1 door: The Rig. Press Enter to open it."
+   *   Enter -> week 1
+   *
+   * Standing at week 3's door, Enter opened week 1. The second door entered won
+   * the framing; leaving it released the framing; and the door the reader was
+   * still standing in never fired again, because they had never left it. Under
+   * reduced motion it was worse: with nothing framed, Escape has nothing to pull
+   * back from and takes the reader out of the room instead.
+   *
+   * So the question is asked of the position rather than of the events. The
+   * nearest door whose reach contains the figure is the one, every frame, and
+   * everything that names a door names that one.
+   */
+  function settleRoomDoors(seed = false): void {
+    if (!mounted || disposed) return;
+    const inside = hotspots.within(player.position).filter((one) =>
+      roomDoors.some((door) => door.hotspot.id === one.id),
+    );
+    const signature = inside.map((one) => one.id).join(" ");
+    const nearest = inside[0]?.id ?? null;
+    if (seed) {
+      // Establishing where the figure is, which is not the same as arriving
+      // there. The engine puts the figure down at a room's entrance, and if
+      // that entrance is inside a door's reach then acting on it would open the
+      // room on that door instead of on the room. `hotspots.track` takes the
+      // same argument for the same reason and says so at greater length.
+      doorsAround = signature;
+      atDoorId = nearest;
+      return;
+    }
+    if (signature === doorsAround && nearest === atDoorId) return;
+    const changed = nearest !== atDoorId;
+    doorsAround = signature;
+    atDoorId = nearest;
+    if (nearest) {
+      const door = roomDoors.find((one) => one.hotspot.id === nearest);
+      if (door) {
+        if (changed) void frameRoomDoor(door);
+        // Said whenever the set changes, not only when the winner does. A
+        // reader stepping into a second reach gets that door's crossing
+        // announced by the deck on the same frame; a live region holds one
+        // message, and this one is written after it, so what is left standing
+        // is the door the other three answers name.
+        const sentence = hotspots.arrivalOf(nearest);
+        if (sentence) announce(sentence);
+      }
+    } else if (framedId && roomDoors.some((door) => door.hotspot.id === framedId)) {
+      releaseFraming(false);
+    }
   }
 
   /** Which room a door's route name belongs to, by asking the rooms that are
@@ -816,15 +885,17 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
         refreshClearances();
         return {
           press: () => void use(id),
-          near(at: boolean) {
-            atDoorId = at ? id : atDoorId === id ? null : atDoorId;
-            // Arriving, not a note about which door. A room used to move the
-            // camera itself through `RoomContext.focus` and tell the engine
-            // separately, which left the engine knowing a reader was at a door
-            // and not that the camera was on it — so the URL never learned.
-            // One call, one arrival, the same one the keyboard and a press get.
-            if (at) void frameRoomDoor(entry);
-            else if (framedId === id) releaseFraming(false);
+          near() {
+            // **A note that something changed, not a decision about what.**
+            //
+            // This used to set `atDoorId` from the crossing and frame or
+            // release on it, which is right for a reader who can only be at one
+            // door at a time and wrong for the corridor: the reaches overlap by
+            // 0.6 m, so leaving one door while standing in the next released the
+            // framing and left nothing holding it. `settleRoomDoors` answers
+            // from the position instead. A crossing is still worth a settle on
+            // the spot rather than on the next frame, which is all this is now.
+            settleRoomDoors();
           },
         };
       },
@@ -925,6 +996,7 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
     // camera on a proximity would otherwise open on the thing it frames instead
     // of on the room.
     hotspots.track(player.position, true);
+    settleRoomDoors(true);
     announce(`Inside ${lowerArticle(room.title)}.`);
     writeRoute();
   }
@@ -1407,6 +1479,7 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
       else if (away > leaveAt) releaseFraming(true);
     }
     hotspots.track(player.position);
+    settleRoomDoors();
     if (!doorsArmed && !mounted) {
       doorsArmed = hub.doors.every((entry) => entry.anchor.distanceTo(player.position) > DOOR_REACH);
     }

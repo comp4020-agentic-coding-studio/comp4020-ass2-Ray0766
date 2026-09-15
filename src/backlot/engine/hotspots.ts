@@ -245,6 +245,26 @@ export interface HotspotDeck {
    */
   keepClear(objects: Object3D[]): void;
   locate(id: string): Vector3 | null;
+  /**
+   * Every hotspot whose reach contains this point, nearest first.
+   *
+   * **The set, not the crossings.** `track` reports the moment a threshold is
+   * crossed, which is the right event for "you have arrived" and the wrong one
+   * for "where are you now": reaches overlap — the corridor's are 1.3 m against
+   * a 2.0 m pitch, so there is a 0.6 m band inside two of them — and a reader
+   * who leaves one while still standing in the other gets a crossing for the
+   * one they left and none for the one they are in. Nothing then says where
+   * they are. This answers that question from the position itself, so an answer
+   * exists on every frame rather than only on the frames something changed.
+   *
+   * Ground distance, like `track`: a door's point is up at head height on the
+   * leaf, and measuring in three dimensions from there puts a figure standing
+   * in the doorway 2.2 m away from it.
+   */
+  within(point: Vector3): { id: string; distance: number }[];
+  /** The sentence a room gave this hotspot for the moment of arrival, if it
+   *  gave one. The room writes it; who says it, and when, is the engine's. */
+  arrivalOf(id: string): string | null;
   /** The extent of everything **the room itself** registered, or null when the
    *  room has registered nothing. This is what a room says is worth reaching, so
    *  it is what its resting view is composed around — and it is why the engine's
@@ -1230,6 +1250,27 @@ export function createHotspots(hud: HTMLElement, camera: OrthographicCamera, hoo
 
     locate(id) {
       return parked.find((entry) => entry.spec.id === id)?.spec.position ?? null;
+    },
+
+    within(point) {
+      const inside: { id: string; distance: number }[] = [];
+      for (const entry of parked) {
+        const radius = entry.spec.radius;
+        // Same two exclusions as `track`: a hotspot with no reach has no
+        // threshold to be inside, and a hidden button is not a place the reader
+        // can be standing — the hub's doors are eleven metres outside the walls
+        // of the room they are in.
+        if (radius === undefined || entry.button.hidden) continue;
+        const alongX = entry.spec.position.x - point.x;
+        const alongZ = entry.spec.position.z - point.z;
+        const distance = Math.hypot(alongX, alongZ);
+        if (distance <= radius) inside.push({ id: entry.spec.id, distance });
+      }
+      return inside.sort((one, two) => one.distance - two.distance);
+    },
+
+    arrivalOf(id) {
+      return parked.find((entry) => entry.spec.id === id)?.spec.arrival ?? null;
     },
 
     scopedBounds() {

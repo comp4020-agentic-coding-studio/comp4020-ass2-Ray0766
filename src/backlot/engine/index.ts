@@ -596,19 +596,25 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
   function writeRoute(): void {
     if (departing) return;
     const room = mounted?.room.id ?? null;
-    // **Where the reader is, not where the camera is.** This asked `framedId`,
-    // which is the hotspot the camera has been pushed in on — and those are the
-    // same door right up until the reader presses Esc at one. A refusal takes
-    // the camera off the door and leaves the reader standing in front of it, so
-    // deriving the hash from the camera put `#corridor` in the address bar of a
-    // reader whose `near`, keyboard and live region all said week 3. Back from
-    // that landed them at the room's entrance.
+    // **Two ways of being at a door, and the URL has to follow either.** This
+    // asked `framedId` alone, which is the hotspot the camera has been pushed in
+    // on. That is the same door as the reader's right up until they press Esc at
+    // one: the refusal takes the camera off the door and leaves the reader
+    // standing in front of it, and the address bar said "#corridor" to somebody
+    // whose `near`, keyboard and live region all said week 3.
     //
-    // `atDoorId` is the answer `settleRoomDoors` already gives to "which door
-    // are you at", and it is the one a window-level Enter goes through — so the
-    // URL now names the door Enter opens, which is what a reader reading it
-    // would assume it meant.
-    const at = atDoorId ? roomDoors.find((door) => door.hotspot.id === atDoorId) : undefined;
+    // It cannot be `atDoorId` alone either, and that cost a full run to find
+    // out. Tabbing onto a door's button is an arrival too — `arriveAt` says so,
+    // and the accessibility of the thing rests on it — and it moves the camera
+    // and the keyboard without moving the figure, so twelve doors went to
+    // "#corridor" the moment the figure was the only thing asked.
+    //
+    // So: the door the camera is on, and when it is on nothing, the door the
+    // figure is standing at. The second is what `settleRoomDoors` answers and
+    // what a window-level Enter goes through, so in the refused state the URL
+    // names the door Enter opens.
+    const doorId = framedId ?? atDoorId;
+    const at = doorId ? roomDoors.find((door) => door.hotspot.id === doorId) : undefined;
     const hash = room ? (at?.route ? `#${at.route}` : `#${room}`) : "";
     const wanted = `${window.location.pathname}${window.location.search}${hash}`;
     const now = `${window.location.pathname}${window.location.search}${window.location.hash}`;

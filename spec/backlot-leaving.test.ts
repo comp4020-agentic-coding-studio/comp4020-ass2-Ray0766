@@ -223,20 +223,101 @@ async function open(): Promise<{ site: Awaited<ReturnType<typeof serveBuild>>; t
   return { site, tab };
 }
 
+/**
+ * **Walking here is open-loop in the one way that matters, and the strip below
+ * is 0.3 m wide.**
+ *
+ * `hold(key, ms)` sends a key down, waits `ms` in the harness, and sends the key
+ * up — and the figure walks for the whole time the key is down, which is `ms`
+ * *plus* however long the two CDP round trips and the timer actually take. On a
+ * quiet machine a 55 ms tap is about 0.18 m (lane B measured it against the
+ * 0.6 m overlap band). On a loaded one the key-up lands late and the same call
+ * walks further, and nothing in the harness can bound that.
+ *
+ * So every walk in this file reads after every tap and decides from the reading,
+ * and every one of them can tell "I have not got there yet" from "I have gone
+ * past". Going past is the failure that caught this file out: one run in three,
+ * a tap crossed the strip whole and the check reported the case as not run —
+ * correctly, and uselessly.
+ */
+
+/** The fine step. 0.13 m on a quiet machine, against a strip 0.3 m wide, and it
+ *  halves itself on any tap that overshoots. */
+const CRAWL = 40;
+/** The coarse one, for getting somewhere there is room to miss by. */
+const STRIDE = 150;
+
+/**
+ * A wall-clock budget for a closed-loop walk, because an iteration cap is not
+ * one.
+ *
+ * Every retry here is bounded in taps, and on a quiet machine the whole file
+ * takes 38 s. Starved — sixteen busy loops against eight cores — a single tap's
+ * two round trips and one read go from milliseconds to seconds, and the same
+ * caps came to over half an hour without finishing. The caps were right and the
+ * cost was not, so the loops are bounded in both.
+ *
+ * Running out of budget is **not** a pass. It lands in the same "did not run"
+ * flag an exhausted tap count does, which is asserted and therefore red: a walk
+ * that could not get to the state has not tested it, and that is the one thing
+ * this file must never round in its own favour.
+ */
+const budget = (ms: number): (() => boolean) => {
+  const until = Date.now() + ms;
+  return () => Date.now() < until;
+};
+
 /** Walk up the left wall until exactly one door's reach holds the figure and
  *  the camera has pushed in on it. Not week 1: S3 needs floor behind the door
- *  as well as in front of it. */
+ *  as well as in front of it.
+ *
+ *  A door's own stretch of corridor — inside its reach and outside its
+ *  neighbours' — is about 1.4 m, so a 150 ms stride has room to miss by; the
+ *  retry at `CRAWL` is there for the machine where it does not, and it costs
+ *  nothing on the runs where the first pass finds a door. */
 async function walkToADoor(tab: Tab): Promise<string> {
+  const spare = budget(150_000);
   await tab.hold("ArrowLeft", 900);
   await pause(600);
   let at = await read(tab);
-  for (let i = 0; i < 24; i++) {
-    await tab.hold("ArrowUp", 150);
-    await pause(360);
-    at = await read(tab);
-    if (at.near.length === 1 && at.framed && at.near[0] !== "stage-week-01") return at.near[0]!;
+  const alone = (one: Five) => one.near.length === 1 && one.framed && one.near[0] !== "stage-week-01";
+  for (const step of [STRIDE, CRAWL]) {
+    for (let i = 0; i < (step === STRIDE ? 24 : 40) && spare(); i++) {
+      await tab.hold("ArrowUp", step);
+      await pause(360);
+      at = await read(tab);
+      if (alone(at)) return at.near[0]!;
+    }
   }
   throw new Error(`never stood alone at a door with the camera in: ${shown(at)}`);
+}
+
+/**
+ * Put the reader back at `door` with the camera in, and refuse it again.
+ *
+ * The recovery for a tap that went too far. Once the figure is outside the
+ * door's reach the refusal taken at it has expired — that is the rule this file
+ * is about — so getting back is not enough on its own; the Esc has to be pressed
+ * again.
+ *
+ * **It stops at the first reading where the door is the nearest one**, which is
+ * the moment the figure crosses the mid-point walking up — the top edge of the
+ * strip. So each recovery leaves the figure closer to the target than the one
+ * before it, and the retry after it has the shortest distance to cover of any
+ * attempt so far. That is what makes this converge rather than wander.
+ */
+async function refuseAgain(tab: Tab, route: string): Promise<Five> {
+  const spare = budget(60_000);
+  let at = await read(tab);
+  for (let i = 0; i < 24 && spare() && !(at.hash === route && at.framed); i++) {
+    await tab.hold("ArrowUp", CRAWL);
+    await pause(420);
+    at = await read(tab);
+  }
+  if (at.hash !== route) return at;
+  await tab.press("Escape");
+  await pause(1300);
+  return read(tab);
 }
 
 // ---------------------------------------------------------------------------
@@ -252,6 +333,7 @@ interface Refused {
   stillInReach: boolean;
   steppedIn: Five;
   reachedTheBand: boolean;
+  stripCost: string;
   bandAway: Five;
   bandBack: Five;
   blurred: Five;
@@ -270,42 +352,82 @@ async function escAtADoor(): Promise<Refused> {
     const afterEsc = await read(tab);
     const saidOnEsc = await since(tab);
 
-    // S3. A short tap back, which is inside the reach — 1.3 m of it — and a
-    // short tap forward again.
-    await tab.hold("ArrowDown", 90);
-    await pause(500);
-    const steppedBack = await read(tab);
-    const stillInReach = steppedBack.near.includes(door);
-    await tab.hold("ArrowUp", 90);
+    const route = `#${door.replace("stage-", "")}`;
+
+    // S3. A step back that stays inside the reach — 1.3 m of it — and a step
+    // forward again. A tap that leaves the reach has not tested this case: it
+    // has expired the refusal and tested S5 by accident, so it is walked back,
+    // refused again and retried at half the step.
+    let tap = CRAWL;
+    let steppedBack = afterEsc;
+    let stillInReach = false;
+    const backSpare = budget(90_000);
+    for (let attempt = 0; attempt < 4 && backSpare() && !stillInReach; attempt++) {
+      await tab.hold("ArrowDown", tap);
+      await pause(500);
+      steppedBack = await read(tab);
+      stillInReach = steppedBack.near.includes(door);
+      if (!stillInReach) {
+        tap = Math.max(12, Math.round(tap / 2));
+        steppedBack = await refuseAgain(tab, route);
+        if (steppedBack.hash !== route) break;
+      }
+    }
+    await tab.hold("ArrowUp", tap);
     await pause(900);
     const steppedIn = await read(tab);
 
-    // S3 again, in the overlap band, which is the state the refusal's own
-    // handover has to survive: the reaches are 1.3 m against a 2.0 m pitch, so
-    // there is a strip where the figure is inside this door's reach and nearer
-    // the one behind it. Stepping into that strip frames the neighbour — it was
-    // never refused — and stepping back out of it arrives at a refused door with
-    // the camera on somebody else. Walked in small taps because the strip is
-    // 0.3 m wide and a long hold crosses it without ever being asked where it is.
-    const route = `#${door.replace("stage-", "")}`;
+    // S3 again, in the strip: the reaches are 1.3 m against a 2.0 m pitch
+    // between same-side doors, so there is a stretch where the figure is inside
+    // this door's reach and nearer the one behind it. Crossing into it frames
+    // the neighbour — it was never refused — and crossing back out of it is the
+    // only way a reader arrives at a **refused** door, which is the hand-over
+    // this file is here for.
+    //
+    // The strip is `reach - pitch/2` wide, which is 0.3 m at its widest and
+    // narrower for a figure standing off the wall line. Lane B's band is 0.6 m
+    // and a 55 ms tap cleared it; this is half that, and one run in three a tap
+    // crossed it whole. So the crawl is closed on both sides: it stops when the
+    // answer moves to the neighbour with this door still in reach, and when a
+    // tap takes the figure out of the reach altogether it walks back, refuses
+    // again and halves the step. `refuseAgain` stops at the mid-point crossing,
+    // so each retry starts at the strip's own edge.
     let reachedTheBand = false;
+    let overshoots = 0;
     let bandAway = steppedIn;
-    for (let i = 0; i < 14 && !reachedTheBand; i++) {
-      await tab.hold("ArrowDown", 60);
-      await pause(420);
+    let strip = tap;
+    const stripSpare = budget(150_000);
+    const startedStrip = Date.now();
+    for (let i = 0; i < 28 && stripSpare() && !reachedTheBand; i++) {
+      await tab.hold("ArrowDown", strip);
+      await pause(450);
       bandAway = await read(tab);
-      if (!bandAway.near.includes(door)) break;
-      reachedTheBand = bandAway.hash !== route;
+      if (bandAway.near.includes(door)) {
+        reachedTheBand = bandAway.hash !== route;
+        continue;
+      }
+      // Out of the reach: past the strip, and the refusal expired on the way.
+      if (++overshoots > 4) break;
+      strip = Math.max(12, Math.round(strip / 2));
+      bandAway = await refuseAgain(tab, route);
+      if (bandAway.hash !== route) break;
     }
     let bandBack = bandAway;
     if (reachedTheBand) {
-      for (let i = 0; i < 14; i++) {
-        await tab.hold("ArrowUp", 60);
-        await pause(420);
+      // Back out of the strip. Walking up goes deeper into this door's reach, so
+      // there is nothing to overshoot here: the only question is whether the
+      // answer has come back to this door.
+      const outSpare = budget(60_000);
+      for (let i = 0; i < 20 && outSpare() && bandBack.hash !== route; i++) {
+        await tab.hold("ArrowUp", strip);
+        await pause(450);
         bandBack = await read(tab);
-        if (bandBack.hash === route) break;
       }
     }
+    // What the approach cost, so a run that nearly did not make it says so
+    // rather than looking identical to one that walked straight in.
+    const stripCost = `${overshoots} overshoot(s), final step ${strip} ms, ` +
+      `${Math.round((Date.now() - startedStrip) / 100) / 10} s`;
 
     // The window-level Enter, which is the one that goes through `atDoorId`.
     // With the door's button focused this would be the button's own activation
@@ -325,6 +447,7 @@ async function escAtADoor(): Promise<Refused> {
       stillInReach,
       steppedIn,
       reachedTheBand,
+      stripCost,
       bandAway,
       bandBack,
       blurred,
@@ -346,6 +469,7 @@ interface Left {
   saidOnLeaving: string[];
   afterEnter: Five;
   saidOnEnter: string[];
+  clearOfEveryDoor: boolean;
   reachedItAgain: boolean;
   backAgain: Five;
 }
@@ -361,15 +485,25 @@ async function leaveAndComeBack(): Promise<Left> {
     await since(tab);
 
     // Back out into the middle of the corridor, which is 1.9 m from every side
-    // door and so is outside all twelve reaches at once.
+    // door and so is outside all twelve reaches at once. Across the width rather
+    // than along the length: the corridor is 4.8 m wide and the target is
+    // everything more than 1.3 m off the wall, so this is the one walk in the
+    // file with metres of room either side of it rather than centimetres. Read
+    // after every tap all the same, and the stride drops if a dozen of them have
+    // not cleared every reach — a figure caught on a wall would otherwise spend
+    // the rest of the run reporting a state it never got to.
     let away = await read(tab);
-    for (let i = 0; i < 12 && away.near.length; i++) {
-      await tab.hold("ArrowRight", 220);
-      await pause(360);
-      away = await read(tab);
+    const awaySpare = budget(90_000);
+    for (const step of [220, CRAWL]) {
+      for (let i = 0; i < 12 && awaySpare() && away.near.length; i++) {
+        await tab.hold("ArrowRight", step);
+        await pause(360);
+        away = await read(tab);
+      }
     }
     await pause(900);
     away = await read(tab);
+    const clearOfEveryDoor = away.near.length === 0;
     const saidOnLeaving = await since(tab);
 
     // Enter, with nothing in the HUD focused and the figure at no door, does
@@ -391,15 +525,25 @@ async function leaveAndComeBack(): Promise<Left> {
     await tab.hold("ArrowLeft", 900);
     await pause(900);
     let backAgain = await read(tab);
-    for (let i = 0; i < 16 && backAgain.hash !== route; i++) {
-      await tab.hold("ArrowUp", 90);
-      await pause(420);
-      backAgain = await read(tab);
+    // Crossing the corridor is lateral, so the figure comes back at about the
+    // length it left at — but "about" is the whole problem with an open-loop
+    // walk, and a figure that drifted past the door would be walked further away
+    // by a search that only knows one direction. So it tries up, and then down
+    // from where up left it. Both are the same closed loop: read, decide, stop
+    // at the first reading where this door is the nearest one.
+    const backSpare = budget(90_000);
+    for (const way of ["ArrowUp", "ArrowDown"] as const) {
+      for (let i = 0; i < 16 && backSpare() && backAgain.hash !== route; i++) {
+        await tab.hold(way, CRAWL);
+        await pause(420);
+        backAgain = await read(tab);
+      }
+      if (backAgain.hash === route) break;
     }
     const reachedItAgain = backAgain.hash === route;
     await pause(900);
     backAgain = await read(tab);
-    return { door, away, saidOnLeaving, afterEnter, saidOnEnter, reachedItAgain, backAgain };
+    return { door, away, saidOnLeaving, afterEnter, saidOnEnter, clearOfEveryDoor, reachedItAgain, backAgain };
   } finally {
     await tab.close();
     await site.close();
@@ -502,8 +646,10 @@ describe("Esc at a door pulls the camera back and nothing else", () => {
     expect(
       refused.reachedTheBand,
       `the walk never reached the strip where the figure is inside ${refused.door}'s reach and nearer the ` +
-        `door behind it — last reading ${shown(refused.bandAway)}. The hand-back into a refused door is ` +
-        `only reachable from there, so this is reported rather than passed: the case did not run.`,
+        `door behind it — last reading ${shown(refused.bandAway)}, after ${refused.stripCost}. The hand-back ` +
+        `into a refused door is only reachable from there, so this is reported rather than passed: the case ` +
+        `did not run. The strip is 0.3 m and a tap is 0.13 m on a quiet machine; if the overshoot count is ` +
+        `high, the taps were landing long and the halving did not catch up inside the budget.`,
     ).toBe(true);
     expect(
       refused.bandAway.near,
@@ -555,6 +701,15 @@ describe("Esc at a door pulls the camera back and nothing else", () => {
 });
 
 describe("walking out of every door's reach", () => {
+  it("got the figure out of every reach to begin with", () => {
+    expect(
+      left.clearOfEveryDoor,
+      `the walk across the corridor never left every door's reach — last reading ${shown(left.away)}. ` +
+        `Everything below is about the state where the figure is at no door, so this is reported rather ` +
+        `than passed: the case did not run.`,
+    ).toBe(true);
+  });
+
   it("leaves nothing naming a door", () => {
     const wrong = stillNamingADoor(left.away);
     expect(

@@ -28,9 +28,33 @@
 //     own definition and the kicker and blurb are not, so the ratio each one has
 //     to clear is computed from its rendered size and weight rather than picked.
 //
-// Seen red before it was believed --- see the receipt. The shader's own
-// `animation-play-state` is asserted paused, because a running gradient would
-// make every number here one sample of a moving scene (§7 again).
+// **Seen red four ways, and once by the page itself.** Its first run was 4
+// failed | 27 passed on a live defect -- two cards added the same afternoon and
+// two that had been on the home page for weeks -- which is the strongest reading
+// of "seen red" available and the reason the wash was measured rather than
+// argued about. The four injections are anchored inside the thing each one
+// breaks, because an injection matching a bare pattern is fed by whatever else
+// is in the file and turns into a no-op that reads exactly like a check gone
+// blind (§7):
+//
+//   - the shader's wash put back to 0.55, which is the defect this round fixed
+//     --- 4 failed | 27 passed:
+//       The Studio  title #b97d1c on #5b3e14  2.80:1 (dark, 1920)
+//       The backlot title #b97d1c on #5b3e14  2.80:1 (dark, 1920)
+//       The Rig     title #b97d1c on #553c13  2.94:1 (dark, 390)
+//       The Episode title #8a5c13 on #c6b398  2.85:1 (light, 390)
+//   - `animation-play-state: running` left on the shader --- 24 failed | 7
+//     passed: "Four Generators's shader is running, so these readings are one
+//     frame of a moving gradient". Which is the assertion that stops every
+//     number in this file being one sample of a moving scene.
+//   - the grid collapsed to a single candidate point (`STEPS = 0`) --- 25 failed
+//     | 6 passed, "expected 0 to be greater than or equal to 6". The whole
+//     failure mode of a worst-of-many check is that "many" quietly becomes one,
+//     and this is what notices.
+//   - the probe handing back only the first run of text (`.slice(0, 1)`) --- 25
+//     failed | 6 passed, "Four Generators offered phase-card__weeks run(s) of
+//     text" and "expected 24 to be 72". A mistyped selector would otherwise read
+//     as a pass by measuring a third of the words and calling it done.
 
 import { describe, expect, it } from "vitest";
 import { AA_BODY_TEXT, AA_LARGE_TEXT, compositeOver, contrastRatio } from "astro-theme-university/contrast";

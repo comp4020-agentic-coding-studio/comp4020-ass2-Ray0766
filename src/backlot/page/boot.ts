@@ -168,6 +168,17 @@ async function boot(): Promise<void> {
   }
 
   const payload = JSON.parse(payloadTag.textContent) as BacklotPayload;
+  // Read before the engine can write its route. Native fragment scrolling is
+  // not a decision to stay in the list; a named room or door asks for the 3D.
+  let sharedPlace = false;
+  try {
+    const hash = decodeURIComponent(location.hash.slice(1)).trim();
+    sharedPlace = payload.manifest.rooms.some((room) =>
+      room.id === hash || room.stages?.some((door) => door.id === hash),
+    );
+  } catch {
+    // An invalid fragment names no room. The gallery still works.
+  }
 
   // Out of `hidden` before the engine measures it, or the renderer is sized
   // against a box of nothing — the engine counts its first presented frame off
@@ -218,7 +229,8 @@ async function boot(): Promise<void> {
   // first time focus lands in the gallery, a pointer goes down in it, or it is
   // scrolled — from the head, because a script in the body does not run until
   // the stylesheets have, and that window is 700 ms of the reader being ignored.
-  if (document.documentElement.hasAttribute("data-backlot-used")) {
+  const use = document.documentElement.getAttribute("data-backlot-used");
+  if (use !== null && !(sharedPlace && use === "scroll")) {
     takeover.hidden = false;
     return;
   }

@@ -22,7 +22,7 @@
 // page. Asserting a `persisted` the harness cannot make happen would be a check
 // that passes because the browser felt like it.
 //
-// What is asserted is the state the reader is in, never the picture: the room
+// The rendered controls must be visible as well as agreeing with the engine: the room
 // that is mounted, the hash, which control the keyboard is on, and whether the
 // camera is close on something. Those are things the engine sets on purpose at
 // the moment in question (CLAUDE.md §7), and the room's own published rect is
@@ -77,6 +77,13 @@ const STATE = String.raw`
   const controls = [...document.querySelectorAll("[data-backlot-hotspot]")].filter((b) => !b.hidden);
   const at = controls.find((b) => b.dataset.backlotNear === "true");
   return {
+    mode: document.querySelector("[data-backlot-stage]")?.dataset.backlotMode,
+    hudVisible: !!hud && !hud.hidden && hud.checkVisibility(),
+    boxes: controls.map((b) => {
+      const r = b.getBoundingClientRect();
+      return { id: b.dataset.backlotHotspot, width: r.width, height: r.height, visible: b.checkVisibility() };
+    }),
+    said: hud?.querySelector('[aria-live="polite"]')?.textContent ?? "",
     hash: location.hash,
     path: location.pathname,
     controls: controls.map((b) => b.dataset.backlotHotspot),
@@ -101,6 +108,10 @@ const STATE = String.raw`
 `;
 
 interface State {
+  mode: string;
+  hudVisible: boolean;
+  boxes: { id: string; width: number; height: number; visible: boolean }[];
+  said: string;
   hash: string;
   path: string;
   controls: (string | undefined)[];
@@ -130,6 +141,9 @@ interface Reading {
    *  back to a bookmark. Whichever kind the Back above turned out to be, this is
    *  the other one. */
   coldUrl: State;
+  coldOnPage: State;
+  coldBack: State;
+  coldRooms: { id: string; state: State }[];
   /** What the backlot's URL said at the moment the press took the document away
    *  — the history entry Back comes back to.
    *
@@ -144,7 +158,7 @@ interface Reading {
   noScript: { id: string | null; matched: boolean } | null;
 }
 
-async function drive(): Promise<Reading> {
+async function drive(width: number, height: number, theme: "dark" | "light"): Promise<Reading> {
   const site = await serveBuild("dist", base);
   const tab = await Tab.launch();
   const url = `${site.origin}${prefix}backlot/`;
@@ -162,10 +176,11 @@ async function drive(): Promise<Reading> {
          try { sessionStorage.setItem("backlot:leftAt", location.hash); } catch {}
        });`,
     );
-    await tab.viewport(1920, 1080);
+    await tab.viewport(width, height);
+    await tab.onNewDocument(`localStorage.setItem("at-theme", "${theme}");`);
     // The engine is watched rather than the pixels, so the idle camera and the
     // breathing fill are noise this file does not need.
-    await tab.media({ colourScheme: "dark", reducedMotion: true });
+    await tab.media({ colourScheme: theme, reducedMotion: true });
     await tab.goto(url);
     expect(await tab.evaluate<string>(READY), "the island did not boot").toBe("ready");
 
@@ -216,6 +231,23 @@ async function drive(): Promise<Reading> {
     expect(await tab.evaluate<string>(READY), "the island did not boot on a cold load of the URL").toBe("ready");
     await pause(4200);
     const coldUrl = await tab.evaluate<State>(STATE);
+    expect(await tab.evaluate<string>("return document.documentElement.dataset.theme;"), "wrong theme under test").toBe(theme);
+    // The restored control must work through the keyboard, not only a .click().
+    await tab.press("Enter");
+    await pause(4500);
+    const coldOnPage = await tab.evaluate<State>(STATE);
+    await tab.back();
+    await pause(4200);
+    const coldBack = await tab.evaluate<State>(STATE);
+
+    const coldRooms: { id: string; state: State }[] = [];
+    for (const room of backlotManifest.rooms) {
+      await tab.goto("about:blank");
+      await tab.goto(`${url}#${room.id}`);
+      expect(await tab.evaluate<string>(READY), `the island did not boot for #${room.id}`).toBe("ready");
+      await pause(1600);
+      coldRooms.push({ id: room.id, state: await tab.evaluate<State>(STATE) });
+    }
 
     // And the half a reader with no JavaScript gets: the same URL, no island at
     // all, and the browser's own hash scrolling has to reach that week's entry
@@ -230,147 +262,179 @@ async function drive(): Promise<Reading> {
       return { id, matched: !!document.getElementById(id) };
     `);
 
-    return { atTheDoor, onThePage, back, backWas, coldUrl, leftAt, noScript };
+    return { atTheDoor, onThePage, back, backWas, coldUrl, coldOnPage, coldBack, coldRooms, leftAt, noScript };
   } finally {
     await tab.close();
     await site.close();
   }
 }
 
-const seen = await drive();
+for (const [width, height] of [[1920, 1080], [390, 844]] as const) {
+  for (const theme of ["dark", "light"] as const) {
+    const seen = await drive(width, height, theme);
+    describe(`${width}x${height} ${theme}`, () => {
 
-describe("the backlot says where you are in the URL", () => {
-  it("has a week to walk to", () => {
-    expect(STAGE, "the corridor has no fifth stage, so everything below is about nothing").toBeDefined();
-    expect(CORRIDOR_DOOR, "no door opens the corridor").toBeDefined();
-    expect(STAGE!.id).toBe("week-05");
-  });
+    describe("the backlot says where you are in the URL", () => {
+      it("has a week to walk to", () => {
+        expect(STAGE, "the corridor has no fifth stage, so everything below is about nothing").toBeDefined();
+        expect(CORRIDOR_DOOR, "no door opens the corridor").toBeDefined();
+        expect(STAGE!.id).toBe("week-05");
+      });
 
-  it("leaves the door's name in the entry the press pushed off", () => {
-    // The act is the press; the state it has to change is the history entry the
-    // document leaves behind. Everything else here reads what Back gave back,
-    // and Back is allowed to hand the live engine back with it — which rewrites
-    // the hash from the scene and hides a broken entry about two runs in three.
-    //
-    // Seen red by taking the guard off the route writer: a navigation blurs the
-    // control that started it, the blur is how the framing is released, and the
-    // release wrote the room's own name over the door's on the way out.
-    expect(
-      seen.leftAt,
-      `the backlot's URL said "${seen.leftAt}" as the press took the document away, so the entry Back ` +
-        `comes back to does not name the door the reader pressed. Whether that shows up in the state after ` +
-        `Back is the browser's choice of restore, not this check's.`,
-    ).toBe(`#${STAGE!.id}`);
-  });
+      it("leaves the door's name in the entry the press pushed off", () => {
+        // The act is the press; the state it has to change is the history entry the
+        // document leaves behind. Everything else here reads what Back gave back,
+        // and Back is allowed to hand the live engine back with it — which rewrites
+        // the hash from the scene and hides a broken entry about two runs in three.
+        //
+        // Seen red by taking the guard off the route writer: a navigation blurs the
+        // control that started it, the blur is how the framing is released, and the
+        // release wrote the room's own name over the door's on the way out.
+        expect(
+          seen.leftAt,
+          `the backlot's URL said "${seen.leftAt}" as the press took the document away, so the entry Back ` +
+            `comes back to does not name the door the reader pressed. Whether that shows up in the state after ` +
+            `Back is the browser's choice of restore, not this check's.`,
+        ).toBe(`#${STAGE!.id}`);
+      });
 
-  it("names the door the reader is standing at, not just the room", () => {
-    expect(
-      seen.atTheDoor.hash,
-      `at week 5's door the URL says "${seen.atTheDoor.hash}". It has to name the door, or Back has ` +
-        `nothing to put the reader back at.`,
-    ).toBe(`#${STAGE!.id}`);
-    expect(
-      seen.atTheDoor.closeOn,
-      `the camera is close on "${seen.atTheDoor.closeOn}" rather than the door the hash names`,
-    ).toBe(`Week ${STAGE!.week}: ${STAGE!.title}`);
-  });
+      it("names the door the reader is standing at, not just the room", () => {
+        expect(
+          seen.atTheDoor.hash,
+          `at week 5's door the URL says "${seen.atTheDoor.hash}". It has to name the door, or Back has ` +
+            `nothing to put the reader back at.`,
+        ).toBe(`#${STAGE!.id}`);
+        expect(
+          seen.atTheDoor.closeOn,
+          `the camera is close on "${seen.atTheDoor.closeOn}" rather than the door the hash names`,
+        ).toBe(`Week ${STAGE!.week}: ${STAGE!.title}`);
+      });
 
-  it("steps through to that week's own page", () => {
-    expect(seen.onThePage.path).toBe(`${prefix}lectures/${STAGE!.id}/`);
-  });
-});
-
-describe("Back lands where the reader left", () => {
-  // Seen red by taking the hash out of the backlot entirely — `writeRoute` made
-  // a no-op in the built bundle — which is the state this whole change is
-  // against:
-  //   AssertionError: Back landed on the ring with the corridor shut: the
-  //   controls are lectures,sessions,studio,assessments,people,policies and the
-  //   URL says "". A reader who walked to week 5 has to open the Lectures door
-  //   and walk it again.: expected [ 'lectures', …(5) ] to contain
-  //   'stage-week-05'
-  for (const [what, state] of [
-    [`by the Back button (which this browser served ${seen.backWas})`, seen.back],
-    ["on a cold load of the same URL", seen.coldUrl],
-  ] as const) {
-    it(`puts the reader back in the corridor ${what}`, () => {
-      expect(
-        state.controls,
-        `Back landed on the ring with the corridor shut: the controls are ${state.controls.join(",")} ` +
-          `and the URL says "${state.hash}". A reader who walked to week 5 has to open the Lectures ` +
-          `door and walk it again.`,
-      ).toContain("stage-week-05");
-      expect(state.path, "Back did not return to the backlot at all").toBe(`${prefix}backlot/`);
+      it("steps through to that week's own page", () => {
+        expect(seen.onThePage.path).toBe(`${prefix}lectures/${STAGE!.id}/`);
+      });
     });
 
-    it(`stands the figure at week 5's door ${what}`, () => {
-      expect(state.hash, "the URL forgot which door").toBe(`#${STAGE!.id}`);
-      expect(
-        state.near,
-        `the figure is at ${state.near ?? "no door"} rather than week 5's, so Back put it in the room ` +
-          `but not where it was.`,
-      ).toBe("stage-week-05");
-      expect(
-        state.closeOn,
-        `the camera is close on "${state.closeOn}" rather than the door the reader left from. ` +
-          `"Framed" on its own only says the camera has left its resting view, which it had also ` +
-          `done in the state where the URL still said the room.`,
-      ).toBe(`Week ${STAGE!.week}: ${STAGE!.title}`);
+    describe("Back lands where the reader left", () => {
+      // Seen red by taking the hash out of the backlot entirely — `writeRoute` made
+      // a no-op in the built bundle — which is the state this whole change is
+      // against:
+      //   AssertionError: Back landed on the ring with the corridor shut: the
+      //   controls are lectures,sessions,studio,assessments,people,policies and the
+      //   URL says "". A reader who walked to week 5 has to open the Lectures door
+      //   and walk it again.: expected [ 'lectures', …(5) ] to contain
+      //   'stage-week-05'
+      for (const [what, state] of [
+        [`by the Back button (which this browser served ${seen.backWas})`, seen.back],
+        ["on a cold load of the same URL", seen.coldUrl],
+      ] as const) {
+        it(`puts the reader back in the corridor ${what}`, () => {
+          expect(
+            state.controls,
+            `Back landed on the ring with the corridor shut: the controls are ${state.controls.join(",")} ` +
+              `and the URL says "${state.hash}". A reader who walked to week 5 has to open the Lectures ` +
+              `door and walk it again.`,
+          ).toContain("stage-week-05");
+          expect(state.path, "Back did not return to the backlot at all").toBe(`${prefix}backlot/`);
+        });
+
+        it(`stands the figure at week 5's door ${what}`, () => {
+          expect(state.hash, "the URL forgot which door").toBe(`#${STAGE!.id}`);
+          expect(
+            state.near,
+            `the figure is at ${state.near ?? "no door"} rather than week 5's, so Back put it in the room ` +
+              `but not where it was.`,
+          ).toBe("stage-week-05");
+          expect(
+            state.closeOn,
+            `the camera is close on "${state.closeOn}" rather than the door the reader left from. ` +
+              `"Framed" on its own only says the camera has left its resting view, which it had also ` +
+              `done in the state where the URL still said the room.`,
+          ).toBe(`Week ${STAGE!.week}: ${STAGE!.title}`);
+        });
+      }
+
+      for (const [what, state] of [["Back", seen.back], ["a cold share URL", seen.coldUrl], ["Back after cold Enter", seen.coldBack]] as const) {
+        it(`shows the HUD after ${what}`, () => {
+          expect(state.hudVisible, "the restored room's HUD is hidden").toBe(true);
+          expect(state.mode, "the engine restored behind the static gallery").toBe("backlot");
+        });
+        it(`gives every active hotspot a visible box after ${what}`, () => {
+          expect(state.boxes.length).toBeGreaterThan(0);
+          for (const box of state.boxes) {
+            expect(box.width, `${box.id} has no width`).toBeGreaterThan(0);
+            expect(box.height, `${box.id} has no height`).toBeGreaterThan(0);
+            expect(box.visible, `${box.id} is hidden`).toBe(true);
+          }
+        });
+        it(`puts the keyboard on the restored door after ${what}`, () => {
+          expect(state.keyboard).toBe("hotspot:stage-week-05");
+        });
+        it(`announces the restored door after ${what}`, () => {
+          expect(state.said).toContain(`At the week ${STAGE!.week} door:`);
+        });
+      }
+
+      it("drove both restores, whichever way the browser served Back", () => {
+        // The two cases above are only two cases if they are different code paths.
+        // A bfcache restore hands back a live engine and runs no page script; a cold
+        // load rebuilds both and parses the hash on the way up. Which one Back gives
+        // is the browser's call, so this asserts that it said **something** and that
+        // the cold path was reached by the second case regardless — rather than
+        // asserting a `persisted` the harness cannot force.
+        expect(seen.backWas, "the recorder never saw a pageshow at all, so neither path is identified").not.toBe(
+          "gone",
+        );
+      });
+
+      it("had somewhere to go back to", () => {
+        expect(seen.onThePage.depth, "the walk never made a history entry, so Back proves nothing").toBeGreaterThan(1);
+      });
+    });
+
+    describe("the same URL works with no JavaScript at all", () => {
+      // What is asserted is that the fragment **names an element that exists**,
+      // which is exactly the condition native fragment scrolling needs and exactly
+      // what the `@` form fails. The scroll itself is not asserted here, and that is
+      // deliberate rather than lazy: the theme sets `scroll-behavior: smooth`, so a
+      // fragment scroll is animated and a scroll offset read in the same task is the
+      // first frame of an animation — the checks lane read `y=0` for a card 7,560 px
+      // down and spent ten minutes believing native anchoring was broken. They then
+      // measured it properly with scripts off, which is the reading this leans on:
+      // `#week-05` scrolls to y=6989 and `#corridor` to y=6381, while
+      // `#corridor@wk05`, `#corridor@week-05` and `#wk05` all leave the page at y=0
+      // because no element carries those ids.
+      it("names an element the gallery actually has", () => {
+        expect(seen.noScript, "no reading was taken with scripts off").not.toBeNull();
+        expect(
+          seen.noScript!.matched,
+          `the URL the backlot writes is "#${seen.noScript!.id}", and with JavaScript off there is no ` +
+            `element with that id — so the browser scrolls to the top of the page and a reader who came ` +
+            `back gets the list from the beginning. The hash has to be an anchor the page already carries.`,
+        ).toBe(true);
+        expect(seen.noScript!.id).toBe(STAGE!.id);
+      });
+    });
+
+      it("opens the shared week with Enter on a cold load", () => {
+        expect(seen.coldOnPage.path).toBe(`${prefix}lectures/${STAGE!.id}/`);
+        expect(seen.coldBack.hash).toBe(`#${STAGE!.id}`);
+      });
+      for (const { id, state } of seen.coldRooms) {
+        it(`opens #${id} with its own usable controls`, () => {
+          const room = backlotManifest.rooms.find((one) => one.id === id)!;
+          expect(state.hash).toBe(`#${id}`);
+          expect(state.hudVisible).toBe(true);
+          expect(state.mode).toBe("backlot");
+          expect(state.controls).toEqual(room.interactives.map((one) => one.id));
+          for (const box of state.boxes) {
+            expect(box.width, `${id}: ${box.id} width`).toBeGreaterThan(0);
+            expect(box.height, `${id}: ${box.id} height`).toBeGreaterThan(0);
+            expect(box.visible, `${id}: ${box.id} visible`).toBe(true);
+          }
+          expect(state.keyboard).toBe(`hotspot:${room.interactives[0]!.id}`);
+        });
+      }
     });
   }
-
-  // Asserted on the Back case only, and the reason is the harness rather than
-  // the page. A document that has never had a user gesture does not take
-  // programmatic focus in headless Chrome the way one that has does — the cold
-  // load restores the room, stands the figure at the door and brings the camera
-  // in, and leaves `activeElement` on `<body>`. Pressing Back arrives with a
-  // gesture behind it, which is also the case a reader is actually in, so that
-  // is where the keyboard is checked. Asserting it on the cold load would be
-  // asserting a property of this browser.
-  it("puts the keyboard on the door the reader left from", () => {
-    expect(
-      seen.back.keyboard,
-      "the keyboard is not on the door the reader left from, so Tab starts somewhere they have not been",
-    ).toBe("hotspot:stage-week-05");
-  });
-
-  it("drove both restores, whichever way the browser served Back", () => {
-    // The two cases above are only two cases if they are different code paths.
-    // A bfcache restore hands back a live engine and runs no page script; a cold
-    // load rebuilds both and parses the hash on the way up. Which one Back gives
-    // is the browser's call, so this asserts that it said **something** and that
-    // the cold path was reached by the second case regardless — rather than
-    // asserting a `persisted` the harness cannot force.
-    expect(seen.backWas, "the recorder never saw a pageshow at all, so neither path is identified").not.toBe(
-      "gone",
-    );
-  });
-
-  it("had somewhere to go back to", () => {
-    expect(seen.onThePage.depth, "the walk never made a history entry, so Back proves nothing").toBeGreaterThan(1);
-  });
-});
-
-describe("the same URL works with no JavaScript at all", () => {
-  // What is asserted is that the fragment **names an element that exists**,
-  // which is exactly the condition native fragment scrolling needs and exactly
-  // what the `@` form fails. The scroll itself is not asserted here, and that is
-  // deliberate rather than lazy: the theme sets `scroll-behavior: smooth`, so a
-  // fragment scroll is animated and a scroll offset read in the same task is the
-  // first frame of an animation — the checks lane read `y=0` for a card 7,560 px
-  // down and spent ten minutes believing native anchoring was broken. They then
-  // measured it properly with scripts off, which is the reading this leans on:
-  // `#week-05` scrolls to y=6989 and `#corridor` to y=6381, while
-  // `#corridor@wk05`, `#corridor@week-05` and `#wk05` all leave the page at y=0
-  // because no element carries those ids.
-  it("names an element the gallery actually has", () => {
-    expect(seen.noScript, "no reading was taken with scripts off").not.toBeNull();
-    expect(
-      seen.noScript!.matched,
-      `the URL the backlot writes is "#${seen.noScript!.id}", and with JavaScript off there is no ` +
-        `element with that id — so the browser scrolls to the top of the page and a reader who came ` +
-        `back gets the list from the beginning. The hash has to be an anchor the page already carries.`,
-    ).toBe(true);
-    expect(seen.noScript!.id).toBe(STAGE!.id);
-  });
-});
+}

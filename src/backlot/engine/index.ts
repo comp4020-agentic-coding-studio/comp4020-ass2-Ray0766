@@ -737,16 +737,9 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
     // Stood at the door, facing it, with the camera in and the keyboard on it —
     // which is where a reader who walked here would be.
     //
-    // The camera is brought in **explicitly** rather than by focusing the button
-    // and letting `focusin` do it. That was the first version and it does not
-    // work: a document that has never had a user gesture does not take
-    // programmatic focus the way one that has does, so a cold load of
-    // `/backlot/#week-05` opened the corridor, stood the figure at week 5's door
-    // — `data-backlot-near` said so — and then left `activeElement` on `<body>`,
-    // the camera at rest and the URL back at `#corridor`. Watched, four samples
-    // over eight seconds, every one identical. A restore is not an arrival by
-    // somebody; it is the engine putting the scene where the URL says it was, so
-    // it says so directly.
+    // Restore the camera explicitly: handing over focus is bookkeeping, not
+    // a walked arrival. The page must also have revealed the HUD before its
+    // buttons can take that focus; hidden controls cannot receive it.
     const facing = door.focus.normal ? door.focus.normal.clone().multiplyScalar(-1) : undefined;
     player.placeAt(door.standing.clone(), facing);
     hotspots.track(player.position, true);
@@ -756,6 +749,8 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
     // handed over rather than counted as an arrival.
     const button = hotspots.buttonFor(door.hotspot.id);
     if (button) handFocusTo(button);
+    const sentence = hotspots.arrivalOf(door.hotspot.id);
+    if (sentence) announce(sentence);
     writeRoute();
   }
 

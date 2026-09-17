@@ -339,6 +339,9 @@ export interface RoomContext {
   assetPrefix: string;
   colours: ColourReader;
   hotspots: HotspotApi;
+  /** The nearest registered door containing the figure, or null. Settled by
+   *  the engine before onFrame, so its window, keyboard and route agree. */
+  readonly currentDoor: string | null;
   layers: LayerApi;
   player: PlayerApi;
   /** Polite live-region announcement. One sentence, no punctuation games. */

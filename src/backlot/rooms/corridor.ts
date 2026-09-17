@@ -480,6 +480,8 @@ export async function buildCorridor(context: RoomContext): Promise<void> {
       .map((interactive) => [interactive.stageId!, interactive]),
   );
 
+  const stageForDoor = new Map([...openPage].map(([stageId, interactive]) => [interactive.id, stageId]));
+
   const signs = createSignwriter(context.colours);
   const doors: StageDoor[] = [];
   const presses = new Map<string, RoomDoorHandle>();
@@ -487,10 +489,6 @@ export async function buildCorridor(context: RoomContext): Promise<void> {
    *  rebuilt, because the engine writes the radius onto these objects and a copy
    *  would be the number this file guessed at build time. */
   const focusOf = new Map<string, { radius: number; normal?: Vector3; clearance?: number }>();
-  /** The stage the figure is at, which is one or none. It is what frames the
-   *  camera, what paints the leaf, and what decides which window is allowed a
-   *  decoder — one answer, asked once. See `setLive` below. */
-  let atStage: string | null = null;
   /** Filled once the shell is up, because a window cannot be dressed before the
    *  frame it hangs in exists. */
   let windows: ReturnType<typeof createStageWindows> | null = null;
@@ -564,7 +562,7 @@ export async function buildCorridor(context: RoomContext): Promise<void> {
           focus,
           arrival: `At the week ${stage.week} door: ${stage.title}. Press Enter to open it.`,
           activate: () => presses.get(stage.id)?.press(),
-          onProximity: (near) => arrive(door, near),
+          onProximity: (near) => presses.get(stage.id)?.near(near),
         };
       }
       return made;
@@ -577,40 +575,6 @@ export async function buildCorridor(context: RoomContext): Promise<void> {
     if (door.board) fitOut.add(door.board);
   }
   context.root.add(fitOut);
-
-  /**
-   * Walking up to a week's door, and walking away from it.
-   *
-   * All of it is one crossing, because all of it is one question: which door is
-   * the figure at. The camera comes in, the leaf is painted as the one being
-   * stood at, the engine is told so that an Enter with nothing focused reaches
-   * this door, and the window is given leave to decode. Two of those used to be
-   * somebody else's — `corridor-windows.ts` was going to poll `facingWhich` four
-   * times a second the way the machine room's wall of five screens does — and
-   * the corridor is not that shape: there is no second screen within reach to be
-   * facing instead, so a poll would be a second answer to a question this
-   * already answers, one frame out of step.
-   */
-  function arrive(door: StageDoor, near: boolean): void {
-    door.setNear(near);
-    presses.get(door.stage.id)?.near(near);
-    if (near) {
-      atStage = door.stage.id;
-      // Nothing plays itself under the preference. `engine/index.ts` returns
-      // before it starts a door's clip for the same reader, and this is that
-      // rule at this end rather than a second opinion about it.
-      windows?.setLive(context.reducedMotion ? null : door.stage.id);
-      return;
-    }
-    // Only the door that took it puts it back. Leaving one door can fire after
-    // arriving at the next — the crossings are reported per hotspot, in
-    // registration order, not in the order they happened — and an unguarded
-    // release there would tear down the framing the next door has just asked
-    // for.
-    if (atStage !== door.stage.id) return;
-    atStage = null;
-    windows?.setLive(null);
-  }
 
   // The doors, handed to the engine.
   //
@@ -688,7 +652,14 @@ export async function buildCorridor(context: RoomContext): Promise<void> {
   void windows.dress().catch((error) => console.warn("backlot: a stage window did not land", error));
 
   const stopFrame = context.onFrame((delta) => {
-    for (const door of doors) door.swing(delta);
+    // Reaches overlap. A crossing can leave its previous winner behind; the
+    // engine's current door also covers a restored URL with no crossing at all.
+    const atStage = context.currentDoor ? stageForDoor.get(context.currentDoor) ?? null : null;
+    for (const door of doors) {
+      door.setNear(door.stage.id === atStage);
+      door.swing(delta);
+    }
+    windows?.setLive(context.reducedMotion ? null : atStage);
   });
 
   context.onDispose(() => {

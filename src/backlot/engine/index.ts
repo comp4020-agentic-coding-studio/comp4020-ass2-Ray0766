@@ -1029,6 +1029,9 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
         describeCanvas();
       },
       unfocus: () => void releaseFraming(false),
+      get currentDoor() {
+        return atDoorId;
+      },
       // A getter rather than a snapshot: the contract types this as a boolean,
       // and a boolean read once at build time would leave a room animating at
       // a reader who turned the preference on after the room was built.
@@ -1597,8 +1600,8 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
   let frame = 0;
   let previous = performance.now();
   let presented = 0;
-  /** Last cap published per door, in tenths of a pixel, so the attribute is
-   *  written when the number changes and not sixty times a second. */
+  /** Last measured cap published per door. Preserve its precision when deciding
+   *  whether the attribute needs an update, including crossings of 11 px. */
   const publishedCap = new Map<string, number>();
   let publishedClips = -1;
   let publishedFramed: boolean | null = null;

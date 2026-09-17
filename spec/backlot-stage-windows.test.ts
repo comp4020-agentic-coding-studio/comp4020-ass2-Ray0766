@@ -126,10 +126,12 @@ const WALK: [Key, number][] = [
 ];
 
 interface Step {
-  /** Every stage the figure is standing at, by hotspot id, as the engine
-   *  publishes it — `data-backlot-near` is set per frame from the ground
-   *  distance, which is the same crossing the corridor calls `setLive` from. */
+  /** Every containing reach, by hotspot id. Two may overlap; selection is a
+   *  separate reading because only the nearest door owns the window. */
   near: string[];
+  /** The door named by the route, and the keyboard that must agree with it. */
+  selected: string | null;
+  keyboard: string | null;
   /** How many consecutive 50 ms polls this state held for. */
   ticks: number;
   /** Decoders alive: handles that still hold an element with a source on it,
@@ -204,24 +206,29 @@ async function enterCorridor(tab: Tab, site: StaticSite, scheme: ColourScheme): 
  * consecutive polls before it is one, and the transient between two states is
  * not asserted on.
  */
+const READ_STEP = String.raw`
+  const hud = document.querySelector("[data-backlot-hud]");
+  const route = /^#(week-\d+)$/.exec(location.hash);
+  return {
+    near: [...document.querySelectorAll('[data-backlot-hud] [data-backlot-hotspot^="stage-"]')]
+      .filter((button) => button.dataset.backlotNear === "true")
+      .map((button) => button.dataset.backlotHotspot).sort(),
+    selected: route ? "stage-" + route[1] : null,
+    keyboard: document.activeElement?.dataset?.backlotHotspot ?? null,
+    clips: Number(hud?.dataset?.backlotClips ?? 0),
+  };
+`;
+
 function watch(tab: Tab): Promise<void> {
   return tab.evaluate(`
     window.__backlotSteps = [];
-    const read = () => {
-      const hud = document.querySelector("[data-backlot-hud]");
-      return {
-        near: [...document.querySelectorAll('[data-backlot-hud] [data-backlot-hotspot^="stage-"]')]
-          .filter((button) => button.dataset.backlotNear === "true")
-          .map((button) => button.dataset.backlotHotspot)
-          .sort(),
-        clips: Number(hud?.dataset?.backlotClips ?? 0),
-      };
-    };
+    const read = () => { ${READ_STEP} };
     window.__backlotWatch = setInterval(() => {
       const now = read();
       const log = window.__backlotSteps;
       const last = log[log.length - 1];
-      if (last && last.clips === now.clips && String(last.near) === String(now.near)) last.ticks += 1;
+      if (last && last.clips === now.clips && String(last.near) === String(now.near)
+          && last.selected === now.selected && last.keyboard === now.keyboard) last.ticks += 1;
       else log.push({ ...now, ticks: 1 });
     }, 50);
     return null;
@@ -368,6 +375,15 @@ const commonest = (window: Window): string =>
 let site: StaticSite;
 let tab: Tab;
 let walk: Step[] = [];
+type Snapshot = Omit<Step, "ticks">;
+let restoredClip: Snapshot;
+let overlap: Snapshot;
+let backAtClip: Snapshot;
+const clipStage = stages.find((stage) => hasClip.get(stage.id) && stages.some((next) =>
+  next.side === stage.side && next.depth === stage.depth + 2 && !hasClip.get(next.id),
+));
+if (!clipStage) throw new Error("No clip door has an unshot neighbour to walk past.");
+const emptyNeighbour = stages.find((stage) => stage.side === clipStage.side && stage.depth === clipStage.depth + 2)!;
 /** Keyed by theme, then by stage. */
 const windows = new Map<ColourScheme, Map<string, Window>>();
 /** `--at-black`, resolved by the page rather than written down here: it is the
@@ -407,6 +423,37 @@ beforeAll(async () => {
     `),
     "--at-black",
   );
+
+  // A share URL seeds proximity without a crossing event. Its selected window
+  // still owes the same decoder as a reader who walked to this door.
+  await tab.goto("about:blank");
+  await tab.goto(`${site.origin}${prefix}backlot/#${clipStage.id}`);
+  for (let attempt = 0; attempt < 100; attempt++) {
+    restoredClip = await tab.evaluate<Snapshot>(READ_STEP);
+    if (restoredClip.near.includes(`stage-${clipStage.id}`)) break;
+    await pause(100);
+  }
+  await pause(500);
+  restoredClip = await tab.evaluate<Snapshot>(READ_STEP);
+
+  // Stop inside the overlap, rather than hoping a timed lap happens to pause
+  // there. Walk back out of the empty neighbour while staying by the clip.
+  await tab.press("Escape");
+  await pause(1200);
+  await tab.hold(clipStage.side === "left" ? "ArrowLeft" : "ArrowRight", 200);
+  async function walkUntil(key: Key, accepts: (state: Snapshot) => boolean): Promise<Snapshot> {
+    for (let attempt = 0; attempt < 80; attempt++) {
+      const state = await tab.evaluate<Snapshot>(READ_STEP);
+      if (accepts(state)) { await pause(200); return tab.evaluate<Snapshot>(READ_STEP); }
+      await tab.hold(key, 30);
+      await pause(70);
+    }
+    throw new Error(`The walk never reached its ${key} stopping point.`);
+  }
+  overlap = await walkUntil("ArrowUp", (state) => state.near.includes(`stage-${clipStage.id}`)
+    && state.near.includes(`stage-${emptyNeighbour.id}`));
+  backAtClip = await walkUntil("ArrowDown", (state) => state.near.includes(`stage-${clipStage.id}`)
+    && !state.near.includes(`stage-${emptyNeighbour.id}`));
 }, 600_000);
 
 // A minute, not vitest's default ten seconds. `Tab.close()` waits for Chrome to
@@ -457,20 +504,51 @@ describe("only a window with a clip behind it holds a decoder", () => {
     ).toBe(true);
   });
 
+  it("keeps the selected door, keyboard and containing reaches consistent", () => {
+    for (const step of walk) {
+      if (step.near.length === 0) expect(step.selected).toBeNull();
+      else {
+        expect(step.selected).not.toBeNull();
+        expect(step.near).toContain(step.selected);
+        expect(step.keyboard).toBe(step.selected);
+      }
+    }
+  });
+
+  it("restores the selected clip from a share URL without a crossing event", () => {
+    expect(restoredClip.selected).toBe(`stage-${clipStage.id}`);
+    expect(restoredClip.near).toContain(restoredClip.selected);
+    expect(restoredClip.keyboard).toBe(restoredClip.selected);
+    expect(restoredClip.clips).toBe(1);
+  });
+
+  it("keeps the clip when entering and leaving an unshot neighbour's overlap", () => {
+    expect(overlap.near).toContain(`stage-${emptyNeighbour.id}`);
+    expect(backAtClip.near).not.toContain(`stage-${emptyNeighbour.id}`);
+    for (const state of [overlap, backAtClip]) {
+      expect(state.near).toContain(`stage-${clipStage.id}`);
+      expect(state.selected).toBe(`stage-${clipStage.id}`);
+      expect(state.keyboard).toBe(state.selected);
+      expect(state.clips).toBe(1);
+    }
+  });
+
   it("holds none where there is no clip, and leaves none behind", () => {
+    // An unshot selected door owes no decoder even when a neighbouring clip
+    // door is also within reach. The old "any nearby clip" rule missed that leak.
     const wrong = walk
       .map((step, index) => ({ index, ...step }))
       .filter((step) => {
-        const owed = step.near.some((id) => hasClip.get(id.replace(/^stage-/, ""))) ? 1 : 0;
+        const owed = step.selected && hasClip.get(step.selected.replace(/^stage-/, "")) ? 1 : 0;
         return step.clips !== owed;
       });
-    const describeStep = (step: { index: number; near: string[]; clips: number; ticks: number }) =>
+    const describeStep = (step: Step & { index: number }) =>
       `state ${step.index}, held ${step.ticks * 50} ms: the figure is at ${step.near.join(", ") || "no door at all"}, ` +
-      `${step.near.some((id) => hasClip.get(id.replace(/^stage-/, ""))) ? "which has a clip" : "which has no clip"}, ` +
+      `with ${step.selected ?? "no door"} selected, ` +
       `and ${step.clips} decoder(s) are alive`;
     expect(
       wrong.map(describeStep),
-      "A window with no clip behind it must hold no decoder, and walking away from one that has must leave " +
+      "The selected window must hold its clip; an unshot selected window must hold none, and walking away must leave " +
         "none behind. Asserting the peak instead would assert what engine/layers.ts guarantees on its own.",
     ).toEqual([]);
   });

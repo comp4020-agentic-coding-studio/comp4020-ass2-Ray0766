@@ -166,16 +166,12 @@ export interface StageWindows {
    * of its callers remembering. A stage with no clip behind its still is a
    * perfectly good argument: it simply ends the previous one.
    *
-   * **The corridor decides which stage that is, and this file does not.** It
-   * already has the answer: the proximity crossing that frames the camera and
-   * paints the leaf as the one being stood at is the same event as "the figure
-   * is at this window", so it is computed once and passed here. This file used
-   * to be going to run its own facing poll, the way `machine-room.ts` does over
-   * a wall of five screens a figure can stand in front of all at once — but a
-   * corridor has one window within reach at a time, and a second test at 0.25 s
-   * against a proximity crossing would be two nearly-identical answers
-   * disagreeing by a frame, which reads as a decoder race. **Do not add one
-   * back.** If the corridor's crossing is ever wrong, the fix is there.
+   * The engine selects the nearest door before the corridor's frame callback.
+   * That one answer owns the route, keyboard, leaf and window. A proximity
+   * crossing cannot choose it: neighbouring reaches overlap, and leaving the
+   * last one entered need not mean leaving the door still being stood at.
+   * Repeated calls with the same id are free; this file only changes the layer
+   * when its selected stage changes.
    *
    * **Reduced motion is gated at the call site too, for the same reason.**
    * `engine/index.ts` returns before `watch()` for a reader who asked for less

@@ -520,6 +520,19 @@ p {
   margin-block-start: 0.5rem;
 }
 
+/* White ink, for the reason §5 already gives about the title: this stage keeps a
+   dark surface in **both** themes, and `--at-brand-ink` is sized against
+   `--at-bg`, which flips. So in the light theme the outline button's label
+   became the brand's copper on a near-black stage --- 3.54:1 at 1920 and 3.25:1
+   at 390 against the 4.5:1 that 15.75px/600 text needs, measured on the
+   composite. The outline one only: the filled button's ink is dark on a gold
+   fill and reads 5.57:1 in both themes, and white on that gold is 3.49:1 --- I
+   put this on both buttons first and broke the good one, which the sampler said
+   straight away. Gold stays where §7 puts it, filling that button. */
+.home-hero__action.at-button--outline {
+  color: var(--at-white);
+}
+
 /* base.css's focus ring puts a 4px --at-bg band between the element and its
    outline; over a moving picture that band is the only thing separating the
    ring from whatever frame is underneath, so the hero states it in the

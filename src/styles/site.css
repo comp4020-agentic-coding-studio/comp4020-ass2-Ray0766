@@ -451,8 +451,15 @@ p {
   letter-spacing: 0.08em;
   text-transform: uppercase;
   /* Solid, not a transparent white: over a moving picture, a colour mixed
-     with transparent has no fixed contrast to check. */
-  color: var(--at-light-grey);
+     with transparent has no fixed contrast to check.
+     And `--at-white`, not `--at-light-grey`: that token is defined only in the
+     theme's `deck.css`, which this page does not load, so the declaration was
+     invalid at computed-value time and the kicker simply inherited. In the dark
+     theme it inherited something near-white and looked correct; in the light
+     theme it inherited near-black onto a stage that stays dark in both, and
+     measured 1.03:1. Invisible, on the first line of the first page a marker
+     opens, for as long as it has been there. */
+  color: var(--at-white);
 }
 
 .home-hero__title {

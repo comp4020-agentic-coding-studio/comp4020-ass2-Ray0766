@@ -55,9 +55,11 @@ export const courseMeta = slopCourseMetaSchema.parse({
   startDate: "2027-02-22",
   endDate: "2027-05-28",
   // The one piece of prose on this site with nowhere to put a Source line: it
-  // is the home page's opening paragraph, its hero lead (index.astro slices the
-  // first sentence out of it) and the <meta description> every link preview
-  // uses. It used to open on "the fastest-growing form of screen drama on
+  // is the <meta description> every link preview uses, and the home page takes
+  // it in halves --- index.astro slices the first sentence out for the hero's
+  // lead and the rest for the paragraph under the tag row, so a reader does not
+  // meet the same clause twice a screen apart. Both halves have to stand on
+  // their own, because each one is read without the other. It used to open on "the fastest-growing form of screen drama on
   // earth" and "machines now do most of the shooting" — a superlative and a
   // production-share statistic, both global, neither sourced, and no room here
   // to source them. So it states what the course holds rather than what the

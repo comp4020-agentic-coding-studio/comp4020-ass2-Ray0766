@@ -44,6 +44,14 @@ const team = (await getPublishedCollection("people")).sort(
 // keep true.
 const heroLead = courseMeta.description.match(/^.*?\.(?=\s|$)/)?.[0] ?? courseMeta.description;
 
+// And the paragraph under the tag row takes what is left of the same sentence
+// --- the twelve weeks and what they end on. It used to be the whole
+// description, which meant the hero's subtitle and the page's opening paragraph
+// opened on the same clause about the machine doing the shooting, a screen
+// apart. Sliced rather than retyped for the same reason the hero is: one
+// record, two halves of it, and neither can drift from the other.
+const pageLead = courseMeta.description.slice(heroLead.length).trim();
+
 const TEAM_BIOS: Record<string, string> = {
   "vera-lin":
     "Eleven years writing for a daytime soap before the jump to vertical drama; runs Monday lectures on a schedule that does not move for a rewrite.",
@@ -124,7 +132,10 @@ const TEAM_BIOS: Record<string, string> = {
     {courseMeta.tags.map((tag) => <li>{tag}</li>)}
   </ul>
 
-  <p class="lead">{courseMeta.description}</p>
+  <p class="lead">
+    {pageLead} Each week adds exactly one technique to the rig, and no week
+    repeats another.
+  </p>
 
   <h2>The four phases</h2>
   <ul class="phase-cards">

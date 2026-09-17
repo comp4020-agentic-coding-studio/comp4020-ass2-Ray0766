@@ -76,7 +76,9 @@ for (const lecture of lectures) {
     await pause(100);
     expect(await tab.evaluate('return location.hash;')).toBe(hash);
     await click('.deck-toolbar a');
-    await until(`return location.pathname===${JSON.stringify(`${prefix}/lectures/${lecture.slug}/`)};`);
+    // The URL changes before a streamed document finishes parsing. The resource
+    // links precede their headings, so wait for the document before reading IDs.
+    await until(`return location.pathname===${JSON.stringify(`${prefix}/lectures/${lecture.slug}/`)}&&document.readyState!=="loading";`);
     const links = await tab.evaluate<{ text: string; exists: boolean }[]>(`
       return [...document.querySelectorAll('.lecture-actions a[href^="#"]')].map(a=>({
         text:a.textContent.trim(),exists:!!document.getElementById(a.hash.slice(1))

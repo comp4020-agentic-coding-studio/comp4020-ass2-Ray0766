@@ -58,7 +58,13 @@ const STARTER_IMAGES = [
  *  the site gets replaced, which is what makes this check mean the same thing in a
  *  fresh template and in a finished submission.
  *
- *  A Buffer, not a string: these are PNG and AVIF bytes and the gate hashes them. */
+ *  A Buffer, not a string: these are PNG and AVIF bytes and the gate hashes them.
+ *
+ *  Needs the root commit to be present, so it needs full history. CI fetches it
+ *  (`fetch-depth: 0` in .github/workflows/checks.yml, there so the secret scan
+ *  can see every commit) --- but for that reason and not for this one, so a
+ *  shallow checkout would break this and the reason it works would not be
+ *  written down anywhere. It is now. */
 function starterBytes(image: string): Buffer {
   const root = execFileSync("git", ["rev-list", "--max-parents=0", "HEAD"], {
     encoding: "utf8",

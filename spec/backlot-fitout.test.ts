@@ -544,48 +544,31 @@ async function sweep(): Promise<Case[]> {
             }
           }
 
-          /** The figure in the hub, found by searching rather than by naming a
-           *  point. Two Escapes put it back near the middle of the ring, so the
-           *  brightest 16 px cell inside the middle band is it — and the cell's
-           *  own coordinates come back with the number, because two readings
-           *  that land in the same place are two readings of the same thing and
-           *  two that do not are not comparable. */
+          /** Find the figure after putting it at the same position and heading.
+           *  Keep the sample coordinates: if dimming makes the search find a
+           *  different object, its brightness is not a comparable reading. */
           const findFigure = async (): Promise<{ best: number; at: string }> => {
             await tab.evaluate(HIDE_HUD);
             await tab.evaluate(
               "return new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)));",
             );
-            // **The same last step before both readings, so the figure is in
-            // the same pose for both.**
-            //
-            // This check compares two readings of the figure by where the
-            // brightest cell of it lands, and that only means anything if the
-            // two are of the same thing seen the same way. `returnToHub` puts
-            // the figure back at the door it came out of and the second Escape
-            // walks it to `hub.middle`, so its **position** is restored by
-            // design — but its **heading** is whatever the last step set, and
-            // the two are not the same: at boot it is placed facing (0,0,-1)
-            // and after the walk back it faces the way it travelled.
-            //
-            // That did not matter when the figure was a capsule with a sphere
-            // on top, which looks identical from every side. It matters now: the
-            // rebuilt figure has a hat brim, a collar across the front of its
-            // shoulders and two arms, so the brightest cell of it is in a
-            // different place depending on which way it is pointing. Measured,
-            // the search found it at (950,475) before the room and (950,491)
-            // after — the same x, 16 px apart in y, on a figure standing in
-            // exactly the place it started. The sentinel was keying on a
-            // consequence that stopped being one (CLAUDE.md §7's expiry rule),
-            // and the honest fix is to take the confound out rather than to
-            // widen the number until it fits.
-            //
-            // So both readings are preceded by the same short walk in the same
-            // direction. The last drive decides the facing, so after it the
-            // figure is in one deterministic pose either side of the room, and
-            // the coordinates mean what they always meant. 120 ms at 4.6 m/s is
-            // about half a metre, which is nowhere near a door's reach.
-            await tab.hold("ArrowUp", 120);
-            await pause(900);
+            // Set both position and heading by walking between two fixed floor
+            // points. A 120 ms arrow hold only fixed the heading: the distance
+            // depended on how many frames rendered while the key was down.
+            // CI sampled (950,451) before the room and (950,467) after on the
+            // unchanged site. Floor clicks under reduced motion arrive at the
+            // exact target, so neither reading depends on the runner's speed.
+            const ground = await tab.evaluate<Rects | null>(RECTS);
+            if (!ground) return { best: -1, at: "" };
+            for (const depth of [0.60, 0.55]) {
+              await tab.click(
+                ground.canvas.left + ground.canvas.width * 0.5,
+                ground.canvas.top + ground.canvas.height * depth,
+              );
+              await tab.evaluate(
+                "return new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)));",
+              );
+            }
             const seen = await tab.evaluate<Rects | null>(RECTS);
             if (!seen) return { best: -1, at: "" };
             const raster = await tab.raster({
@@ -594,8 +577,11 @@ async function sweep(): Promise<Case[]> {
               width: seen.canvas.width,
               height: seen.canvas.height,
             });
-            const CELL = 16;
-            const STEP = 8;
+            // The figure shrinks with the viewport. A desktop-sized cell on
+            // the phone found the Lectures door's light pool instead of the
+            // figure, so the sampling footprint must scale with the scene too.
+            const CELL = Math.max(3, Math.round((16 * viewport.width) / 1920));
+            const STEP = Math.max(1, Math.round((8 * viewport.width) / 1920));
             let best = -1;
             let at = "";
             const top = Math.round(raster.height * 0.35);
@@ -1667,28 +1653,18 @@ describe("the brightest thing in the machine room is the front wall", () => {
   // Nothing here saw it: the whole suite passed 1514 of 1514 with
   // `setExposure(1)` deleted.
   //
-  // **Two wrong instruments, and then the right one, which is a search rather
-  // than an anchor.** The brightest painted cell of the hub does not move at all
-  // — 80.3 before and 80.3 after, the same cell, release or no release — because
-  // `player.setExposure` touches the figure alone and the brightest painted
-  // thing is a door's light pool. A 40 px cell fixed near the middle of the
-  // canvas reads 51.5 at (940,480) and then 14.4 at (940,280), and that drift is
-  // there on a clean build: it is the figure walking, not the exposure.
+  // A whole-room peak finds a door's light pool, which player.setExposure
+  // never changes. Search the middle band instead, with the figure placed at
+  // the same position and heading before each capture. The cell is 16 px at
+  // desktop and scales down to 3 px on the phone; keeping it at 16 px there
+  // included so much background that the search found the Lectures light pool.
   //
-  // The answer is to stop naming a point and look for the figure in the band it
-  // returns to. `hub.centre` puts it back in the middle after two Escapes, so:
-  // the brightest **16 px** cell, stepped by 8, inside x 0.42-0.58 and y
-  // 0.35-0.65 of the canvas. Both readings land at the same place, (950,467),
-  // which is what tells you the search found the same object twice rather than
-  // two different bright things:
-  //
-  //     clean                97.0 -> 100.6
-  //     release dropped      97.0 ->  75.9      24.7 points apart
-  //
-  // The earlier version of this comment said the thing could not be measured.
-  // It could; I had not found how. Those are different claims and only the
-  // second was true, and a comment that makes the first one would have stopped
-  // whoever read it next.
+  // Seen red on both viewports with the hub's setExposure(1) call removed:
+  // desktop (950,483), 58.2 -> (942,491), 47.1;
+  // phone   (192,371), 76.8 -> (194,245), 73.5.
+  // The changed coordinates reject the substituted object before comparing
+  // brightness. On the clean build all 91 checks pass; with this injection
+  // these two fail and the other 89 pass. Neither threshold was changed.
   for (const viewport of VIEWPORTS) {
     it(`gives the hub back as it found it, at ${viewport.name}`, () => {
       const one = at(viewport.name, "dark");
@@ -1708,7 +1684,7 @@ describe("the brightest thing in the machine room is the front wall", () => {
         // and said nothing about brightness, which is the whole finding.
         `the figure was found at ${one.hubBeforeAt} before the room and ${one.hubAfterAt} after, so the two ` +
           `readings are not of the same thing — ${one.hubBefore?.toFixed(1)} against ` +
-          `${one.hubAfter?.toFixed(1)}. Both readings are taken after the same short walk, so the figure is ` +
+          `${one.hubAfter?.toFixed(1)}. Both readings are taken after the same two floor targets, so the figure is ` +
           `in the same pose for both; if it has moved, the likeliest reason is that it is no longer the ` +
           `brightest thing in the middle of the ring, which is what the room failing to give its exposure ` +
           `back looks like.`,

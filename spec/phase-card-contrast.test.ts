@@ -136,10 +136,19 @@ const PROBE = (index: number) => String.raw`
     );
   };
 
-  // Every painted descendant box, and every text run's own client rects. The
-  // frame image falls out of this for free: it is a painted descendant, so no
-  // sample point can land on the screenshot, which is the one surface on this
-  // card whose colour nothing declares and nothing should have to.
+  // Every painted descendant box, and every text run's own client rects.
+  //
+  // **Not the frame image, and the comment that used to stand here said it was.**
+  // A rect at least as big as the run's box in both dimensions is dropped below
+  // (it would block every candidate point), and the full-bleed screenshot is
+  // exactly that for all three runs --- so the image is not a keep-out and never
+  // was. What keeps points off it is `elementFromPoint`, plus the plain fact that
+  // the runs sit under the band rather than on it. That is enough, and the pixel
+  // is the backstop: an independent review pulled the band down over the kicker
+  // and the title with a negative margin, and this file went 9 failed | 22
+  // passed, reporting "phase-card__kicker paints #1a150f ... on #1d140a ---
+  // 1.00:1". The check was right; the sentence explaining why it was right was
+  // not, which is the failure CLAUDE.md §7 keeps finding in comments.
   const keepOut = [];
   for (const node of card.querySelectorAll("*")) {
     if (!painted(node)) continue;

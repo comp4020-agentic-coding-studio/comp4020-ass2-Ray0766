@@ -1,5 +1,5 @@
 import { execFileSync, spawnSync } from "node:child_process";
-import { copyFileSync, mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -41,6 +41,31 @@ const STARTER_IMAGES = [
   "src/content/people/idris-fenn.avif",
   "src/content/people/marisol-quaye.avif",
 ];
+/** The starter's own bytes for one of its images, read out of the root commit.
+ *
+ *  Not out of the working tree, which is where this used to copy from. The
+ *  assignment replaces this artwork on purpose (CLAUDE.md §10), so a working-tree
+ *  specimen stops being a starter image exactly when the work gets done, and all
+ *  four cases were red for that one reason: `card.png` and `hero-home.avif` no
+ *  longer hash to the starter, so the gate rightly said nothing and the expected
+ *  exit 1 never came, while `idris-fenn` and `marisol-quaye` were deleted with the
+ *  people they belonged to and there was nothing left to copy at all.
+ *
+ *  The comment that stood here read the coupling the other way round --- as though
+ *  a re-cut image should update the hash in check-evidence.ts beside it. It
+ *  shouldn't: that hash records what the starter *was*, and the starter does not
+ *  change. The root commit is the one copy of it that stays true however much of
+ *  the site gets replaced, which is what makes this check mean the same thing in a
+ *  fresh template and in a finished submission.
+ *
+ *  A Buffer, not a string: these are PNG and AVIF bytes and the gate hashes them. */
+function starterBytes(image: string): Buffer {
+  const root = execFileSync("git", ["rev-list", "--max-parents=0", "HEAD"], {
+    encoding: "utf8",
+  }).trim();
+  return execFileSync("git", ["show", `${root}:${image}`]);
+}
+
 const fixtures: string[] = [];
 
 const env = {
@@ -212,12 +237,11 @@ describe("check:evidence", () => {
 
   // Every image the starter ships is gated, not just the home page's, so a
   // submission can't keep a starter portrait while replacing the prose beside
-  // it. Copied from the working tree, so a re-cut image updates the hash in
-  // check-evidence.ts and this test together or fails here first.
+  // it.
   it.each(STARTER_IMAGES)("rejects the unchanged starter %s", (image) => {
     const cwd = assignment2Fixture(false);
     mkdirSync(join(cwd, dirname(image)), { recursive: true });
-    copyFileSync(resolve(image), join(cwd, image));
+    writeFileSync(join(cwd, image), starterBytes(image));
     const result = spawnSync(process.execPath, [script], {
       cwd,
       env,

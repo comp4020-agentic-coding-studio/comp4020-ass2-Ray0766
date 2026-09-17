@@ -87,11 +87,18 @@ const TEAM_BIOS: Record<string, string> = {
         <div class="home-hero__pitch">
           <p class="home-hero__lead">{heroLead}</p>
           <div class="home-hero__actions">
-            <a class="at-button home-hero__action" href="#calendar">Release calendar</a>
-            <a class="at-button at-button--outline home-hero__action" href={withBase("/studio/")}>
-              Open the Studio
+            <a class="at-button home-hero__action" href={withBase("/studio/")}>Open the Studio</a>
+            <a class="at-button at-button--outline home-hero__action" href={withBase("/backlot/")}>
+              Walk the backlot
             </a>
           </div>
+          {/* The calendar is the one thing here a reader looks up rather than
+              enters, so it reads as a line of text under the two ways in
+              instead of competing with them for the same shape. Still the
+              same same-page anchor. */}
+          <p class="home-hero__aside">
+            <a href="#calendar">Release calendar</a>
+          </p>
         </div>
       </div>
     </div>

@@ -551,16 +551,40 @@ p {
   animation-delay: 400ms;
 }
 
+/* The calendar link under the two buttons. White with an underline rather than
+   the brand gold: over the scrim this is ink, and gold is a fill (CLAUDE.md
+   §7) --- the underline is what says it is a link, so the colour does not have
+   to. */
+.home-hero__aside {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.home-hero__aside a {
+  color: var(--at-white);
+  text-decoration-line: underline;
+  text-underline-offset: 0.25em;
+}
+
+.home-hero__aside {
+  animation-name: hero-text-rise;
+  animation-duration: 700ms;
+  animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+  animation-fill-mode: both;
+  animation-delay: 500ms;
+}
+
 /* Both of these render the composition that has everything in it — the
-   loop at full frame with the words, the lead and both buttons on top of
-   it — rather than the scroll's end state. The end state is a handoff into
-   the page: it drops the lead and both links on purpose, because by then
-   the page itself is arriving underneath. As a resting composition for
-   someone whose browser can't run the scroll, or who has asked for less
-   motion, that is a hero missing two of its links, so these pin --p at 0
-   and keep the runway out of the way. Pinning the one number is also what
-   keeps these blocks from drifting away from the animation they stand in
-   for, which is what happened to the pair they replace. */
+   loop at full frame with the words, the lead, both buttons and the
+   calendar link on top of it — rather than the scroll's end state. The end
+   state is a handoff into the page: it drops the lead and all three links
+   on purpose, because by then the page itself is arriving underneath. As a
+   resting composition for someone whose browser can't run the scroll, or
+   who has asked for less motion, that is a hero missing every way out of
+   itself, so these pin --p at 0 and keep the runway out of the way.
+   Pinning the one number is also what keeps these blocks from drifting away
+   from the animation they stand in for, which is what happened to the pair
+   they replace. */
 @supports not (animation-timeline: scroll()) {
   .home-hero {
     height: calc(100dvh - var(--at-nav-height));
@@ -591,7 +615,8 @@ p {
   .home-hero__word,
   .home-hero__kicker,
   .home-hero__lead,
-  .home-hero__actions {
+  .home-hero__actions,
+  .home-hero__aside {
     animation-name: none;
   }
 }

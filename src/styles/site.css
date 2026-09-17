@@ -767,7 +767,8 @@ p {
   }
 }
 
-.phase-card__weeks {
+.phase-card__weeks,
+.phase-card__kicker {
   display: block;
   font-size: 0.85rem;
   letter-spacing: 0.06em;
@@ -795,6 +796,35 @@ p {
 }
 .phase-card--episode {
   --phase-color: var(--phase-episode);
+}
+
+/* The two place cards. The brand gold behind the glass rather than a phase
+   colour: these are not a phase, and borrowing one would say they were. It is
+   a conic-gradient background, so the gold is doing a fill's job here and not
+   ink's (CLAUDE.md §7). */
+.phase-card--place {
+  --phase-color: var(--at-accent);
+}
+
+/* A real frame of the place, full-bleed across the top of the card. The card
+   pads 1.75rem and clips to its own radius, so the band is pulled out to the
+   edges by exactly that padding rather than by a guess. Text stays on the
+   glass below it: ink over an arbitrary screenshot has no contrast anyone can
+   check, and the point of the picture is the place, not a backdrop for words. */
+.phase-card__frame {
+  display: block;
+  /* `max-width: none` because the theme's `img { max-width: 100% }` clamps the
+     bleed straight back to the content box: the negative left margin still
+     pulled the frame out, so it sat 28px short on the right with the card's
+     own wash showing through the gap. Seen at both viewports before it was
+     read correctly in the source. */
+  width: calc(100% + 3.5rem);
+  max-width: none;
+  height: auto;
+  margin: -1.75rem -1.75rem 1.25rem;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  border-block-end: 1px solid color-mix(in oklab, var(--at-text) 18%, transparent);
 }
 
 @media (prefers-reduced-motion: reduce) {

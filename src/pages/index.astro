@@ -4,6 +4,13 @@ import { getPublishedCollection } from "astro-course-university/content";
 import BaseLayout from "astro-theme-university/layouts/BaseLayout.astro";
 import { withBase } from "astro-theme-university/url";
 import heroPoster from "../assets/images/hero-home.avif";
+// Both frames were taken in the site itself, dark theme and reduced motion --
+// which is what pins the backlot's idle camera at exactly zero, so "the still
+// view" is one reproducible frame and not one sample of a moving one
+// (CLAUDE.md §7). Neither is retouched or composed; they are what those two
+// pages draw.
+import studioCard from "../assets/images/home-studio-card.avif";
+import backlotCard from "../assets/images/home-backlot-card.avif";
 import DefaultDarkTheme from "../components/DefaultDarkTheme.astro";
 import ReleaseCalendar from "../components/ReleaseCalendar.astro";
 import WeightBar from "../components/WeightBar.astro";
@@ -135,20 +142,55 @@ const TEAM_BIOS: Record<string, string> = {
     }
   </ul>
 
+  {/* The two places, on the same card as the four phases and in the same
+      layout. They were two lines of small print under the cards, which is
+      where a reader stops reading — and they are the two things on this site
+      that are worth entering rather than reading about, so each one shows
+      what it actually looks like. The eyebrow slot takes a different class
+      name here because these are places and not weeks; it shares the
+      phases' rule. */}
+  <ul class="phase-cards" aria-label="The two places">
+    <li>
+      <a class="phase-card phase-card--place" href={withBase("/studio/")}>
+        <span class="phase-card__shader" aria-hidden="true" />
+        <Image
+          class="phase-card__frame"
+          src={studioCard}
+          alt="The Studio's canvas, with week 5's board open: the recorded prompt beside the take it produced."
+          width={1104}
+          height={621}
+        />
+        <span class="phase-card__kicker">One canvas</span>
+        <h3 class="phase-card__title">The Studio</h3>
+        <p class="phase-card__blurb">
+          The whole rig as one canvas: every recorded input, the take it
+          produced, and the line between them.
+        </p>
+      </a>
+    </li>
+    <li>
+      <a class="phase-card phase-card--place" href={withBase("/backlot/")}>
+        <span class="phase-card__shader" aria-hidden="true" />
+        <Image
+          class="phase-card__frame"
+          src={backlotCard}
+          alt="The backlot's ring at rest, with the six doors named on their nameplates."
+          width={1104}
+          height={621}
+        />
+        <span class="phase-card__kicker">Six doors</span>
+        <h3 class="phase-card__title">The backlot</h3>
+        <p class="phase-card__blurb">
+          The six links at the top of this page as six doors, with the room the
+          recordings came off behind the Studio one.
+        </p>
+      </a>
+    </li>
+  </ul>
+
   <p class="phase-cards__footer">
     <a href={withBase("/decks/")}>Twelve decks</a> — the slides each lecture is
     delivered from, one per teaching week.
-  </p>
-
-  <p class="phase-cards__footer">
-    <a href={withBase("/studio/")}>The Studio</a> — the whole rig as one canvas:
-    every recorded input, the take it produced, and the line between them.
-  </p>
-
-  <p class="phase-cards__footer">
-    <a href={withBase("/backlot/")}>The backlot</a> — the six links at the top of
-    this page as six doors, with the room the recordings came off behind the
-    Studio one.
   </p>
 
   <h2>What this course believes</h2>

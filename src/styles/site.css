@@ -738,7 +738,16 @@ p {
     var(--phase-color) 360deg
   );
   filter: blur(40px);
-  opacity: 0.55;
+  /* 0.55 until the cards were measured on the pixel. The wash pulls the card's
+     surface towards the phase colour, and the title inherits the site's heading
+     ink (--at-brand-ink), which is sized against --at-bg: on the washed surface
+     the worst point under a title read 2.80:1 against the 3:1 large text needs,
+     on four of the twenty-four card-passes and in both themes. At 0.40 the
+     worst is 3.51:1 and every other run stays between 5.8 and 8.3. The gap the
+     glass leaves for the shader is the design (see the panel above); how
+     saturated the thing behind it is allowed to be is arithmetic, and
+     spec/phase-card-contrast.test.ts is now what holds it. */
+  opacity: 0.4;
   animation: phase-shader-spin 12s linear infinite;
   animation-play-state: paused;
 }

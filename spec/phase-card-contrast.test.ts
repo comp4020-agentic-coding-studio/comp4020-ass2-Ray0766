@@ -142,13 +142,18 @@ const PROBE = (index: number) => String.raw`
   // A rect at least as big as the run's box in both dimensions is dropped below
   // (it would block every candidate point), and the full-bleed screenshot is
   // exactly that for all three runs --- so the image is not a keep-out and never
-  // was. What keeps points off it is `elementFromPoint`, plus the plain fact that
-  // the runs sit under the band rather than on it. That is enough, and the pixel
-  // is the backstop: an independent review pulled the band down over the kicker
-  // and the title with a negative margin, and this file went 9 failed | 22
-  // passed, reporting "phase-card__kicker paints #1a150f ... on #1d140a ---
-  // 1.00:1". The check was right; the sentence explaining why it was right was
-  // not, which is the failure CLAUDE.md §7 keeps finding in comments.
+  // was. What keeps points off it is the elementFromPoint test, plus the plain
+  // fact that the runs sit under the band rather than on it. That is enough, and
+  // the pixel is the backstop: an independent review pulled the band down over
+  // the kicker and the title with a negative margin, and this file went 9 failed
+  // and 22 passed, reporting the kicker painting 1a150f on 1d140a at 1.00:1.
+  // The check was right; the sentence explaining why it was right was not, which
+  // is the failure CLAUDE.md §7 keeps finding in comments.
+  //
+  // No backticks in any of that, and no dollar-brace: this comment sits inside a
+  // String.raw template, where one backtick closes it early. The file says so at
+  // the top about its own probes and I did it here anyway, in the comment whose
+  // whole subject is a claim that was wrong about its own mechanism.
   const keepOut = [];
   for (const node of card.querySelectorAll("*")) {
     if (!painted(node)) continue;

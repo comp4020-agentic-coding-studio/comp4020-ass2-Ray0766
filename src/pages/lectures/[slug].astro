@@ -22,7 +22,7 @@ export async function getStaticPaths() {
 }
 
 const { lecture } = Astro.props;
-const { Content } = await render(lecture);
+const { Content, headings } = await render(lecture);
 const title = `Week ${lecture.data.week}: ${lecture.data.title}`;
 
 // The phase decides the shape of the page, not just a colour --- see
@@ -36,6 +36,12 @@ const phase = phaseForWeek(lecture.data.week);
 // behind it rather than only that something is. A `slides:` route with no
 // deck behind it fails the build rather than quietly rendering a page with
 // no way into its own slides — the failure this button exists to fix.
+const quickSections = [
+  { slug: "this-weeks-exercise", label: "Exercise" },
+  { slug: "the-ladder", label: "The ladder" },
+  { slug: "before-class", label: "Before class" },
+].filter((section) => headings.some((heading) => heading.depth === 2 && heading.slug === section.slug));
+
 const deck = deckForRoute(lecture.data.slides);
 if (lecture.data.slides && !deck) {
   throw new Error(`${lecture.id}: slides: ${lecture.data.slides} matches no deck in src/decks/`);
@@ -51,15 +57,12 @@ if (lecture.data.slides && !deck) {
   <DefaultDarkTheme slot="head" />
   <p><strong>{formatCourseDate(lecture.data.date)}</strong></p>
   <WeekStrip week={lecture.data.week} highlight="lectures" />
-  {
-    deck && (
-      <p class="lecture-slides-link">
-        <a class="at-button at-button--outline" href={withBase(deck.route)}>
-          Open the {deck.slideCount} slides
-        </a>
-      </p>
-    )
-  }
+  <nav class="lecture-actions" aria-label="Lecture resources">
+    {deck && <a href={withBase(deck.route)}>Slides <span>{deck.slideCount}</span></a>}
+    {quickSections.map((section) => (
+      <a href={`#${section.slug}`}>{section.label}</a>
+    ))}
+  </nav>
   {/* The bench's rail, for the four generator weeks: styled out of the way
       below 1440px, where the ladder in the prose is the whole of it. */}
   {phase.key === "generators" && <LadderRail week={lecture.data.week} />}

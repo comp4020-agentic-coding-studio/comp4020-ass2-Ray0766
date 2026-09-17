@@ -307,3 +307,186 @@
   line-height: 1.4;
   color: var(--at-text-secondary);
 }
+
+/* The lecture stays one click away, and slide controls have real hit areas. */
+@media screen {
+  .has-deck-toolbar .reveal {
+    height: calc(100dvh - 4rem);
+  }
+
+  .deck-toolbar {
+    position: fixed;
+    inset: auto 0 0;
+    z-index: 40;
+    min-height: 4rem;
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.5rem 1.25rem;
+    background: var(--at-dark-grey);
+    border-top: 1px solid var(--at-divider);
+    color: var(--at-light-grey);
+    font: 0.875rem/1.4 var(--r-main-font);
+  }
+
+  .deck-toolbar > div {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+  }
+
+  .deck-toolbar a,
+  .deck-toolbar button {
+    box-sizing: border-box;
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    padding: 0.5rem;
+    color: inherit;
+    font: inherit;
+    text-decoration: none;
+    border: 1px solid transparent;
+    border-radius: var(--at-border-radius);
+    background: transparent;
+    cursor: pointer;
+  }
+
+  .deck-toolbar :is(a, button):hover {
+    background: var(--at-deck-table-header-bg);
+    border-color: var(--at-divider);
+  }
+
+  .deck-toolbar :is(a, button):focus-visible {
+    outline: 2px solid var(--at-light-grey);
+    outline-offset: 2px;
+  }
+
+  .deck-toolbar button[aria-disabled="true"] {
+    color: var(--at-text-secondary);
+    cursor: default;
+  }
+
+  .deck-toolbar output {
+    min-width: 3.5em;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+    color: var(--at-text-secondary);
+  }
+}
+
+/* The same current slide reflows into a readable page. Scaling a 1280px
+   canvas to 390px made 28px body copy less than 9px tall. Reveal still owns
+   the hash, fragments and keyboard navigation; only the layout changes. */
+@media screen and (max-width: 600px) {
+  .has-deck-toolbar .reveal:not(.overview) {
+    overflow: auto;
+    overscroll-behavior: contain;
+    touch-action: pan-y;
+  }
+
+  .has-deck-toolbar .reveal:not(.overview) .slides {
+    position: relative;
+    inset: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+    zoom: 1 !important;
+    transform: none !important;
+  }
+
+  .has-deck-toolbar .reveal:not(.overview) .slides > section {
+    box-sizing: border-box;
+    position: relative;
+    inset: 0 !important;
+    width: 100%;
+    min-height: calc(100dvh - 4rem) !important;
+    height: auto;
+    padding: 2rem 1.25rem 3rem;
+    transform: none !important;
+    text-align: left;
+    overflow-wrap: anywhere;
+  }
+
+  .has-deck-toolbar .reveal:not(.overview) .slides > section:not(.present) {
+    display: none !important;
+  }
+
+  .has-deck-toolbar .reveal .slides {
+    font-size: 1.125rem;
+    --r-heading1-size: 2.5rem;
+    --r-heading2-size: 1.8rem;
+  }
+
+  .has-deck-toolbar .reveal .slides :is(p, li, td, th, blockquote) {
+    font-size: 1.125rem;
+    line-height: 1.55;
+  }
+
+  .has-deck-toolbar .reveal .slides section.deck-title .deck-title__phase {
+    font-size: 0.875rem;
+  }
+
+  .has-deck-toolbar .reveal .slides .deck-figure {
+    font-size: 4.5rem;
+  }
+
+  .has-deck-toolbar .reveal .slides .deck-figure__unit {
+    font-size: 1rem;
+  }
+
+  .has-deck-toolbar .reveal .slides .split-layout {
+    position: relative;
+    inset: auto;
+    flex-direction: column;
+  }
+
+  .has-deck-toolbar .reveal .slides .split-image {
+    width: 100% !important;
+    min-height: 14rem;
+    border-radius: var(--at-border-radius);
+  }
+
+  .has-deck-toolbar .reveal .slides .split-content {
+    padding: 1.5rem 0 0;
+    width: 100%;
+    box-sizing: border-box;
+    overflow: visible;
+  }
+
+  .has-deck-toolbar .reveal .slides .deck-still {
+    position: relative;
+    inset: auto;
+    width: min(100%, 13rem);
+    margin: 1.5rem auto 0;
+    transform: none;
+  }
+
+  .has-deck-toolbar .reveal .slides :is(.deck-source, .deck-still figcaption) {
+    position: relative;
+    inset: auto;
+    font-size: 0.8rem;
+    line-height: 1.5;
+    margin-top: 1.5rem;
+  }
+
+  .has-deck-toolbar .reveal .slides table {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .deck-toolbar {
+    padding-inline: 0.5rem;
+    gap: 0.25rem;
+    font-size: 0.75rem;
+  }
+
+  .deck-toolbar > div {
+    gap: 0.125rem;
+  }
+}
+
+@media print {
+  .deck-toolbar { display: none; }
+}

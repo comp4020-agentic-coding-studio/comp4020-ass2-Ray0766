@@ -531,3 +531,48 @@
   padding: 0.45em 0.7em;
   margin-block: 2.4em 0.9em;
 }
+
+/* A student returning during a studio session should reach the task without
+   scrolling through the lecture again. Links use the rendered headings. */
+.lecture-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  padding-block: 1rem;
+  margin-block: 0.5rem 1.5rem;
+  border-block: 1px solid var(--at-divider);
+}
+
+.lecture-actions a {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 44px;
+  padding: 0.5rem 0.75rem;
+  box-sizing: border-box;
+  border-radius: var(--at-border-radius);
+  color: var(--at-text);
+  font-size: 0.875rem;
+  text-decoration: none;
+  background: var(--at-bg-elevated);
+}
+
+.lecture-actions a:hover {
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+.lecture-actions a:focus-visible {
+  outline: 2px solid var(--at-text);
+  outline-offset: 2px;
+}
+
+.lecture-actions span {
+  color: var(--at-text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.at-main[data-phase] > :is(h2, h3) {
+  scroll-margin-block-start: 2rem;
+}

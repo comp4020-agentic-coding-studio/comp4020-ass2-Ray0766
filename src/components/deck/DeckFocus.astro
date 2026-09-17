@@ -1,11 +1,15 @@
 ---
-/**
- * Confines the tab order to the slide on screen. Renders nothing --- it exists
- * so a deck can pull in the script, because astromotion owns the deck route's
- * `<head>` and offers no hook to inject one (its options are theme,
- * injectRoutes, routePrefix, checkStructure, shikiConfig; "Head assets" is
- * favicon and ogImage only). Import it at the top of every `.deck.mdx`.
- */
+import { getPublishedCollection } from "astro-course-university/content";
+import { withBase } from "astro-theme-university/url";
+
+const lectures = await getPublishedCollection("lectures");
+const routes = lectures.filter((lecture) => lecture.data.slides).map((lecture) => ({
+  deck: withBase(lecture.data.slides!),
+  lecture: withBase(`/lectures/${lecture.id}/`),
+  label: `Week ${lecture.data.week} · Lecture`,
+}));
 ---
 
+<template data-deck-routes={JSON.stringify(routes)} />
 <script src="../../scripts/deck-focus.ts"></script>
+<script src="../../scripts/deck-navigation.ts"></script>

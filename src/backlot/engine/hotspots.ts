@@ -195,8 +195,9 @@ export interface HotspotDeck {
    *
    * Same reason `data-backlot-rect` exists: the number decides whether the word
    * is painted, and a check that could only look at the pixels would be reading
-   * the consequence rather than the signal. Rounded to a tenth — the threshold
-   * is 11 and a reading of 10.96 against 11.02 is a real difference.
+   * the consequence rather than the signal. Keep the measured number: 10.96
+   * and 11.02 sit on opposite sides of the word threshold, even though both
+   * round to 11.0.
    */
   setCap(id: string, pixels: number | null): void;
   /** Park every button over its point, in canvas pixels. Called each frame.
@@ -567,7 +568,7 @@ export function createHotspots(hud: HTMLElement, camera: OrthographicCamera, hoo
         delete entry.button.dataset.backlotCap;
         return;
       }
-      entry.button.dataset.backlotCap = (Math.round(pixels * 10) / 10).toFixed(1);
+      entry.button.dataset.backlotCap = String(pixels);
     },
 
     park(width, height, readable = null) {

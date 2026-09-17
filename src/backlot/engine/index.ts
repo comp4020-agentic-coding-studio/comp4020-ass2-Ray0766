@@ -1715,7 +1715,8 @@ export async function createBacklot(options: BacklotOptions): Promise<BacklotEng
     // about nothing.
     if (!mounted) {
       for (const reading of hub.readPlates(camera.camera, sizer.width, sizer.height)) {
-        const shown = Math.round(reading.capPixels * 10);
+        // Cache the same number we publish; rounding could suppress a crossing of 11.
+        const shown = reading.capPixels;
         if (publishedCap.get(reading.id) === shown) continue;
         publishedCap.set(reading.id, shown);
         hotspots.setCap(reading.id, reading.capPixels);
